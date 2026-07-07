@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16
+    container_name: hub_db
+    environment:
+      POSTGRES_USER: hub
+      POSTGRES_PASSWORD: hub
+      POSTGRES_DB: hub_agentes
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hub -d hub_agentes"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # UI web pra inspecionar o banco visualmente em http://localhost:8080
+  # (login: sistema=PostgreSQL, servidor=db, usuario=hub, senha=hub, base=hub_agentes)
+  adminer:
+    image: adminer
+    container_name: hub_adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
