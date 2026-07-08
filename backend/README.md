@@ -34,6 +34,34 @@ uvicorn app.main:app --reload
 - `http://localhost:8080` → Adminer, pra inspecionar as tabelas na mão
   (sistema: PostgreSQL · servidor: `db` · usuário: `hub` · senha: `hub` · base: `hub_agentes`)
 
+## Troubleshooting
+
+**`password authentication failed for user "hub"`**
+Geralmente significa que já existe outro Postgres escutando na porta 5432 da
+sua máquina (comum no Windows, se você já tem PostgreSQL/pgAdmin instalado) —
+quem responde na 5432 é esse outro serviço, não o container. Por isso o
+`docker-compose.yml` já publica o container na porta **5433** do host (o
+container continua ouvindo 5432 *dentro* dele; só a porta exposta pra fora
+mudou). Confira:
+```bash
+# Windows
+netstat -ano | findstr :5432
+# mac/linux
+lsof -iTCP:5432 -sTCP:LISTEN
+```
+Se aparecer algo além do Docker, é esse o conflito — o projeto já está
+configurado pra evitar a 5432. Se seu `.env` for antigo, gere um novo a partir
+do `.env.example` (porta 5433) ou ajuste manualmente.
+
+**Já rodei antes e mudei a porta — ainda dá erro de senha**
+O Postgres só aplica `POSTGRES_USER`/`POSTGRES_PASSWORD` na *primeira*
+inicialização do volume. Se você já tinha subido o container antes (mesmo
+com a porta antiga), o volume ficou com outras credenciais. Recrie do zero:
+```bash
+docker compose down -v   # remove o volume também (projeto novo, sem dado de valor)
+docker compose up -d
+```
+
 ## Estrutura
 
 ```
