@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Banco
-    database_url: str = "postgresql://hub:hub@localhost:5432/hub_agentes"
+    database_url: str = "postgresql://hub:hub@localhost:5000/hub_agentes"
 
     # LLM (OpenAI) — modelos trocáveis por .env
     openai_api_key: str = ""

@@ -1,16 +1,16 @@
 """Popula os agentes iniciais e os relacionamentos-base.
 
-Idempotente: pode rodar quantas vezes quiser (ON CONFLICT DO NOTHING).
+Idempotente: pode rodar quantas vezes quiser.
 Uso (a partir da pasta backend/):  python -m scripts.seed
 """
 import itertools
 import json
 
-from app.db.connection import connect
+from utils.query_executor import executar_query
 
 # Agentes iniciais. O chefe é você (tipo='chefe'); os demais são colaboradores.
 # `mesa` é só a posição no escritório 2D. `personalidade` é o prompt-base
-# (placeholder curto por enquanto — a versão real fica em app/agents/prompts/).
+# (placeholder curto por enquanto — a versão real fica em agents/<tipo>/).
 AGENTES = [
     {
         "nome": "Você",
@@ -47,51 +47,35 @@ AGENTES = [
 
 
 def main() -> None:
-    conn = connect()
-    conn.autocommit = True
-    try:
-        ids: dict[str, int] = {}
-        with conn.cursor() as cur:
-            for a in AGENTES:
-                cur.execute(
-                    """
-                    INSERT INTO agentes
-                        (nome, tipo, especialidade, personalidade, avatar_config, mesa)
-                    VALUES (%s, %s, %s, %s, %s::jsonb, %s)
-                    ON CONFLICT (nome) DO UPDATE SET
-                        especialidade = EXCLUDED.especialidade,
-                        personalidade = EXCLUDED.personalidade,
-                        avatar_config = EXCLUDED.avatar_config,
-                        mesa          = EXCLUDED.mesa
-                    RETURNING id, nome
-                    """,
-                    (
-                        a["nome"],
-                        a["tipo"],
-                        a["especialidade"],
-                        a["personalidade"],
-                        json.dumps(a["avatar_config"]),
-                        a["mesa"],
-                    ),
-                )
-                row = cur.fetchone()
-                ids[row["nome"]] = row["id"]
-                print(f"  agente ok: {row['nome']} (id={row['id']})")
+    ids: dict[str, int] = {}
 
-            # Relacionamento-base: todo par ORDENADO de agentes começa neutro.
-            # Cada agente guarda a própria visão do outro (inclusive do chefe).
-            for origem, destino in itertools.permutations(ids.values(), 2):
-                cur.execute(
-                    """
-                    INSERT INTO relacionamentos (agente_id, alvo_agente_id)
-                    VALUES (%s, %s)
-                    ON CONFLICT (agente_id, alvo_agente_id) DO NOTHING
-                    """,
-                    (origem, destino),
-                )
-        print("Seed OK.")
-    finally:
-        conn.close()
+    for a in AGENTES:
+        rows = executar_query(
+            "agentes:upsert",
+            returning=True,
+            params=(
+                a["nome"],
+                a["tipo"],
+                a["especialidade"],
+                a["personalidade"],
+                json.dumps(a["avatar_config"]),
+                a["mesa"],
+            ),
+        )
+        row = rows[0]
+        ids[row["nome"]] = row["id"]
+        print(f"  agente ok: {row['nome']} (id={row['id']})")
+
+    # Relacionamento-base: todo par ORDENADO de agentes começa neutro.
+    # Cada agente guarda a própria visão do outro (inclusive do chefe).
+    for origem, destino in itertools.permutations(ids.values(), 2):
+        executar_query(
+            "relacionamentos:upsert_neutro",
+            commit=True,
+            params=(origem, destino),
+        )
+
+    print("Seed OK.")
 
 
 if __name__ == "__main__":

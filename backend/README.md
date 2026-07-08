@@ -23,7 +23,7 @@ python -m scripts.migrate
 python -m scripts.seed
 
 # 5) Sobe a API
-uvicorn app.main:app --reload
+uvicorn main:app --reload
 ```
 
 ## Conferindo
@@ -84,23 +84,45 @@ houver uma variável de ambiente com o mesmo nome já definida.
 
 ## Estrutura
 
+Camadas granulares por entidade — router (HTTP fino) nunca fala com o banco
+direto, sempre passa pelo resolver; SQL nunca fica inline no Python, sempre
+em arquivo versionado com queries nomeadas.
+
 ```
-app/
-  config.py              # settings via .env (banco, LLM, tick, orçamento)
-  db/
-    connection.py        # conexão psycopg (SQL puro, sem ORM)
-    migrations/          # .sql versionados, aplicados em ordem
-  api/
-    routes_agents.py     # GET /agentes   (o front lê o escritório daqui)
-    routes_mensagens.py  # GET /mensagens (canais trabalho/social)
-  main.py                # app FastAPI
+config.py                 # settings via .env (banco, LLM, tick, orçamento)
+main.py                    # app FastAPI (monta os routers)
+
+db/
+  migrations/              # .sql versionados, aplicados em ordem (schema)
+
+utils/                     # infraestrutura de acesso a dado
+  connection.py            # pool psycopg3 (psycopg_pool.ConnectionPool)
+  db.py                    # context manager `with Database() as conn:`
+  sql_manager.py           # carrega/cacheia queries nomeadas de sql/*.sql
+  query_executor.py        # executar_query() — único ponto de entrada no banco
+
+sql/                       # SQL puro, nunca embutido no Python
+  agentes.sql
+  mensagens.sql
+  relacionamentos.sql
+
+resolvers/                 # regra de negócio (o router chama isso, nunca o banco)
+  agentes.py
+  mensagens.py
+
+routers/                   # HTTP fino — só parse de request/response
+  agentes.py                # GET /agentes
+  mensagens.py               # GET /mensagens
+
 scripts/
-  migrate.py             # aplica as migrations (idempotente)
-  seed.py                # cria agentes + relacionamentos-base (idempotente)
-docker-compose.yml       # postgres + adminer
+  migrate.py                # aplica as migrations (idempotente)
+  seed.py                    # cria agentes + relacionamentos-base, via executar_query
+
+docker-compose.yml          # postgres + adminer
 ```
 
 ## Próxima fatia (a combinar)
 
-Motor de tick + cliente LLM (OpenAI) + saída estruturada + log de custo em
-`tick_execucoes` + modo `tick --once`/`--dry-run` para você rodar na mão.
+Pasta `agents/` (financeiro/, agenda/) com LangChain v1 (`create_agent`),
+tools, guardrails, e o `resolvers/tick.py` que percorre os agentes ativos e
+aplica os efeitos — definindo um agente de cada vez antes de codar.

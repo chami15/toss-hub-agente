@@ -1,17 +1,19 @@
-"""Runner de migrations — aplica os .sql de app/db/migrations em ordem.
+"""Runner de migrations — aplica os .sql de db/migrations em ordem.
 
 Idempotente: registra o que já rodou em `schema_migrations` e pula o resto.
 Uso (a partir da pasta backend/):  python -m scripts.migrate
+
+Roda com uma conexão avulsa (psycopg.connect direto), não com o pool de
+utils/ — é um script administrativo de execução única, não parte do
+caminho quente da aplicação.
 """
 import pathlib
 
 import psycopg
 
-from app.config import settings
+from config import settings
 
-MIGRATIONS_DIR = (
-    pathlib.Path(__file__).resolve().parent.parent / "app" / "db" / "migrations"
-)
+MIGRATIONS_DIR = pathlib.Path(__file__).resolve().parent.parent / "db" / "migrations"
 
 
 def main() -> None:
