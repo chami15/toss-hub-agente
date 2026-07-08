@@ -1,10 +1,15 @@
 """Parser do extrato CSV do Nubank (conta).
 
-FORMATO ASSUMIDO (em ajuste — a primeira tentativa errou contra um export
-real, ver histórico): data em DD/MM/AAAA, valor com sinal e decimal em
-vírgula (ex: "-39,90" = saída). Detecta separador (`;` ou `,`) e aceita
-algumas variações de nome de coluna, mas ainda depende de confirmação com
-uma amostra real do arquivo pra fechar de vez.
+FORMATO CONFIRMADO contra export real: colunas `Data,Valor,Identificador,
+Descrição`, separador vírgula, data em DD/MM/AAAA, valor com sinal e
+decimal em PONTO (não vírgula — o separador de campo já é vírgula, então
+o decimal não poderia repetir o símbolo). `Identificador` é um UUID único
+gerado pelo Nubank por transação — usado como chave de dedup preferida
+(ver resolvers/financeiro.py).
+
+Ainda detecta separador automaticamente (`;` ou `,`) e aceita algumas
+variações de nome de coluna, caso o Nubank mude o formato entre versões
+do app/exportação.
 """
 import csv
 import io
@@ -16,6 +21,7 @@ from agents.financeiro.parsers import TransacaoBruta
 _COLUNAS_DATA = ["Data", "data", "Date"]
 _COLUNAS_VALOR = ["Valor", "valor", "Value", "Amount"]
 _COLUNAS_DESCRICAO = ["Descrição", "descrição", "Descricao", "descricao", "Título", "title"]
+_COLUNAS_IDENTIFICADOR = ["Identificador", "identificador", "ID", "Id"]
 
 
 def _parse_valor(valor_str: str, formato_br: bool) -> float:
@@ -44,6 +50,13 @@ def _campo(linha: dict, candidatos: list[str], colunas_disponiveis: list[str]) -
     )
 
 
+def _campo_opcional(linha: dict, candidatos: list[str]) -> str | None:
+    for nome in candidatos:
+        if nome in linha:
+            return linha[nome].strip()
+    return None
+
+
 def _detectar_delimitador(conteudo: str) -> str:
     primeira_linha = conteudo.splitlines()[0] if conteudo else ""
     try:
@@ -63,6 +76,7 @@ def parse(conteudo: str) -> list[TransacaoBruta]:
         data_str = _campo(linha, _COLUNAS_DATA, colunas_disponiveis)
         valor_str = _campo(linha, _COLUNAS_VALOR, colunas_disponiveis)
         descricao_bruta = _campo(linha, _COLUNAS_DESCRICAO, colunas_disponiveis).strip()
+        identificador = _campo_opcional(linha, _COLUNAS_IDENTIFICADOR)
 
         data = datetime.strptime(data_str.strip(), "%d/%m/%Y").date()
         valor_bruto = _parse_valor(valor_str, formato_br)
@@ -75,6 +89,7 @@ def parse(conteudo: str) -> list[TransacaoBruta]:
                 tipo=tipo,
                 descricao_bruta=descricao_bruta,
                 descricao_normalizada=_normalizar_descricao(descricao_bruta),
+                identificador_banco=identificador,
             )
         )
     return transacoes

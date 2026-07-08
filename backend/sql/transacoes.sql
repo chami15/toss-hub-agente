@@ -1,7 +1,8 @@
 --QUERY: inserir
 INSERT INTO transacoes
-    (banco, data, valor, tipo, descricao_bruta, descricao_normalizada, hash_lancamento, extrato_importado_id)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    (banco, data, valor, tipo, descricao_bruta, descricao_normalizada,
+     identificador_banco, hash_lancamento, extrato_importado_id)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (hash_lancamento) DO NOTHING
 RETURNING id;
 

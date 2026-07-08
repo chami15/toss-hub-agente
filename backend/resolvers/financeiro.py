@@ -27,7 +27,21 @@ _MESES_HISTORICO_RECORRENCIA = 6
 
 
 def _hash_lancamento(banco: str, transacao) -> str:
-    bruto = f"{banco}|{transacao.data.isoformat()}|{transacao.valor}|{transacao.descricao_bruta}"
+    """Prefere o identificador único do próprio banco (ex: UUID do Nubank)
+    quando o parser conseguiu extrair um — é mais confiável que
+    data+valor+descrição, que duas transações reais e distintas podem ter
+    idênticos (ex: dois Pix do mesmo valor, mesmo dia, pra mesma pessoa).
+
+    O Nubank reaproveita o MESMO identificador para uma transação e o
+    estorno dela (mesmo Pix, sinal invertido) — por isso o `tipo`
+    (entrada/saida) também entra no hash, senão o estorno seria descartado
+    como se fosse a mesma transação duplicada.
+
+    Sem identificador (formato que não oferece um), cai no composto."""
+    if transacao.identificador_banco:
+        bruto = f"{banco}|id:{transacao.identificador_banco}|{transacao.tipo}"
+    else:
+        bruto = f"{banco}|{transacao.data.isoformat()}|{transacao.valor}|{transacao.descricao_bruta}"
     return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
 
 
@@ -68,6 +82,7 @@ def importar_extrato(banco: str, nome_arquivo: str, conteudo: str) -> dict:
                 t.tipo,
                 t.descricao_bruta,
                 t.descricao_normalizada,
+                t.identificador_banco,
                 hash_lancamento,
                 extrato_id,
             ),
