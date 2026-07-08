@@ -1,7 +1,22 @@
 # Backend — Hub de Agentes
 
-Fatia atual (fundação): banco + schema + scripts + API de leitura.
-Ainda **sem** motor de tick e **sem** LLM — isso é a próxima fatia.
+Fundação (banco + schema + scripts + API de leitura) + primeiro agente,
+o Financeiro (Cifra): upload de extrato, dashboard ao vivo e relatório
+mensal narrado por LLM. Ainda **sem** motor de tick — isso é a próxima fatia.
+
+## ⚠️ Antes de usar o Financeiro com dado de verdade
+
+Os parsers de `agents/financeiro/parsers/` (Itaú e Nubank) foram escritos
+com base no formato mais comumente documentado de cada banco, **mas ainda
+não foram validados contra um export real**. Antes de subir um extrato de
+verdade, mande uma amostra (pode redigir/trocar os valores) de cada CSV
+pra confirmar nomes de coluna e separador exatos — ver aviso no topo de
+`itau.py` e `nubank.py`.
+
+O relatório mensal (`POST /financeiro/relatorio/gerar`) chama a OpenAI de
+verdade — precisa de `OPENAI_API_KEY` válida no `.env`. Upload e dashboard
+(`POST /financeiro/extrato`, `GET /financeiro/dashboard`) não usam LLM,
+funcionam sem chave.
 
 ## Como subir
 
@@ -105,14 +120,29 @@ sql/                       # SQL puro, nunca embutido no Python
   agentes.sql
   mensagens.sql
   relacionamentos.sql
+  transacoes.sql
+  extratos_importados.sql
+  relatorios_financeiros.sql
+
+agents/                    # lógica dos agentes LLM, um domínio por pasta
+  financeiro/
+    agente.py               # chamada única estruturada (sem tool-loop, sem
+                             # decisão a tomar: sempre os mesmos cálculos)
+    categorizador.py         # categorização por regra, sem LLM
+    recorrencias.py           # detecção de assinatura/parcela, lógica pura
+    parsers/
+      itau.py                # CSV Itaú -> formato interno (⚠️ não validado)
+      nubank.py               # CSV Nubank -> formato interno (⚠️ não validado)
 
 resolvers/                 # regra de negócio (o router chama isso, nunca o banco)
   agentes.py
   mensagens.py
+  financeiro.py             # importar extrato, calcular dashboard, gerar relatório
 
 routers/                   # HTTP fino — só parse de request/response
   agentes.py                # GET /agentes
   mensagens.py               # GET /mensagens
+  financeiro.py               # POST /financeiro/extrato, GET /dashboard, /relatorio
 
 scripts/
   migrate.py                # aplica as migrations (idempotente)
@@ -123,6 +153,6 @@ docker-compose.yml          # postgres + adminer
 
 ## Próxima fatia (a combinar)
 
-Pasta `agents/` (financeiro/, agenda/) com LangChain v1 (`create_agent`),
-tools, guardrails, e o `resolvers/tick.py` que percorre os agentes ativos e
-aplica os efeitos — definindo um agente de cada vez antes de codar.
+Motor de tick (`resolvers/tick.py`) que percorre os agentes ativos e aplica
+os efeitos, e o segundo agente (Agenda) — definindo um de cada vez antes
+de codar, mesmo processo que usamos pro Financeiro.

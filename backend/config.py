@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Controle de custo
     orcamento_diario_usd: float = 1.0
 
+    # Preço por 1K tokens (USD) do modelo forte, usado só pra estimar
+    # custo_usd nos registros de execução. CONFERIR na página de pricing
+    # da OpenAI antes de confiar nesse número — pode estar desatualizado.
+    preco_input_por_1k_forte: float = 0.0025
+    preco_output_por_1k_forte: float = 0.01
+
     # Contexto
     contexto_max_tokens: int = 2000
 

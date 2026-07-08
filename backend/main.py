@@ -1,15 +1,15 @@
 """Ponto de entrada da API (FastAPI).
 
-Fatia atual: leitura (health, agentes, mensagens), agora sobre o padrão
-utils/sql/resolvers/routers. Motor de tick e agentes LLM entram nas
-próximas fatias. Sobe com:  uvicorn main:app --reload
+Fatia atual: leitura (health, agentes, mensagens) + domínio do Financeiro
+(upload de extrato, dashboard, relatório mensal). Motor de tick entra numa
+próxima fatia. Sobe com:  uvicorn main:app --reload
 """
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import agentes, mensagens
+from routers import agentes, financeiro, mensagens
 from utils.connection import close_pool
 
 
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(agentes.router)
 app.include_router(mensagens.router)
+app.include_router(financeiro.router)
 
 
 @app.get("/health", tags=["infra"])
