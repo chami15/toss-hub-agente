@@ -169,16 +169,23 @@ def obter_dashboard(mes_referencia: date) -> dict:
 
 
 def obter_relatorio(mes_referencia: date) -> dict | None:
+    """Devolve só o conteúdo do relatório (a narrativa + dashboard congelados
+    no momento da geração) — modelo/tokens/custo ficam só no banco, nunca
+    saem pela API (não aparecem no frontend, por decisão de produto)."""
     rows = executar_query(
         "relatorios_financeiros:buscar_por_mes", params=(mes_referencia,)
     )
-    return rows[0] if rows else None
+    return rows[0]["relatorio"] if rows else None
 
 
 async def gerar_relatorio(mes_referencia: date) -> dict:
     """Calcula o dashboard, chama o agente só pra narrativa, e persiste o
     relatório completo. É uma ação deliberada — nunca disparada sozinha
-    pelo upload."""
+    pelo upload.
+
+    Custo/tokens/modelo ficam só como registro no banco (colunas próprias
+    de `relatorios_financeiros`) — nunca voltam na resposta da API, por
+    decisão de produto (não aparece no frontend)."""
     dashboard = _calcular_dashboard(mes_referencia)
     resultado_llm = await agente_financeiro.gerar_analise(dashboard)
 
@@ -201,10 +208,4 @@ async def gerar_relatorio(mes_referencia: date) -> dict:
         ),
     )
 
-    relatorio_completo["meta"] = {
-        "modelo": resultado_llm["modelo"],
-        "tokens_in": resultado_llm["tokens_in"],
-        "tokens_out": resultado_llm["tokens_out"],
-        "custo_usd": resultado_llm["custo_usd"],
-    }
     return relatorio_completo
