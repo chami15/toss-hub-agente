@@ -37,30 +37,50 @@ uvicorn app.main:app --reload
 ## Troubleshooting
 
 **`password authentication failed for user "hub"`**
-Geralmente significa que já existe outro Postgres escutando na porta 5432 da
-sua máquina (comum no Windows, se você já tem PostgreSQL/pgAdmin instalado) —
-quem responde na 5432 é esse outro serviço, não o container. Por isso o
-`docker-compose.yml` já publica o container na porta **5433** do host (o
-container continua ouvindo 5432 *dentro* dele; só a porta exposta pra fora
-mudou). Confira:
-```bash
-# Windows
-netstat -ano | findstr :5432
-# mac/linux
-lsof -iTCP:5432 -sTCP:LISTEN
-```
-Se aparecer algo além do Docker, é esse o conflito — o projeto já está
-configurado pra evitar a 5432. Se seu `.env` for antigo, gere um novo a partir
-do `.env.example` (porta 5433) ou ajuste manualmente.
+Geralmente significa que quem está respondendo na porta não é o container —
+é outro Postgres (nativo, comum no Windows se você já tem PostgreSQL/pgAdmin
+instalado, ou outro projeto seu). Por isso o `docker-compose.yml` publica o
+container na porta **5000** do host (o container continua ouvindo 5432
+*dentro* dele; só a porta exposta pra fora muda). Antes de mudar a porta de
+novo, confira estas 4 coisas — **na ordem**, porque se o erro persistir após
+trocar a porta, o problema provavelmente não é a porta:
 
-**Já rodei antes e mudei a porta — ainda dá erro de senha**
-O Postgres só aplica `POSTGRES_USER`/`POSTGRES_PASSWORD` na *primeira*
-inicialização do volume. Se você já tinha subido o container antes (mesmo
-com a porta antiga), o volume ficou com outras credenciais. Recrie do zero:
+1. **O container está de pé na porta certa?**
+   ```bash
+   docker compose ps
+   ```
+2. **Sobrou volume de uma tentativa anterior?** (o Postgres só aplica usuário/
+   senha na *primeira* inicialização do volume — se reaproveitar um volume
+   velho, a senha antiga continua valendo mesmo com compose novo)
+   ```bash
+   docker volume ls
+   ```
+3. **O `.env` realmente tem a porta nova?**
+   ```bash
+   # Windows (PowerShell)
+   type .env
+   # mac/linux
+   cat .env
+   ```
+4. **Existe uma variável de ambiente `DATABASE_URL` no sistema sobrescrevendo
+   o `.env`?** (isso tem prioridade sobre o arquivo e é uma causa comum e
+   silenciosa)
+   ```bash
+   # Windows (PowerShell)
+   $env:DATABASE_URL
+   # mac/linux
+   echo $DATABASE_URL
+   ```
+
+Se o item 2 mostrar um volume antigo, recrie do zero (projeto novo, sem dado
+de valor):
 ```bash
-docker compose down -v   # remove o volume também (projeto novo, sem dado de valor)
+docker compose down -v
 docker compose up -d
 ```
+Se o item 4 imprimir alguma coisa, é isso: remova a variável de ambiente do
+sistema (ou do perfil do PowerShell) e rode de novo — o `.env` só vale se não
+houver uma variável de ambiente com o mesmo nome já definida.
 
 ## Estrutura
 

@@ -7,10 +7,10 @@ services:
       POSTGRES_PASSWORD: hub
       POSTGRES_DB: hub_agentes
     ports:
-      # Porta externa 5433 (não 5432) para não colidir com um Postgres
+      # Porta externa 5000 (não 5432) para não colidir com um Postgres
       # já instalado na máquina do host. Internamente o container continua
       # ouvindo 5432 — só a porta publicada no host muda.
-      - "5433:5432"
+      - "5000:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
