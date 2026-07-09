@@ -93,12 +93,22 @@ async def _acionar_agente(
 
     payload = dict(decisao.payload or {})
     payload["pedido_original"] = pedido_original
+    mensagem = _com_pedido_confirmacao(decisao.mensagem)
     rows = executar_query(
         "acoes_pendentes:inserir",
         returning=True,
-        params=(agente_id, decisao.acao, decisao.mensagem, json.dumps(payload)),
+        params=(agente_id, decisao.acao, mensagem, json.dumps(payload)),
     )
-    return {"mensagem": decisao.mensagem, "acao_pendente_id": rows[0]["id"], "aguardando_confirmacao": True}
+    return {"mensagem": mensagem, "acao_pendente_id": rows[0]["id"], "aguardando_confirmacao": True}
+
+
+def _com_pedido_confirmacao(mensagem: str) -> str:
+    """Garante que toda proposta convide a confirmar — não depende do
+    modelo lembrar de fazer isso na prosa toda vez (já vimos que esquece)."""
+    texto = mensagem.rstrip()
+    if texto.endswith("?"):
+        return texto
+    return f"{texto} Confirma?"
 
 
 def _executar_acao_real(tipo: str, payload: dict) -> dict:
