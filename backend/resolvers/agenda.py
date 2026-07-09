@@ -64,6 +64,21 @@ def _montar_contexto_negociacao(pedido_original: str, pendente: dict | None, res
     if pendente and resposta_chefe:
         partes.append(f'Você propôs: "{pendente["descricao"]}"')
         partes.append(f'O chefe respondeu: "{resposta_chefe}"')
+
+        # Preserva a ação original (mover/cancelar) entre rodadas de
+        # negociação — sem isso, uma rejeição podia fazer o agente
+        # "esquecer" que era pra MOVER um evento existente e criar um
+        # novo em vez de mover, duplicando o compromisso.
+        if pendente["tipo"] in ("mover_evento", "cancelar_evento"):
+            evento_id = pendente["payload"].get("evento_id")
+            partes.append(
+                f'IMPORTANTE: essa proposta era sobre ALTERAR um evento que já '
+                f'existe (evento_id="{evento_id}"). Sua nova proposta também '
+                f'precisa usar acao="{pendente["tipo"]}" com esse MESMO '
+                f'evento_id — nunca crie um evento novo aqui, isso duplicaria '
+                f'o compromisso e deixaria o antigo intacto.'
+            )
+
         partes.append("Gere uma nova proposta ajustada, considerando essa resposta.")
     return "\n".join(partes)
 
