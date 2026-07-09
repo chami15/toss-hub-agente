@@ -50,3 +50,29 @@ resolve o objetivo de ter o relatório e os KPIs.
 
 **Status:** não iniciado, sem previsão. Reavaliar só se o upload manual se
 mostrar um atrito real de uso no dia a dia.
+
+---
+
+## Buscar lugares próximos (sugestão de restaurante/local) — Agente Agenda
+
+**Ideia:** quando o agente estiver negociando um compromisso do tipo
+"jantar"/"encontro" e ainda não houver um local definido, ele pergunta "já tem
+ideia de onde?" — se a resposta for não, sugere restaurantes próximos
+(provavelmente via Google Places API ou similar).
+
+**Por que foi adiada:** é uma tool nova (busca de lugar) e mais uma API externa
+pra configurar (credencial própria, custo por chamada) — o núcleo do agente
+(negociar horário, criar/mover/cancelar evento com confirmação) precisa
+funcionar e ser validado primeiro.
+
+**O que vai precisar quando for retomada:**
+- Tool `buscar_locais_proximos(tipo_lugar, localizacao)` — provavelmente
+  Google Places API (já que já estamos no ecossistema Google pro Calendar).
+- Decidir se a sugestão de local também passa pelo gate de confirmação (não
+  é uma ação real no calendário, é só uma sugestão — provavelmente não precisa
+  do mesmo rigor, mas vale pensar).
+- Encaixe no fluxo de negociação existente: mais uma pergunta objetiva antes
+  da proposta final de evento, não abre uma ramificação de conversa nova.
+
+**Status:** não iniciado. Agente Agenda atual cuida só de horário/conflito de
+agenda, sem sugestão de local.

@@ -1,15 +1,16 @@
 """Ponto de entrada da API (FastAPI).
 
 Fatia atual: leitura (health, agentes, mensagens) + domínio do Financeiro
-(upload de extrato, dashboard, relatório mensal). Motor de tick entra numa
-próxima fatia. Sobe com:  uvicorn main:app --reload
+(upload de extrato, dashboard, relatório mensal) + domínio da Agenda
+(mensagem roteada, gate de confirmação no Google Calendar). Motor de tick
+entra numa próxima fatia. Sobe com:  uvicorn main:app --reload
 """
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import agentes, financeiro, mensagens
+from routers import agenda, agentes, financeiro, mensagens
 from utils.connection import close_pool
 
 
@@ -32,6 +33,7 @@ app.add_middleware(
 app.include_router(agentes.router)
 app.include_router(mensagens.router)
 app.include_router(financeiro.router)
+app.include_router(agenda.router)
 
 
 @app.get("/health", tags=["infra"])

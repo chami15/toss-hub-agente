@@ -8,6 +8,12 @@ SELECT id, nome, tipo, especialidade, personalidade, avatar_config, estado, mesa
 FROM agentes
 WHERE id = %s;
 
+--QUERY: buscar_por_especialidade
+SELECT id, nome, tipo, especialidade, personalidade, avatar_config, estado, mesa, ativo
+FROM agentes
+WHERE especialidade = %s
+LIMIT 1;
+
 --QUERY: upsert
 INSERT INTO agentes (nome, tipo, especialidade, personalidade, avatar_config, mesa)
 VALUES (%s, %s, %s, %s, %s::jsonb, %s)

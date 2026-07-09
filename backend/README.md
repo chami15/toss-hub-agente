@@ -1,22 +1,28 @@
 # Backend — Hub de Agentes
 
-Fundação (banco + schema + scripts + API de leitura) + primeiro agente,
-o Financeiro (Cifra): upload de extrato, dashboard ao vivo e relatório
-mensal narrado por LLM. Ainda **sem** motor de tick — isso é a próxima fatia.
+Fundação (banco + schema + scripts + API de leitura) + dois agentes:
+**Financeiro** (Cifra: upload de extrato Itaú/Nubank, dashboard ao vivo,
+relatório mensal narrado por LLM) e **Agenda** (Google Calendar: consulta
+direta sem LLM, negociação de horário guiada, criar/mover/cancelar evento
+sempre com confirmação humana antes de executar). Ainda **sem** motor de
+tick — isso é a próxima fatia.
 
-## ⚠️ Antes de usar o Financeiro com dado de verdade
+## ⚠️ Antes de usar de verdade
 
-Os parsers de `agents/financeiro/parsers/` (Itaú e Nubank) foram escritos
-com base no formato mais comumente documentado de cada banco, **mas ainda
-não foram validados contra um export real**. Antes de subir um extrato de
-verdade, mande uma amostra (pode redigir/trocar os valores) de cada CSV
-pra confirmar nomes de coluna e separador exatos — ver aviso no topo de
-`itau.py` e `nubank.py`.
+**Financeiro**: os parsers de `agents/financeiro/parsers/` (Itaú em PDF,
+Nubank em CSV) já foram validados contra extrato real de cada banco — mas
+bancos mudam formato de tempos em tempos; se um upload falhar, o erro
+aponta o motivo (coluna não encontrada, cabeçalho não achado). O relatório
+mensal (`POST /financeiro/relatorio/gerar`) chama a OpenAI de verdade —
+precisa de `OPENAI_API_KEY` válida no `.env`. Upload e dashboard não usam
+LLM, funcionam sem chave.
 
-O relatório mensal (`POST /financeiro/relatorio/gerar`) chama a OpenAI de
-verdade — precisa de `OPENAI_API_KEY` válida no `.env`. Upload e dashboard
-(`POST /financeiro/extrato`, `GET /financeiro/dashboard`) não usam LLM,
-funcionam sem chave.
+**Agenda**: precisa de `credentials.json` (OAuth "Desktop app", escopo
+`calendar.events`) na raiz do `backend/` — nunca comitar esse arquivo nem
+o `token.json` gerado na primeira autorização (ambos no `.gitignore`). A
+autorização (abre o navegador) só roda na sua máquina, não dá pra testar
+num ambiente sem navegador. Nenhuma ação real (criar/mover/cancelar
+evento) executa sem confirmação explícita — ver `acoes_pendentes`.
 
 ## Como subir
 
@@ -123,6 +129,7 @@ sql/                       # SQL puro, nunca embutido no Python
   transacoes.sql
   extratos_importados.sql
   relatorios_financeiros.sql
+  acoes_pendentes.sql
 
 agents/                    # lógica dos agentes LLM, um domínio por pasta
   financeiro/
@@ -131,18 +138,26 @@ agents/                    # lógica dos agentes LLM, um domínio por pasta
     categorizador.py         # categorização por regra, sem LLM
     recorrencias.py           # detecção de assinatura/parcela, lógica pura
     parsers/
-      itau.py                # CSV Itaú -> formato interno (⚠️ não validado)
-      nubank.py               # CSV Nubank -> formato interno (⚠️ não validado)
+      itau.py                # PDF Itaú -> formato interno (pdfplumber, posicional)
+      nubank.py               # CSV Nubank -> formato interno
+  agenda/
+    google_calendar.py        # cliente OAuth + chamadas reais à API (determinístico)
+    tools.py                   # tools de LEITURA do agente (listar/buscar)
+    agente.py                   # create_agent com raciocínio (checa conflito,
+                                # julga horário) — saída sempre estruturada,
+                                # nunca escreve no calendário direto
 
 resolvers/                 # regra de negócio (o router chama isso, nunca o banco)
   agentes.py
   mensagens.py
   financeiro.py             # importar extrato, calcular dashboard, gerar relatório
+  agenda.py                  # roteador de intenção + negociação + gate de confirmação
 
 routers/                   # HTTP fino — só parse de request/response
   agentes.py                # GET /agentes
   mensagens.py               # GET /mensagens
   financeiro.py               # POST /financeiro/extrato, GET /dashboard, /relatorio
+  agenda.py                    # POST /agenda/mensagem, /agenda/acoes/{id}/confirmar|rejeitar
 
 scripts/
   migrate.py                # aplica as migrations (idempotente)
@@ -154,5 +169,5 @@ docker-compose.yml          # postgres + adminer
 ## Próxima fatia (a combinar)
 
 Motor de tick (`resolvers/tick.py`) que percorre os agentes ativos e aplica
-os efeitos, e o segundo agente (Agenda) — definindo um de cada vez antes
-de codar, mesmo processo que usamos pro Financeiro.
+os efeitos, e mais agentes — definindo um de cada vez antes de codar, mesmo
+processo que usamos pro Financeiro e pro Agenda.

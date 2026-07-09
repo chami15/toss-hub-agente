@@ -33,5 +33,13 @@ class Settings(BaseSettings):
     # Contexto
     contexto_max_tokens: int = 2000
 
+    # Google Calendar — credentials.json baixado do Cloud Console,
+    # token.json gerado na primeira autorização (nenhum dos dois vai pro
+    # git). "primary" é o calendário principal da conta autorizada.
+    google_credentials_path: str = "credentials.json"
+    google_token_path: str = "token.json"
+    google_calendar_id: str = "primary"
+    timezone_padrao: str = "America/Sao_Paulo"
+
 
 settings = Settings()
