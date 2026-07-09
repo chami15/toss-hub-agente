@@ -19,10 +19,26 @@ LLM, funcionam sem chave.
 
 **Agenda**: precisa de `credentials.json` (OAuth "Desktop app", escopo
 `calendar.events`) na raiz do `backend/` — nunca comitar esse arquivo nem
-o `token.json` gerado na primeira autorização (ambos no `.gitignore`). A
-autorização (abre o navegador) só roda na sua máquina, não dá pra testar
-num ambiente sem navegador. Nenhuma ação real (criar/mover/cancelar
-evento) executa sem confirmação explícita — ver `acoes_pendentes`.
+o `token.json` gerado na autorização (ambos no `.gitignore`). **Antes de
+usar o agente**, rode uma vez, na sua máquina:
+
+```bash
+python -m scripts.autorizar_google_calendar
+```
+
+Isso abre o navegador pra você autorizar e grava o `token.json`. É
+proposital que isso seja um passo manual separado, **não** algo que roda
+sozinho na primeira chamada da API — se rodasse ali, uma chamada do
+agente ficaria tentando abrir navegador no meio de uma requisição, o que
+já causou trava/loop de custo real numa versão anterior (ver histórico).
+Sem o `token.json`, qualquer chamada ao Calendar falha rápido com uma
+mensagem clara, em vez de travar.
+
+Nenhuma ação real (criar/mover/cancelar evento) executa sem confirmação
+explícita — ver `acoes_pendentes`. O agente também tem teto de tool calls
++ `recursion_limit` do LangGraph (`agents/_shared/guardrails.py`) — se uma
+tool falhar repetidamente, a execução é interrompida, nunca fica girando
+sem parar gastando token.
 
 ## Como subir
 
@@ -141,11 +157,15 @@ agents/                    # lógica dos agentes LLM, um domínio por pasta
       itau.py                # PDF Itaú -> formato interno (pdfplumber, posicional)
       nubank.py               # CSV Nubank -> formato interno
   agenda/
-    google_calendar.py        # cliente OAuth + chamadas reais à API (determinístico)
+    google_calendar.py        # só carrega/renova token existente (determinístico) —
+                              # NUNCA abre navegador aqui, falha rápido se não autorizado
     tools.py                   # tools de LEITURA do agente (listar/buscar)
     agente.py                   # create_agent com raciocínio (checa conflito,
                                 # julga horário) — saída sempre estruturada,
                                 # nunca escreve no calendário direto
+  _shared/
+    guardrails.py               # middleware de tool-calling (captura erro, teto de
+                                # chamadas) — reusado por qualquer agente com tool-loop
 
 resolvers/                 # regra de negócio (o router chama isso, nunca o banco)
   agentes.py
@@ -162,6 +182,7 @@ routers/                   # HTTP fino — só parse de request/response
 scripts/
   migrate.py                # aplica as migrations (idempotente)
   seed.py                    # cria agentes + relacionamentos-base, via executar_query
+  autorizar_google_calendar.py  # passo manual único: abre navegador, grava token.json
 
 docker-compose.yml          # postgres + adminer
 ```

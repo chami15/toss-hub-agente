@@ -14,8 +14,10 @@ from typing import Literal
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
+from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel, Field
 
+from agents._shared.guardrails import MAX_TOOL_CALLS, RECURSION_LIMIT, tratar_erros_tools
 from agents.agenda.tools import buscar_eventos, listar_eventos_periodo
 from config import settings
 
@@ -55,6 +57,9 @@ compromissos de forma prática — sem bate-papo, sem rodeio.
 2. Antes de propor qualquer horário, SEMPRE confira a agenda existente com
    as tools disponíveis (listar_eventos_periodo ou buscar_eventos) — nunca
    proponha um horário sem checar conflito primeiro.
+2.1. Máximo de {max_tool_calls} chamadas de tool no total. Se uma tool
+   retornar erro, NÃO tente de novo — responda com tipo='pergunta'
+   explicando o que não foi possível verificar.
 3. Use bom senso de horário conforme o TIPO de compromisso:
    - Reunião de trabalho: horário comercial, nunca de noite nem manhã muito cedo.
    - Refeição (almoço/jantar): respeita o horário de refeição de verdade
@@ -87,6 +92,7 @@ def _get_agente():
             model=model,
             tools=TOOLS,
             response_format=DecisaoAgenda,
+            middleware=[tratar_erros_tools],
         )
     return _agente
 
@@ -94,9 +100,13 @@ def _get_agente():
 async def decidir(mensagem_contexto: str, agora_iso: str) -> DecisaoAgenda:
     """`mensagem_contexto` já vem montada pelo resolver com o pedido
     original + histórico de proposta/rejeição, se houver (ver
-    resolvers/agenda.py). Lança RuntimeError se a chamada falhar."""
+    resolvers/agenda.py). Lança RuntimeError se a chamada falhar.
+
+    `recursion_limit` é o teto físico — se o agente ficar girando (tool
+    falhando repetidamente, por exemplo), o LangGraph interrompe sozinho
+    em vez de continuar chamando a OpenAI sem parar."""
     agente = _get_agente()
-    prompt_sistema = SYSTEM_PROMPT.format(agora=agora_iso)
+    prompt_sistema = SYSTEM_PROMPT.format(agora=agora_iso, max_tool_calls=MAX_TOOL_CALLS)
 
     try:
         resultado = await agente.ainvoke(
@@ -105,8 +115,15 @@ async def decidir(mensagem_contexto: str, agora_iso: str) -> DecisaoAgenda:
                     {"role": "system", "content": prompt_sistema},
                     {"role": "user", "content": mensagem_contexto},
                 ]
-            }
+            },
+            config={"recursion_limit": RECURSION_LIMIT},
         )
+    except GraphRecursionError as exc:
+        raise RuntimeError(
+            f"O agente de agenda excedeu o limite de {RECURSION_LIMIT} passos sem "
+            "concluir — provavelmente uma tool está falhando repetidamente. "
+            "Confira os logs de tool acima e a autorização do Google Calendar."
+        ) from exc
     except Exception as exc:
         raise RuntimeError(f"Falha ao invocar o agente de agenda: {exc}") from exc
 

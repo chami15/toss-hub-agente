@@ -1,10 +1,15 @@
 """Cliente autenticado do Google Calendar.
 
-OAuth "Desktop app": na primeira execução abre o navegador pra você
-autorizar sua própria conta (roda uma vez, na sua máquina — não dá pra
-testar isso num ambiente sem navegador). Depois disso, `token.json` guarda
-o refresh token e a lib renova sozinha, sem precisar abrir navegador de
-novo (a não ser que o token seja revogado).
+IMPORTANTE: a autorização interativa (abrir navegador, você logar) roda
+SÓ em `scripts/autorizar_google_calendar.py`, um passo manual único —
+nunca aqui. Se o fluxo interativo estivesse aqui, uma chamada de tool no
+meio de uma requisição da API tentaria abrir navegador e esperar você
+clicar, travando (ou falhando de forma imprevisível) a requisição. Esse
+foi um bug real do primeiro rascunho deste arquivo.
+
+Aqui só CARREGA um token já existente e o RENOVA se expirado — se não
+tiver `token.json` válido, falha rápido e claro, orientando a rodar o
+script de autorização, em vez de tentar logar sozinho.
 
 Escopo `calendar.events` (não `calendar` genérico) — só gerencia eventos,
 não calendários inteiros. Princípio de menor privilégio.
@@ -18,31 +23,36 @@ a partir de uma tool do agente.
 """
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from config import settings
 
-_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
+SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 _service = None
 
 
 def _carregar_credenciais() -> Credentials:
-    creds = None
     try:
-        creds = Credentials.from_authorized_user_file(settings.google_token_path, _SCOPES)
+        creds = Credentials.from_authorized_user_file(settings.google_token_path, SCOPES)
     except FileNotFoundError:
-        pass
+        raise RuntimeError(
+            f"Google Calendar ainda não autorizado (não achei "
+            f"'{settings.google_token_path}'). Rode "
+            "'python -m scripts.autorizar_google_calendar' uma vez, na sua "
+            "máquina, antes de usar o agente de Agenda."
+        )
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            with open(settings.google_token_path, "w") as arquivo_token:
+                arquivo_token.write(creds.to_json())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(settings.google_credentials_path, _SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(settings.google_token_path, "w") as arquivo_token:
-            arquivo_token.write(creds.to_json())
+            raise RuntimeError(
+                "Token do Google Calendar expirado e sem refresh token válido. "
+                "Rode 'python -m scripts.autorizar_google_calendar' de novo."
+            )
 
     return creds
 
