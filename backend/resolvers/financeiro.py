@@ -26,7 +26,7 @@ _PARSERS = {
 _MESES_HISTORICO_RECORRENCIA = 6
 
 
-def _hash_lancamento(banco: str, transacao) -> str:
+def _hash_lancamento(banco: str, transacao, ordinal: int = 0) -> str:
     """Prefere o identificador único do próprio banco (ex: UUID do Nubank)
     quando o parser conseguiu extrair um — é mais confiável que
     data+valor+descrição, que duas transações reais e distintas podem ter
@@ -37,15 +37,23 @@ def _hash_lancamento(banco: str, transacao) -> str:
     (entrada/saida) também entra no hash, senão o estorno seria descartado
     como se fosse a mesma transação duplicada.
 
-    Sem identificador (formato que não oferece um), cai no composto."""
+    Sem identificador (formato que não oferece um, ex: Itaú), cai no
+    composto + `ordinal` (a Nª ocorrência daquela combinação exata dentro
+    do mesmo arquivo) — sem isso, duas transações legitimamente iguais no
+    mesmo dia (ex: duas tarifas idênticas) colidiriam e uma seria perdida.
+    Reimportar o mesmo arquivo reproduz os mesmos ordinais na mesma ordem,
+    então o dedup continua funcionando."""
     if transacao.identificador_banco:
         bruto = f"{banco}|id:{transacao.identificador_banco}|{transacao.tipo}"
     else:
-        bruto = f"{banco}|{transacao.data.isoformat()}|{transacao.valor}|{transacao.descricao_bruta}"
+        bruto = (
+            f"{banco}|{transacao.data.isoformat()}|{transacao.valor}|"
+            f"{transacao.descricao_bruta}|{ordinal}"
+        )
     return hashlib.sha256(bruto.encode("utf-8")).hexdigest()
 
 
-def importar_extrato(banco: str, nome_arquivo: str, conteudo: str) -> dict:
+def importar_extrato(banco: str, nome_arquivo: str, conteudo: bytes) -> dict:
     if banco not in _PARSERS:
         raise ValueError(f"Banco não suportado: {banco}")
 
@@ -70,8 +78,13 @@ def importar_extrato(banco: str, nome_arquivo: str, conteudo: str) -> dict:
     extrato_id = extrato_rows[0]["id"]
 
     novas = 0
+    contador_repeticao: dict[tuple, int] = {}
     for t in transacoes:
-        hash_lancamento = _hash_lancamento(banco, t)
+        chave_composta = (t.data, t.valor, t.descricao_bruta)
+        ordinal = contador_repeticao.get(chave_composta, 0)
+        contador_repeticao[chave_composta] = ordinal + 1
+
+        hash_lancamento = _hash_lancamento(banco, t, ordinal)
         inseridas = executar_query(
             "transacoes:inserir",
             returning=True,

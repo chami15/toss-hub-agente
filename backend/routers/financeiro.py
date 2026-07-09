@@ -29,9 +29,10 @@ async def importar_extrato(
     banco: Literal["itau", "nubank"],
     arquivo: UploadFile = File(...),
 ):
+    # bytes crus — cada parser decide como interpretar (CSV decodifica
+    # texto, PDF abre os bytes direto), o router não assume formato.
     conteudo_bytes = await arquivo.read()
-    conteudo = conteudo_bytes.decode("utf-8-sig")  # utf-8-sig cobre BOM comum em CSV exportado do Excel
-    return resolver.importar_extrato(banco, arquivo.filename, conteudo)
+    return resolver.importar_extrato(banco, arquivo.filename, conteudo_bytes)
 
 
 @router.get("/dashboard")

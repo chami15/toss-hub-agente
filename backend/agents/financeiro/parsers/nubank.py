@@ -65,7 +65,8 @@ def _detectar_delimitador(conteudo: str) -> str:
         return ";"
 
 
-def parse(conteudo: str) -> list[TransacaoBruta]:
+def parse(conteudo_bytes: bytes) -> list[TransacaoBruta]:
+    conteudo = conteudo_bytes.decode("utf-8-sig")  # utf-8-sig cobre BOM comum em CSV exportado do Excel
     delimitador = _detectar_delimitador(conteudo)
     formato_br = delimitador == ";"
     leitor = csv.DictReader(io.StringIO(conteudo), delimiter=delimitador)
