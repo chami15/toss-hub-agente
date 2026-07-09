@@ -55,8 +55,23 @@ def _agora() -> datetime:
 
 
 def _pendente_aberta(agente_id: int) -> dict | None:
+    """Devolve a pendência aberta, ou None se não houver — ou se a única
+    que existir estiver velha demais (ver AGENDA_PENDENCIA_TTL_MINUTOS).
+    Sem isso, uma pergunta esquecida (ex: "qual dia?" nunca respondida)
+    vira uma armadilha: qualquer mensagem nova e não-relacionada que
+    chegar depois seria tratada como resposta a ela, confundindo o
+    agente com um contexto que não faz sentido."""
     rows = executar_query("acoes_pendentes:buscar_pendente_por_agente", params=(agente_id,))
-    return rows[0] if rows else None
+    if not rows:
+        return None
+
+    pendente = rows[0]
+    idade = _agora() - pendente["criado_em"]
+    if idade > timedelta(minutes=settings.agenda_pendencia_ttl_minutos):
+        executar_query("acoes_pendentes:marcar_expirada", commit=True, params=(pendente["id"],))
+        return None
+
+    return pendente
 
 
 def _montar_contexto_negociacao(pedido_original: str, pendente: dict | None, resposta_chefe: str | None) -> str:
@@ -175,7 +190,12 @@ async def processar_mensagem(mensagem: str) -> dict:
             executar_query("acoes_pendentes:marcar_rejeitada", commit=True, params=(pendente["id"],))
             return await _acionar_agente(agente_id, pedido_original, pendente, mensagem)
 
-        # resposta livre (ajuste ou resposta a uma pergunta) — continua a negociação
+        # resposta livre (ajuste ou resposta a uma pergunta) — continua a
+        # negociação. Fecha a pendência atual antes de abrir a próxima:
+        # sem isso, cada rodada de "resposta livre" deixava a pendência
+        # anterior aberta pra sempre, acumulando várias 'pendente'
+        # simultâneas pro mesmo agente (só a rejeição explícita fechava).
+        executar_query("acoes_pendentes:marcar_expirada", commit=True, params=(pendente["id"],))
         return await _acionar_agente(agente_id, pedido_original, pendente, mensagem)
 
     if _PADRAO_CONSULTA.search(mensagem):

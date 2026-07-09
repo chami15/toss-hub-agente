@@ -20,6 +20,11 @@ UPDATE acoes_pendentes
 SET status = 'rejeitado', resolvido_em = now()
 WHERE id = %s;
 
+--QUERY: marcar_expirada
+UPDATE acoes_pendentes
+SET status = 'expirado', resolvido_em = now()
+WHERE id = %s;
+
 --QUERY: marcar_confirmada_sucesso
 UPDATE acoes_pendentes
 SET status = 'confirmado', resultado = %s::jsonb, resolvido_em = now()

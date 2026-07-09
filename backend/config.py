@@ -41,5 +41,10 @@ class Settings(BaseSettings):
     google_calendar_id: str = "primary"
     timezone_padrao: str = "America/Sao_Paulo"
 
+    # Pendência aberta (ex: "qual dia?") mais velha que isso vira expirada
+    # sozinha — sem isso, uma pergunta esquecida vira uma armadilha de
+    # contexto pra qualquer mensagem nova e não-relacionada que vier depois.
+    agenda_pendencia_ttl_minutos: int = 15
+
 
 settings = Settings()
