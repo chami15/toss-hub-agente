@@ -27,10 +27,12 @@ TOOLS = [listar_eventos_periodo, buscar_eventos]
 
 
 class DecisaoAgenda(BaseModel):
-    tipo: Literal["proposta", "pergunta"] = Field(
+    tipo: Literal["proposta", "pergunta", "resposta"] = Field(
         ...,
         description="'proposta' se já tem uma sugestão concreta e acionável; "
-        "'pergunta' se precisa de mais informação antes de propor.",
+        "'pergunta' se precisa de mais informação antes de propor; "
+        "'resposta' se é só uma resposta informativa, sem ação nem pergunta pendente "
+        "(ex: o chefe perguntou algo que já dava pra responder com o que as tools trouxeram).",
     )
     mensagem: str = Field(..., description="Texto exato que o chefe vai ver — direto, sem enrolação.")
     acao: Literal["criar_evento", "mover_evento", "cancelar_evento"] | None = Field(
@@ -78,7 +80,9 @@ Data/hora atual: {agora}
 
 == FORMATO DE SAÍDA ==
 Sempre estruturado: tipo, mensagem, e (se tipo=="proposta") acao + payload
-com os dados exatos necessários pra executar depois de confirmado.
+com os dados exatos necessários pra executar depois de confirmado. Use
+tipo="resposta" pra qualquer coisa que não seja proposta nem pergunta —
+nunca invente um quarto tipo.
 """
 
 _agente = None

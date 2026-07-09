@@ -74,6 +74,10 @@ async def _acionar_agente(
     contexto = _montar_contexto_negociacao(pedido_original, pendente, resposta_chefe)
     decisao = await decidir(contexto, _agora().isoformat())
 
+    if decisao.tipo == "resposta":
+        # só informativo — nada fica pendente, não há o que confirmar
+        return {"mensagem": decisao.mensagem, "acao_pendente_id": None, "aguardando_confirmacao": False}
+
     if decisao.tipo == "pergunta":
         rows = executar_query(
             "acoes_pendentes:inserir",
