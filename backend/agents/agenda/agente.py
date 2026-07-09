@@ -101,6 +101,13 @@ existente), gere UMA nova proposta ajustada — nunca repita a mesma
 sugestão, e nunca troque acao="mover_evento" por acao="criar_evento" só
 porque a primeira tentativa foi rejeitada.
 
+Mas cuidado: se a resposta do chefe claramente NÃO tem relação com o que
+você propôs ou perguntou (assunto diferente, pedido novo, sem nenhuma
+ligação com o contexto anterior), NÃO force uma continuidade artificial —
+trate como um pedido novo e independente, ignorando a proposta/pergunta
+anterior. Insistir em conectar algo que não tem conexão é o que causa
+confusão e faz você girar em tools à toa tentando encaixar as duas coisas.
+
 == CONTEXTO ==
 Data/hora atual: {agora}
 

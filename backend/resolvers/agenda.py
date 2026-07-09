@@ -3,13 +3,17 @@ horário + gate de confirmação antes de qualquer ação real no Google
 Calendar.
 
 Fluxo por mensagem recebida (ver processar_mensagem):
-  1. Se já existe uma acao_pendente aberta pro agente Agenda:
+  1. "qual pendência em aberto?" (ou variações) -> responde direto, sem
+     LLM, com a pendência atual (se houver) e há quanto tempo está aberta.
+     Checado ANTES de tudo, mesmo com uma pendência aberta — senão essa
+     pergunta seria confundida com uma resposta à negociação em curso.
+  2. Se já existe uma acao_pendente aberta pro agente Agenda:
      - "sim/confirma/ok" -> executa a ação real, fecha a pendência.
      - "não/cancela" -> fecha como rejeitada, chama o agente de novo com
        o contexto da rejeição, abre nova pendência.
      - qualquer outra resposta (ajuste, resposta a uma pergunta do
        agente) -> chama o agente de novo com o contexto acumulado.
-  2. Sem pendência aberta:
+  3. Sem pendência aberta:
      - consulta simples (buscar/listar/quais) -> responde direto, sem
        LLM, lendo o Calendar de verdade.
      - senão -> aciona o agente de negociação com a mensagem como pedido
@@ -39,6 +43,16 @@ _PADRAO_REJEICAO = re.compile(r"^\s*(n[aã]o|cancela|cancelar)\b", re.IGNORECASE
 _PADRAO_CONSULTA = re.compile(
     r"\b(o que (vou|tenho)|quais eventos|quais compromissos|listar|buscar|"
     r"tenho (algo|alguma coisa|compromisso))\b",
+    re.IGNORECASE,
+)
+# Pergunta explícita sobre o que está pendente — precisa ser checada ANTES
+# de assumir que a mensagem é resposta/confirmação de uma pendência aberta,
+# senão "qual pendência em aberto?" seria tratada como uma resposta livre
+# de negociação em vez de uma consulta de estado.
+_PADRAO_CONSULTAR_PENDENCIA = re.compile(
+    r"(qual|quais|que).{0,15}pend[eê]nci|pend[eê]ncia.{0,15}(aberto|abert)|"
+    r"(tem|h[aá]) (algo|alguma coisa) (pendente|em aberto)|"
+    r"o que (est[aá]|ficou|t[aá]) pendente",
     re.IGNORECASE,
 )
 
@@ -72,6 +86,44 @@ def _pendente_aberta(agente_id: int) -> dict | None:
         return None
 
     return pendente
+
+
+def _ha_quanto_tempo(momento: datetime) -> str:
+    """Formata o tempo decorrido desde `momento` de forma legível, tipo
+    'há 5 minutos' — usado pra deixar claro há quanto tempo uma pendência
+    está esperando resposta, sem o chefe ter que calcular de cabeça."""
+    minutos = int((_agora() - momento).total_seconds() // 60)
+    if minutos < 1:
+        return "há menos de um minuto"
+    if minutos < 60:
+        return f"há {minutos} minuto{'s' if minutos != 1 else ''}"
+    horas = minutos // 60
+    return f"há {horas} hora{'s' if horas != 1 else ''}"
+
+
+def _responder_pendencia_atual(agente_id: int) -> dict:
+    """Resposta determinística (sem LLM) pra "qual pendência em aberto?" —
+    o chefe pode perder o fio no meio do chat e precisar consultar direto
+    o que está esperando resposta dele."""
+    pendente = _pendente_aberta(agente_id)
+    if not pendente:
+        return {
+            "mensagem": "Você não tem nenhuma pendência em aberto comigo agora.",
+            "acao_pendente_id": None,
+            "aguardando_confirmacao": False,
+        }
+
+    tempo = _ha_quanto_tempo(pendente["criado_em"])
+    if pendente["tipo"] == "aguardando_info":
+        mensagem = f'Ainda estou esperando você responder ({tempo}): "{pendente["descricao"]}"'
+    else:
+        mensagem = f'Tem uma proposta esperando sua confirmação ({tempo}): "{pendente["descricao"]}"'
+
+    return {
+        "mensagem": mensagem,
+        "acao_pendente_id": pendente["id"],
+        "aguardando_confirmacao": pendente["tipo"] != "aguardando_info",
+    }
 
 
 def _montar_contexto_negociacao(pedido_original: str, pendente: dict | None, resposta_chefe: str | None) -> str:
@@ -178,6 +230,14 @@ def _responder_consulta_direta() -> dict:
 
 async def processar_mensagem(mensagem: str) -> dict:
     agente_id = _agente_id()
+
+    # Checa ANTES de olhar pra pendência aberta: se o chefe está perguntando
+    # "qual pendência em aberto?", isso é uma consulta de estado, não uma
+    # resposta à negociação em andamento — precisa ser respondido igual
+    # esteja ou não esperando confirmação/informação.
+    if _PADRAO_CONSULTAR_PENDENCIA.search(mensagem):
+        return _responder_pendencia_atual(agente_id)
+
     pendente = _pendente_aberta(agente_id)
 
     if pendente:
