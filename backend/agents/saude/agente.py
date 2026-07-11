@@ -4,6 +4,12 @@ gerar plano de dieta, e gerar o relatório semanal. Todo o resto do domínio
 (peso, hidratação, sono, atividade, ficha de treino) é escrita direta no
 banco pelo resolver, sem passar por aqui — só entra LLM onde tem alguma
 estimativa/síntese real a fazer, nunca pra registro estruturado puro.
+
+Tanto a estimativa de refeição quanto o plano de dieta passam por uma
+checagem de consistência puramente aritmética (calorias vs. macros) antes
+de sair daqui — o campo `confianca`/as orientações são prompt (soft), mas
+o número final nunca fica incoerente com os próprios macros que a LLM
+devolveu (ver `_corrigir_consistencia` e `_corrigir_consistencia_plano`).
 """
 import json
 from typing import Literal
@@ -64,11 +70,21 @@ pessoa maior/mais pesada tende a comer porções maiores que uma pessoa menor
 - calorias, carboidratos_g, proteinas_g e gorduras_g são SEMPRE estimativas
   aproximadas — não escreva ressalva sobre isso em lugar nenhum, os campos
   numéricos já implicam isso.
-- Se a descrição for vaga demais pra estimar com confiança, ainda assim
-  estime o mais plausível dado o perfil, mas marque confianca="baixa".
 - carboidratos_g*4 + proteinas_g*4 + gorduras_g*9 precisa ficar PRÓXIMO do
   valor de calorias que você mesmo informar — nunca devolva números
   incoerentes entre si.
+- confianca="baixa" é OBRIGATÓRIO sempre que a informação disponível
+  (descrição ou foto) NÃO permitir identificar os alimentos com clareza —
+  ex: descrição tipo "comi alguma coisa", "lanchei algo por aí", "almocei
+  normal"; ou foto borrada/sem o prato visível. Isso vale mesmo quando você
+  ainda assim vai estimar um número plausível baseado só no perfil — o
+  campo precisa refletir que a informação real era quase nula, não só que
+  a porção é incerta.
+- confianca="media": alimentos identificados com clareza, mas falta noção
+  de quantidade/porção (ex: "arroz, feijão e frango" sem dizer quanto; ou
+  foto do prato sem noção clara de tamanho da porção).
+- confianca="alta": alimento E quantidade/porção claros (ex: "200g de
+  arroz, 150g de frango grelhado"; ou foto nítida com porção óbvia).
 """
 
 _PROMPT_PLANO = """Você é o Vita, o agente de Saúde do hub. Sua tarefa é
@@ -176,6 +192,25 @@ def _corrigir_consistencia(estimativa: EstimativaRefeicao) -> EstimativaRefeicao
     return estimativa
 
 
+def _corrigir_consistencia_plano(plano: PlanoDietaGerado) -> PlanoDietaGerado:
+    """Mesma auditoria da refeição, na direção oposta: aqui meta_calorica É
+    o alvo deliberado (é em cima dele que orientacoes é escrito), então se
+    os macros não baterem, escala os três proporcionalmente pra somar
+    exatamente meta_calorica — preserva a proporção entre eles, só corrige
+    a escala. Puramente aritmético, sem chamada extra."""
+    calorias_pelos_macros = plano.carboidratos_g * 4 + plano.proteinas_g * 4 + plano.gorduras_g * 9
+    if calorias_pelos_macros <= 0:
+        raise ValueError("Plano sem macros válidos — não dá pra conferir consistência.")
+
+    diferenca = abs(plano.meta_calorica - calorias_pelos_macros) / calorias_pelos_macros
+    if diferenca > _MARGEM_CONSISTENCIA_CALORIAS:
+        fator = plano.meta_calorica / calorias_pelos_macros
+        plano.carboidratos_g = round(plano.carboidratos_g * fator)
+        plano.proteinas_g = round(plano.proteinas_g * fator)
+        plano.gorduras_g = round(plano.gorduras_g * fator)
+    return plano
+
+
 async def estimar_macros_texto(descricao: str, tipo_refeicao: str, perfil: dict) -> dict:
     """Lança RuntimeError/ValueError se a chamada, o parsing ou a checagem
     de consistência falharem — uma tentativa só, sem retry automático (não
@@ -226,7 +261,10 @@ async def gerar_plano_dieta(perfil: dict) -> dict:
         resultado = await modelo.ainvoke(prompt)
     except Exception as exc:
         raise RuntimeError(f"Falha ao chamar o modelo de plano de dieta: {exc}") from exc
-    return _extrair_resultado(resultado, barato=False)
+
+    saida = _extrair_resultado(resultado, barato=False)
+    saida["dado"] = _corrigir_consistencia_plano(saida["dado"])
+    return saida
 
 
 async def gerar_relatorio_semanal(dados_semana: dict) -> dict:
