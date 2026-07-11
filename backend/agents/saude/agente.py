@@ -116,6 +116,17 @@ interpreta o que já veio pronto.
 - Nunca cite um número que não esteja explicitamente nos dados recebidos.
 - Se faltar dado de alguma categoria (ex: nenhuma atividade registrada na
   semana), diga isso explicitamente em vez de inventar um padrão.
+- evolucao_peso: só afirme tendência, estabilidade ou evolução se
+  `peso_registros_na_semana` for 2 ou mais. Com 0 ou 1 registro, diga
+  explicitamente que ainda não há base de comparação — NUNCA invente uma
+  comparação com "semanas anteriores" que não foi fornecida nos dados.
+- adesao_alimentar: `plano_dieta_ativo.meta_calorica` é uma meta DIÁRIA —
+  compare com `media_calorica_diaria` (também diária, já calculada).
+  NUNCA compare a meta diária com `calorias_totais_semana` (é o total da
+  semana inteira, uma unidade de tempo diferente — comparar os dois
+  direto não faz sentido). Se `dias_com_refeicao_registrada` for baixo,
+  mencione isso — poucos dias rastreados na semana também é um sinal de
+  aderência, não só o valor calórico em si.
 - Não seja alarmista — aponte fato, não dramatize.
 """
 

@@ -281,10 +281,27 @@ def _calcular_dados_semana(inicio_semana: date) -> dict:
     hidratacao_total = executar_query("hidratacao_historico:total_periodo", params=(inicio_dt,))[0]["total_ml"]
     plano_ativo = obter_plano_dieta_atual()
 
+    # Pré-calculado aqui, não deixado pra LLM inferir: `meta_calorica` do
+    # plano é uma meta DIÁRIA, mas `refeicoes` cobre a semana inteira —
+    # sem uma média diária pronta, a LLM comparava o total bruto da semana
+    # direto com a meta diária (unidades de tempo diferentes), o que já
+    # gerou uma conclusão sem sentido num teste real.
+    dias_com_refeicao = len({
+        r["registrado_em"].astimezone(ZoneInfo(settings.timezone_padrao)).date() for r in refeicoes
+    })
+    calorias_totais_semana = sum(float(r["calorias"]) for r in refeicoes)
+    media_calorica_diaria = (
+        round(calorias_totais_semana / dias_com_refeicao, 1) if dias_com_refeicao else None
+    )
+
     return {
         "semana_inicio": inicio_semana.isoformat(),
         "refeicoes": [dict(r) for r in refeicoes],
+        "dias_com_refeicao_registrada": dias_com_refeicao,
+        "calorias_totais_semana": round(calorias_totais_semana, 1),
+        "media_calorica_diaria": media_calorica_diaria,
         "peso_historico": [dict(p) for p in pesos],
+        "peso_registros_na_semana": len(pesos),
         "atividades": [dict(a) for a in atividades],
         "sono": [dict(s) for s in sono],
         "hidratacao_total_ml": hidratacao_total,
