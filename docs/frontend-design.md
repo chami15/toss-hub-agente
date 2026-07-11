@@ -122,6 +122,85 @@ pra quando começar:
 
 ---
 
+## Requisitos funcionais
+
+Derivados do que já existe no backend de cada agente — não são desejo,
+são o que a API já suporta e o frontend precisa cobrir.
+
+**Gerais / Escritório**
+- RF01: Listar os agentes ativos (`GET /agentes`), exibindo nome, cor e
+  emoji do `avatar_config`.
+- RF02: Clicar no avatar de um agente abre o painel daquele domínio —
+  o tipo de painel (dashboard, chat, menu de forms) depende do agente.
+- RF03: Expor na própria bolha do avatar os atalhos de campo único,
+  quando existirem (hoje: peso e hidratação do Saúde).
+
+**Financeiro (Cifra)**
+- RF04: Upload de extrato (Itaú PDF ou Nubank CSV), escolhendo o banco
+  antes do envio.
+- RF05: Exibir o resultado do upload (total no arquivo, novas,
+  duplicadas, período coberto).
+- RF06: Exibir o dashboard mensal (KPIs + gráficos) com seletor de mês.
+- RF07: Gerar o relatório mensal sob demanda, como ação separada e
+  deliberada do dashboard.
+- RF08: Exibir o relatório já gerado (padrões, recomendações, resumo)
+  quando existir; indicar claramente quando ainda não foi gerado pro mês
+  selecionado.
+
+**Agenda**
+- RF09: Enviar mensagens de texto livre pro agente.
+- RF10: Diferenciar visualmente uma proposta aguardando confirmação de
+  uma mensagem informativa comum.
+- RF11: Confirmar ou rejeitar uma proposta pendente.
+- RF12: Consultar o que está pendente no momento, sem depender do chefe
+  lembrar de perguntar em texto.
+
+**Saúde (Vita)**
+- RF13: Exibir a entrevista inicial (form de perfil) quando o perfil
+  ainda não existir; bloquear o resto do menu até ela ser preenchida.
+- RF14: Exibir o menu de ações (refeição, atividade, sono, hidratação,
+  ficha de treino, plano de dieta, relatório, editar perfil).
+- RF15: Registrar refeição por dois caminhos distintos — foto ou
+  descrição em texto.
+- RF16: Registrar atividade em duas etapas (tipo, depois duração).
+- RF17: Editar a ficha de treino com múltiplos exercícios por dia da
+  semana.
+- RF18: Gerar plano de dieta e relatório semanal sob demanda; indicar
+  quando o relatório da semana já foi gerado (bloqueado até a próxima).
+- RF19: Atalho de campo único pra peso e hidratação, sem abrir o menu
+  completo.
+
+## Requisitos não funcionais
+
+- **RNF01 (controle de custo):** nenhuma ação que dispare uma chamada de
+  LLM acontece automaticamente — sempre uma ação deliberada do chefe
+  (botão "gerar", envio de mensagem), nunca disparada por upload, tela
+  abrindo ou timer.
+- **RNF02 (transparência):** nenhum metadado de custo (modelo, tokens,
+  custo_usd) aparece na interface — mas o estado de cada ação (pendente,
+  confirmada, rejeitada, expirada) é sempre visível e claro.
+- **RNF03 (confiabilidade de erro):** erros da API (422, 404, 409, etc.)
+  aparecem como mensagem clara e acionável, nunca como erro genérico ou
+  tela quebrada.
+- **RNF04 (auditabilidade):** ação real em sistema externo (Agenda) exige
+  confirmação explícita antes de executar; ação que só grava no próprio
+  banco (Saúde) pode ser imediata, sem fricção.
+- **RNF05 (consistência visual):** apesar de cada agente ter um padrão de
+  interação diferente (chat, dashboard, forms), identidade visual (cor,
+  avatar, tipografia) é consistente entre os painéis.
+- **RNF06 (privacidade):** dado financeiro e de saúde é sensível — sem
+  telemetria/analytics de terceiros nessas telas; dado nunca sai do
+  ambiente do próprio chefe.
+- **RNF07 (performance percebida):** consultas diretas sem LLM (dashboard,
+  histórico) respondem de forma imediata; ações com LLM (relatório,
+  plano, estimativa de refeição) indicam visualmente que estão
+  processando, já que podem levar alguns segundos.
+- **RNF08 (2D primeiro):** interface inicial é 2D (cartões/painéis), sem
+  biblioteca gráfica pesada — 3D é evolução posterior, não bloqueia o
+  resto (ver `avaliacao-mvp.md`).
+
+---
+
 ## Decisões em aberto (resolver quando o frontend começar de verdade)
 
 - **Confirmar/rejeitar do Agenda via botão ou só texto?** O backend aceita
