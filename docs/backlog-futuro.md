@@ -76,3 +76,31 @@ funcionar e ser validado primeiro.
 
 **Status:** não iniciado. Agente Agenda atual cuida só de horário/conflito de
 agenda, sem sugestão de local.
+
+---
+
+## Canal Telegram para o agente de Saúde (e potencialmente outros)
+
+**Ideia:** o protótipo original que inspirou o agente de Saúde (bot
+nutricionista) rodava 100% via Telegram (Pyrogram), inclusive recebendo foto
+de prato direto por lá. Faria sentido esse ser o canal de entrada real no
+dia a dia (mais rápido que abrir a API/frontend pra mandar uma foto).
+
+**Por que foi adiada:** decidimos manter o agente de Saúde na mesma API do
+resto do hub por enquanto (forms/menu, sem chat livre) — evita construir uma
+integração de canal bespoke por agente antes de validar o núcleo (registro,
+plano, relatório). Como Financeiro também já cogitou Telegram/WhatsApp pra
+lançar gasto avulso (ver primeiro item deste arquivo), faz mais sentido
+desenhar isso como uma camada de canal genérica, compartilhada entre agentes,
+quando for retomada — não uma integração por agente.
+
+**O que vai precisar quando for retomada:**
+- Decidir a camada de canal (Telegram Bot API oficial, não Pyrogram/MTProto
+  como no protótipo — mais simples e não exige sessão de usuário) de forma
+  genérica, capaz de rotear pra qualquer agente do hub, não só Saúde.
+- Upload de foto via Telegram precisa cair no mesmo endpoint de análise de
+  refeição que a API já expõe — o canal só troca a forma de entrada, não a
+  lógica.
+
+**Status:** não iniciado. Agente de Saúde atual (inicial) usa forms/menu na
+mesma API do hub, sem chat livre e sem canal externo.
