@@ -177,8 +177,9 @@ def _corrigir_consistencia(estimativa: EstimativaRefeicao) -> EstimativaRefeicao
     margem), recalcula a partir dos macros em vez de confiar cegamente no
     total solto que a LLM devolveu — os macros tendem a estar mais
     ancorados na descrição do prato do que um número de calorias à parte.
-    Puramente aritmético, não gasta token nenhum extra, e é a única
-    auditoria determinística que fazemos em cima da própria saída da LLM."""
+    Puramente aritmético, não gasta token nenhum extra. Roda só DEPOIS do
+    gate de `_exigir_alimento_identificado` — aqui já sabemos que a LLM
+    identificou algum alimento real, o problema é só a matemática interna."""
     calorias_pelos_macros = (
         estimativa.carboidratos_g * 4 + estimativa.proteinas_g * 4 + estimativa.gorduras_g * 9
     )
@@ -189,6 +190,27 @@ def _corrigir_consistencia(estimativa: EstimativaRefeicao) -> EstimativaRefeicao
     if diferenca > _MARGEM_CONSISTENCIA_CALORIAS:
         estimativa.calorias = round(calorias_pelos_macros, 1)
         estimativa.confianca = "baixa"
+    return estimativa
+
+
+def _exigir_alimento_identificado(estimativa: EstimativaRefeicao) -> EstimativaRefeicao:
+    """Gate ANTES da checagem de consistência: se a própria LLM devolveu
+    confianca="baixa" (que pelo prompt agora significa especificamente
+    "não consegui identificar nenhum alimento de verdade"), rejeita em vez
+    de gravar um chute. Sem isso, descrições vazias tipo "qualquer coisa
+    por aí" inflariam o histórico com números fabricados toda vez que
+    fossem registradas, poluindo dashboard e relatório com dado sem
+    informação real por trás. Precisa checar a confianca ORIGINAL, antes
+    de `_corrigir_consistencia` rodar — essa função também pode rebaixar
+    pra "baixa" por um motivo totalmente diferente (comida identificada,
+    mas matemática interna incoerente), e esse caso não deve ser
+    rejeitado, só corrigido."""
+    if estimativa.confianca == "baixa":
+        raise ValueError(
+            "Não consegui identificar nenhum alimento nessa refeição — descreva "
+            'pelo menos um alimento (mesmo que básico, tipo "macarrão" ou '
+            '"miojo") pra eu conseguir estimar.'
+        )
     return estimativa
 
 
@@ -227,7 +249,7 @@ async def estimar_macros_texto(descricao: str, tipo_refeicao: str, perfil: dict)
         raise RuntimeError(f"Falha ao chamar o modelo de estimativa: {exc}") from exc
 
     saida = _extrair_resultado(resultado, barato=True)
-    saida["dado"] = _corrigir_consistencia(saida["dado"])
+    saida["dado"] = _corrigir_consistencia(_exigir_alimento_identificado(saida["dado"]))
     return saida
 
 
@@ -250,7 +272,7 @@ async def estimar_macros_foto(imagem_base64: str, mime_type: str, tipo_refeicao:
         raise RuntimeError(f"Falha ao chamar o modelo de estimativa: {exc}") from exc
 
     saida = _extrair_resultado(resultado, barato=True)
-    saida["dado"] = _corrigir_consistencia(saida["dado"])
+    saida["dado"] = _corrigir_consistencia(_exigir_alimento_identificado(saida["dado"]))
     return saida
 
 
