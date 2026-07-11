@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     preco_input_por_1k_forte: float = 0.0025
     preco_output_por_1k_forte: float = 0.01
 
+    # Idem, pro modelo barato (usado na estimativa de macro de refeição do
+    # agente de Saúde — não precisa do modelo forte pra isso). CONFERIR
+    # também antes de confiar.
+    preco_input_por_1k_barato: float = 0.00015
+    preco_output_por_1k_barato: float = 0.0006
+
     # Contexto
     contexto_max_tokens: int = 2000
 

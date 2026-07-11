@@ -2,15 +2,17 @@
 
 Fatia atual: leitura (health, agentes, mensagens) + domínio do Financeiro
 (upload de extrato, dashboard, relatório mensal) + domínio da Agenda
-(mensagem roteada, gate de confirmação no Google Calendar). Motor de tick
-entra numa próxima fatia. Sobe com:  uvicorn main:app --reload
+(mensagem roteada, gate de confirmação no Google Calendar) + domínio de
+Saúde (perfil, peso, hidratação, sono, atividade, refeição, ficha de
+treino, plano de dieta, relatório semanal). Motor de tick entra numa
+próxima fatia. Sobe com:  uvicorn main:app --reload
 """
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import agenda, agentes, financeiro, mensagens
+from routers import agenda, agentes, financeiro, mensagens, saude
 from utils.connection import close_pool
 
 
@@ -34,6 +36,7 @@ app.include_router(agentes.router)
 app.include_router(mensagens.router)
 app.include_router(financeiro.router)
 app.include_router(agenda.router)
+app.include_router(saude.router)
 
 
 @app.get("/health", tags=["infra"])

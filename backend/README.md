@@ -1,11 +1,14 @@
 # Backend — Hub de Agentes
 
-Fundação (banco + schema + scripts + API de leitura) + dois agentes:
+Fundação (banco + schema + scripts + API de leitura) + três agentes:
 **Financeiro** (Cifra: upload de extrato Itaú/Nubank, dashboard ao vivo,
-relatório mensal narrado por LLM) e **Agenda** (Google Calendar: consulta
+relatório mensal narrado por LLM), **Agenda** (Google Calendar: consulta
 direta sem LLM, negociação de horário guiada, criar/mover/cancelar evento
-sempre com confirmação humana antes de executar). Ainda **sem** motor de
-tick — isso é a próxima fatia.
+sempre com confirmação humana antes de executar) e **Saúde** (Vita: perfil,
+peso, hidratação, sono, atividade física e ficha de treino via forms
+determinísticos, sem LLM — só refeição, plano de dieta e relatório semanal
+passam por LLM, cada um numa chamada estruturada única). Ainda **sem**
+motor de tick — isso é a próxima fatia.
 
 ## ⚠️ Antes de usar de verdade
 
@@ -40,6 +43,24 @@ explícita — ver `acoes_pendentes`. O agente também tem teto de tool calls
 tool falhar repetidamente, a execução é interrompida, nunca fica girando
 sem parar gastando token.
 
+**Saúde**: sem credencial externa nenhuma — só precisa da mesma
+`OPENAI_API_KEY` do Financeiro. Diferente do Agenda, não é chat/roteamento
+por texto: cada ação é um endpoint dedicado (forms). Peso, hidratação,
+sono, atividade e ficha de treino nunca chamam LLM — escrita direta no
+banco. Refeição (`POST /saude/refeicao/texto|foto`) estima macro numa
+chamada estruturada única (nunca tenta de novo sozinha se falhar) e faz
+uma checagem de consistência determinística (calorias vs. macros) antes de
+salvar — se a estimativa não passar, nada é gravado. Plano de dieta e
+relatório semanal (`POST /saude/plano-dieta/gerar`, `POST
+/saude/relatorio/gerar`) são o mesmo padrão do relatório do Financeiro
+(uma chamada estruturada, sem tool-loop). A trava de "um relatório por
+semana" é checada **antes** de chamar o LLM (nunca gasta token só pra
+descobrir depois que já existe) — a `UNIQUE` em `relatorios_saude` é só o
+backstop. Sem gate de confirmação humana (`acoes_pendentes`) nesse
+domínio: toda escrita mexe só no nosso próprio banco, nunca num sistema
+externo, então não existe a mesma razão de pedir confirmação que existe no
+Agenda (ver conversa de design).
+
 ## Como subir
 
 ```bash
@@ -66,7 +87,7 @@ uvicorn main:app --reload
 ## Conferindo
 
 - `http://localhost:8000/health` → `{"status":"ok"}`
-- `http://localhost:8000/agentes` → lista com Você (chefe), Cifra (financeiro), Agenda
+- `http://localhost:8000/agentes` → lista com Você (chefe), Cifra (financeiro), Agenda, Vita (saúde)
 - `http://localhost:8000/docs` → Swagger de todas as rotas
 - `http://localhost:8080` → Adminer, pra inspecionar as tabelas na mão
   (sistema: PostgreSQL · servidor: `db` · usuário: `hub` · senha: `hub` · base: `hub_agentes`)
@@ -146,6 +167,15 @@ sql/                       # SQL puro, nunca embutido no Python
   extratos_importados.sql
   relatorios_financeiros.sql
   acoes_pendentes.sql
+  perfil_saude.sql
+  peso_historico.sql
+  hidratacao_historico.sql
+  sono_historico.sql
+  atividades_fisicas.sql
+  refeicoes.sql
+  ficha_treino.sql
+  planos_dieta.sql
+  relatorios_saude.sql
 
 agents/                    # lógica dos agentes LLM, um domínio por pasta
   financeiro/
@@ -163,6 +193,11 @@ agents/                    # lógica dos agentes LLM, um domínio por pasta
     agente.py                   # create_agent com raciocínio (checa conflito,
                                 # julga horário) — saída sempre estruturada,
                                 # nunca escreve no calendário direto
+  saude/
+    agente.py                 # 4 chamadas estruturadas independentes, sem
+                              # tool-loop: estimar macro (texto/foto), plano
+                              # de dieta, relatório semanal — inclui a
+                              # checagem de consistência calorias-vs-macros
   _shared/
     guardrails.py               # middleware de tool-calling (captura erro, teto de
                                 # chamadas) — reusado por qualquer agente com tool-loop
@@ -172,12 +207,17 @@ resolvers/                 # regra de negócio (o router chama isso, nunca o ban
   mensagens.py
   financeiro.py             # importar extrato, calcular dashboard, gerar relatório
   agenda.py                  # roteador de intenção + negociação + gate de confirmação
+  saude.py                    # perfil, peso, hidratação, sono, atividade, refeição,
+                              # ficha de treino, plano de dieta, relatório semanal
 
 routers/                   # HTTP fino — só parse de request/response
   agentes.py                # GET /agentes
   mensagens.py               # GET /mensagens
   financeiro.py               # POST /financeiro/extrato, GET /dashboard, /relatorio
   agenda.py                    # POST /agenda/mensagem, /agenda/acoes/{id}/confirmar|rejeitar
+  saude.py                      # um endpoint por ação (forms) — perfil, peso,
+                                # hidratação, sono, atividade, refeição, ficha de
+                                # treino, plano de dieta, relatório, dashboard
 
 scripts/
   migrate.py                # aplica as migrations (idempotente)
@@ -191,4 +231,7 @@ docker-compose.yml          # postgres + adminer
 
 Motor de tick (`resolvers/tick.py`) que percorre os agentes ativos e aplica
 os efeitos, e mais agentes — definindo um de cada vez antes de codar, mesmo
-processo que usamos pro Financeiro e pro Agenda.
+processo que usamos pro Financeiro, pro Agenda e pro Saúde. Do próprio
+agente de Saúde, ficou pra depois (ver `docs/backlog-futuro.md`): o agente
+sugerir/montar a ficha de treino sozinho (fase 2 — v1 é só o chefe
+cadastrando a própria ficha) e o canal Telegram.

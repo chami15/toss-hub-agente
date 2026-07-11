@@ -104,3 +104,32 @@ quando for retomada — não uma integração por agente.
 
 **Status:** não iniciado. Agente de Saúde atual (inicial) usa forms/menu na
 mesma API do hub, sem chat livre e sem canal externo.
+
+---
+
+## Agente de Saúde sugerir/montar a ficha de treino sozinho
+
+**Ideia:** hoje (v1) o chefe cadastra a própria ficha de treino (dia da
+semana -> grupo muscular -> exercícios com séries/repetições) via
+`PUT /saude/ficha-treino` — é só escrita estruturada, sem LLM. A ideia é o
+agente evoluir pra também SUGERIR/montar a ficha sozinho, tipo um personal
+trainer de verdade — mesma lógica que já existe pra `gerar_plano_dieta`
+(uma chamada estruturada usando o perfil como contexto), só que pra treino.
+
+**Por que foi adiada:** o núcleo do agente (registro determinístico +
+estimativa de macro de refeição + plano de dieta + relatório semanal)
+precisa validar primeiro. Reaproveita boa parte do desenho já existente
+quando for retomada (mesmo padrão de chamada estruturada única do
+`gerar_plano_dieta`).
+
+**O que vai precisar quando for retomada:**
+- Uma função `agents/saude/agente.py:gerar_ficha_treino(perfil)` nos
+  mesmos moldes de `gerar_plano_dieta` — schema estruturado (dias, grupos
+  musculares, exercícios com séries/repetições), sem tool-loop.
+- Decidir se o agente GERA a ficha inteira do zero ou só sugere ajustes em
+  cima do que o chefe já cadastrou manualmente (provavelmente mais útil:
+  sugerir sobre o que já existe, não substituir sem avisar).
+
+**Status:** não iniciado. `ficha_treino_dias`/`ficha_treino_exercicios` já
+existem no schema (com histórico via `ativo`), só a escrita manual está
+implementada.

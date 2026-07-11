@@ -43,6 +43,17 @@ AGENTES = [
         "avatar_config": {"cor": "#2563eb", "rosto": "📅"},
         "mesa": 2,
     },
+    {
+        "nome": "Vita",
+        "tipo": "colaborador",
+        "especialidade": "saude",
+        "personalidade": (
+            "Você é o agente de Saúde. Direto, sem rodeio, nunca alarmista. "
+            "Cuida de alimentação, peso, sono, hidratação e atividade física do chefe."
+        ),
+        "avatar_config": {"cor": "#f97316", "rosto": "💪"},
+        "mesa": 3,
+    },
 ]
 
 
