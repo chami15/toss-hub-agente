@@ -21,9 +21,18 @@ from config import settings
 load_dotenv()
 
 
+_STACK_MAX_ITENS = 10
+
+
 class EscaneamentoProjeto(BaseModel):
     descricao: str = Field(..., description="2 a 3 frases sobre do que se trata o projeto.")
-    stack: list[str] = Field(..., min_length=1, description="Linguagens/frameworks/bibliotecas principais identificados.")
+    stack: list[str] = Field(
+        ...,
+        min_length=1,
+        description=f"No máximo {_STACK_MAX_ITENS} itens mais relevantes: linguagem de programação, "
+        "banco de dados, framework de frontend, principais bibliotecas do backend — NUNCA "
+        "helpers/utilitários genéricos (ex: parser de encoding, detector de tipo de arquivo).",
+    )
     arquitetura_resumo: str = Field(
         ...,
         description="Resumo de ALTO NÍVEL da estrutura — pastas principais e o "
@@ -56,10 +65,14 @@ abaixo — nunca invente algo que não esteja nos dados recebidos.
 
 == O QUE VOCÊ DEVE PRODUZIR ==
 - descricao: 2-3 frases sobre do que se trata o projeto.
-- stack: lista das linguagens/frameworks/bibliotecas principais — se
-  houver manifest de mais de uma pasta (ex: backend E frontend), a stack
-  precisa refletir AMBOS, não só o primeiro que aparecer. Nunca invente
-  dependência que não apareceu nos manifests ou no README.
+- stack: só as {stack_max_itens} mais relevantes — linguagem de
+  programação, banco de dados, framework de frontend, principais
+  bibliotecas do backend. NUNCA liste helper/utilitário genérico (ex:
+  lib de parsing de encoding, detector de tipo de arquivo) — isso só
+  polui. Se houver manifest de mais de uma pasta (ex: backend E
+  frontend), reflita AMBOS dentro do limite, não só o primeiro que
+  aparecer. Nunca invente dependência que não apareceu nos manifests ou
+  no README.
 - arquitetura_resumo: resumo de alto nível — pastas principais e pra que
   cada uma serve. Nunca liste arquivo por arquivo.
 """
@@ -79,6 +92,12 @@ vez, nunca uma lista, nunca algo vago.
 {historico_cards}
 
 == REGRAS ==
+- ANTES de sugerir qualquer coisa, releia com atenção a `descricao` e a
+  `arquitetura_resumo` dentro de `contexto_projeto`. Se alguma
+  funcionalidade já está descrita ali como EXISTENTE, NUNCA sugira
+  implementá-la do zero de novo — isso contradiz o que você mesmo já
+  identificou sobre o projeto. Ex: se a descricao diz que upload de
+  arquivo já funciona, não proponha "implementar upload de arquivo".
 - Sugira UM card só, concreto e específico — nunca "melhorar a UI" ou
   "revisar o código", sempre algo com um arquivo/caminho claro em
   arquivos_afetados.
@@ -144,12 +163,18 @@ async def escanear_projeto(arvore_raiz: list[dict], readme: str | None, manifest
         arvore_raiz=json.dumps(arvore_raiz, ensure_ascii=False),
         readme=(readme or "(sem README)")[:4000],
         manifests=json.dumps(manifests, ensure_ascii=False) if manifests else "(nenhum manifest conhecido encontrado, nem na raiz nem em subpastas)",
+        stack_max_itens=_STACK_MAX_ITENS,
     )
     try:
         resultado = await modelo.ainvoke(prompt)
     except Exception as exc:
         raise RuntimeError(f"Falha ao chamar o modelo de escaneamento: {exc}") from exc
-    return _extrair_resultado(resultado, barato=True)
+
+    saida = _extrair_resultado(resultado, barato=True)
+    # Trunca deterministicamente — não confia só na instrução de prompt
+    # pro limite de itens, mesmo espírito das outras checagens do hub.
+    saida["dado"].stack = saida["dado"].stack[:_STACK_MAX_ITENS]
+    return saida
 
 
 async def gerar_card(contexto_projeto: dict, mudancas_recentes: dict, historico_cards: list[dict]) -> dict:
