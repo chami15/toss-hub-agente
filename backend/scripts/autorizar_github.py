@@ -37,38 +37,52 @@ def main() -> None:
     dados = resposta.json()
 
     print(f"Acesse {dados['verification_uri']} e digite o código: {dados['user_code']}")
-    print("Aguardando você aprovar...")
+    print(
+        "Aguardando você aprovar — NÃO feche nem interrompa este script, ele "
+        "detecta sozinho assim que você aprovar (um ponto a cada tentativa, "
+        "só pra mostrar que está vivo, não travado):"
+    )
 
     intervalo = dados["interval"]
     expira_em = time.time() + dados["expires_in"]
 
-    while time.time() < expira_em:
-        time.sleep(intervalo)
-        resposta_token = requests.post(
-            ACCESS_TOKEN_URL,
-            data={
-                "client_id": settings.github_client_id,
-                "device_code": dados["device_code"],
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-            },
-            headers={"Accept": "application/json"},
-        )
-        resposta_token.raise_for_status()
-        resultado = resposta_token.json()
+    try:
+        while time.time() < expira_em:
+            time.sleep(intervalo)
+            print(".", end="", flush=True)
+            resposta_token = requests.post(
+                ACCESS_TOKEN_URL,
+                data={
+                    "client_id": settings.github_client_id,
+                    "device_code": dados["device_code"],
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                },
+                headers={"Accept": "application/json"},
+            )
+            resposta_token.raise_for_status()
+            resultado = resposta_token.json()
 
-        if "access_token" in resultado:
-            with open(settings.github_token_path, "w", encoding="utf-8") as arquivo_token:
-                arquivo_token.write(resposta_token.text)
-            print(f"Autorizado! Token salvo em '{settings.github_token_path}'.")
-            return
+            if "access_token" in resultado:
+                with open(settings.github_token_path, "w", encoding="utf-8") as arquivo_token:
+                    arquivo_token.write(resposta_token.text)
+                print(f"\nAutorizado! Token salvo em '{settings.github_token_path}'.")
+                return
 
-        erro = resultado.get("error")
-        if erro == "authorization_pending":
-            continue
-        if erro == "slow_down":
-            intervalo += 5
-            continue
-        raise RuntimeError(f"Falha na autorização: {resultado}")
+            erro = resultado.get("error")
+            if erro == "authorization_pending":
+                continue
+            if erro == "slow_down":
+                intervalo += 5
+                continue
+            print()
+            raise RuntimeError(f"Falha na autorização: {resultado}")
+    except KeyboardInterrupt:
+        raise RuntimeError(
+            "\nInterrompido antes de detectar a aprovação — nada foi salvo "
+            "(aprovar no navegador não basta, o script precisa continuar "
+            "rodando até perceber sozinho). Rode 'python -m scripts.autorizar_github' "
+            "de novo — o código anterior não vale mais, ele vai gerar um novo."
+        ) from None
 
     raise RuntimeError("Código expirou antes de você aprovar — rode o script de novo.")
 
