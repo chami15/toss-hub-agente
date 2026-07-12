@@ -133,3 +133,41 @@ quando for retomada (mesmo padrão de chamada estruturada única do
 **Status:** não iniciado. `ficha_treino_dias`/`ficha_treino_exercicios` já
 existem no schema (com histórico via `ativo`), só a escrita manual está
 implementada.
+
+---
+
+## Acesso multi-usuário ao agente Norte (colaborar em cards)
+
+**Ideia:** quando o uso escalar, outras pessoas (não só o chefe) poderem
+acessar um projeto no Norte e criar/resolver cards nele — útil se um
+projeto pessoal virar algo com colaboradores.
+
+**Por que foi adiada:** o hub inteiro hoje é single-user (o chefe) — não
+existe conceito de múltiplos usuários, autenticação ou permissão em
+NENHUM agente ainda. Introduzir isso só pro Norte seria inconsistente com
+o resto do hub; se for retomado, é uma decisão de arquitetura do hub como
+um todo (autenticação real), não um ajuste isolado de uma tabela.
+
+**Status:** não iniciado. V1 do Norte é single-user, igual todo o resto.
+
+---
+
+## Leitura mais profunda do repositório no agente Norte
+
+**Ideia:** a v1 do Norte manda pro LLM só um contexto raso na hora de
+gerar um card — estrutura de pastas de alto nível (não recursiva),
+README, manifest (package.json/pyproject.toml) e nomes (não conteúdo) dos
+arquivos alterados recentemente. Se a qualidade das sugestões não for boa
+o suficiente com isso, o próximo passo é ler o CONTEÚDO de fato dos
+arquivos alterados recentemente (ou um subconjunto relevante) antes de
+sugerir o card.
+
+**Por que foi adiada:** é bem mais caro (mais tokens por chamada) e mais
+complexo — provavelmente precisaria virar um agente com tool-calling
+(explorar quais arquivos vale a pena ler) em vez da chamada estruturada
+única que a v1 usa, exigindo os mesmos guardrails de recursion_limit que
+já usamos no Agenda. Decisão deliberada: começar raso, validar qualidade
+das sugestões primeiro, só aprofundar se necessário.
+
+**Status:** não iniciado. V1 do Norte usa só o contexto raso descrito
+acima.

@@ -23,7 +23,7 @@ inteira; o "escritório 3D" é upgrade de fantasia, não pré-requisito.
 - **Nenhum metadado de custo aparece pro chefe** (decisão original do
   Financeiro, ver `resolvers/financeiro.py:obter_relatorio`): modelo,
   tokens, custo_usd ficam só no banco, nunca na resposta que o frontend
-  recebe. Vale pros três agentes, não é peculiaridade do Financeiro.
+  recebe. Vale pra todos os agentes, não é peculiaridade do Financeiro.
 - **Ação que mexe em sistema externo sempre tem confirmação explícita
   antes de executar** (Agenda/Google Calendar) — isso precisa aparecer na
   UI como um estado visualmente diferente de uma mensagem comum (ver
@@ -80,7 +80,7 @@ palavra-chave — não é um LLM em chat livre de verdade).
 ### Saúde (Vita)
 
 **Padrão de interação:** menu de ações + forms determinísticos,
-**sem chat** — o mais estruturado dos três.
+**sem chat**.
 
 - Onboarding: se `GET /saude/perfil` voltar 404, mostrar a "entrevista"
   inicial (form: nome, sexo, data de nascimento, altura, objetivo,
@@ -105,6 +105,41 @@ palavra-chave — não é um LLM em chat livre de verdade).
 - Plano de dieta e relatório semanal são ações deliberadas (botão
   "Gerar"), igual o relatório do Financeiro — nunca automáticas.
 
+### Norte (Projetos)
+
+**Padrão de interação:** um card por vez, por projeto — **sem chat, sem
+lista de tarefas tradicional**. Ainda em desenho (ver conversa de
+design), não implementado.
+
+- Pré-requisito: autorização OAuth do GitHub feita fora do fluxo normal
+  (script manual único, mesmo espírito do
+  `scripts/autorizar_google_calendar.py` do Agenda) — sem token válido, o
+  cadastro de projeto falha rápido com mensagem clara.
+- Cadastrar um projeto = colar o link do repositório. Isso só faz o scan
+  inicial (descrição/stack/arquitetura) — **não gera nenhum card
+  sozinho**.
+- Cada projeto mostra **só um card ativo por vez** (`sugerido` ou
+  `aceito`) — nunca uma lista de várias sugestões acumuladas. Abaixo
+  dele, um histórico/feed dos cards já resolvidos (`rejeitado` /
+  `finalizado`), tipo changelog.
+- Botões de decisão no card ativo: **Aceitar** / **Rejeitar** (quando
+  `sugerido`), **Marcar como feito** (quando `aceito`).
+- Resolver o card ATUAL (aceitar->finalizar ou rejeitar) já devolve o
+  PRÓXIMO card na mesma resposta — a UI não precisa de um botão "gerar
+  próximo", só troca o card exibido pelo que já veio na resposta.
+  Exceção: o primeiríssimo card de um projeto novo precisa de um botão
+  explícito "gerar primeira sugestão" (não existe "card anterior" pra
+  encadear).
+- Card sempre mostra `arquivos_afetados` (paths concretos) — nunca uma
+  descrição vaga tipo "melhorar o botão".
+- Card pode ter `origem: manual` (você mesmo cria, sem esperar sugestão
+  do agente) — mesma regra de "só 1 card não-terminado por projeto" vale
+  também pra esse caso.
+- Painel de projetos (visão geral): lista de projetos com sinalização de
+  "estagnado" (calculado por tempo desde o último card resolvido/commit,
+  não um status fixo) — é aqui que mora o "ficar de olho" que motivou o
+  agente.
+
 ---
 
 ## Escritório 2D (visão geral, ainda não desenhado)
@@ -114,8 +149,8 @@ pra quando começar:
 - Um avatar/cartão por agente (cor + emoji já vêm do banco).
 - Clicar no avatar abre o painel daquele agente — mas o CONTEÚDO do
   painel é diferente por agente (dashboard pro Financeiro, chat pro
-  Agenda, menu de forms pro Saúde) — não existe um "painel genérico"
-  único que sirva pros três.
+  Agenda, menu de forms pro Saúde, quadro de card único por projeto pro
+  Norte) — não existe um "painel genérico" único que sirva pros quatro.
 - Atalhos que vivem na própria bolha do avatar, sem abrir o painel
   inteiro (hoje só peso/hidratação do Saúde, mas o padrão pode se repetir
   pra outros agentes futuros com ações de campo único e alta frequência).
@@ -214,3 +249,9 @@ são o que a API já suporta e o frontend precisa cobrir.
   painel do avatar? Ainda não desenhado.
 - **Onde os atalhos de campo único aparecem:** só na bolha do avatar no
   escritório, ou também dentro do painel do agente quando já aberto?
+- **Visão geral de projetos do Norte:** lista simples de cartões, ou algo
+  mais visual tipo um quadro/kanban por projeto? Ainda não desenhado.
+- **Como sinalizar "estagnado" visualmente:** cor diferente no card do
+  projeto, badge, ordenação por tempo parado no topo da lista? A regra
+  (tempo desde o último card resolvido) já existe, falta o tratamento
+  visual.
