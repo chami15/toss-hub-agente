@@ -50,10 +50,10 @@ async def criar_projeto(nome: str, repositorio_url: str) -> dict:
 
     arvore_raiz = github_client.obter_arvore_raiz(owner, repo)
     readme = github_client.obter_readme(owner, repo)
-    manifest = github_client.obter_manifest(owner, repo)
+    manifests = github_client.obter_manifest(owner, repo, arvore_raiz)
     commit_atual = github_client.obter_commit_mais_recente(owner, repo)
 
-    resultado = await agente_norte.escanear_projeto(arvore_raiz, readme, manifest)
+    resultado = await agente_norte.escanear_projeto(arvore_raiz, readme, manifests)
     escaneamento = resultado["dado"]
 
     rows = executar_query(

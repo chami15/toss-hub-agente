@@ -50,13 +50,16 @@ abaixo — nunca invente algo que não esteja nos dados recebidos.
 == README ==
 {readme}
 
-== MANIFEST ==
-{manifest}
+== MANIFESTS ENCONTRADOS (raiz e subpastas — projeto com backend/frontend
+   separados costuma ter um manifest em cada um) ==
+{manifests}
 
 == O QUE VOCÊ DEVE PRODUZIR ==
 - descricao: 2-3 frases sobre do que se trata o projeto.
-- stack: lista das linguagens/frameworks/bibliotecas principais (a partir
-  do manifest e da estrutura, não invente dependência que não apareceu).
+- stack: lista das linguagens/frameworks/bibliotecas principais — se
+  houver manifest de mais de uma pasta (ex: backend E frontend), a stack
+  precisa refletir AMBOS, não só o primeiro que aparecer. Nunca invente
+  dependência que não apareceu nos manifests ou no README.
 - arquitetura_resumo: resumo de alto nível — pastas principais e pra que
   cada uma serve. Nunca liste arquivo por arquivo.
 """
@@ -133,14 +136,14 @@ def _extrair_resultado(resultado: dict, barato: bool) -> dict:
     }
 
 
-async def escanear_projeto(arvore_raiz: list[dict], readme: str | None, manifest: dict | None) -> dict:
+async def escanear_projeto(arvore_raiz: list[dict], readme: str | None, manifests: list[dict]) -> dict:
     """Lança RuntimeError se a chamada ou o parsing falharem — uma
     tentativa só, sem retry automático."""
     modelo = _get_model_scan()
     prompt = _PROMPT_SCAN.format(
         arvore_raiz=json.dumps(arvore_raiz, ensure_ascii=False),
         readme=(readme or "(sem README)")[:4000],
-        manifest=json.dumps(manifest, ensure_ascii=False) if manifest else "(sem manifest conhecido encontrado)",
+        manifests=json.dumps(manifests, ensure_ascii=False) if manifests else "(nenhum manifest conhecido encontrado, nem na raiz nem em subpastas)",
     )
     try:
         resultado = await modelo.ainvoke(prompt)

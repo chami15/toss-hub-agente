@@ -110,11 +110,25 @@ def obter_readme(owner: str, repo: str) -> str | None:
     return resposta.text
 
 
-def obter_manifest(owner: str, repo: str) -> dict | None:
-    """Primeiro manifest conhecido que existir no repositório (ver
-    _MANIFESTS_CONHECIDOS) — usado pra inferir a stack, não pra ler
-    dependência por dependência."""
-    for caminho in _MANIFESTS_CONHECIDOS:
+_TAMANHO_MAX_MANIFEST = 2000  # caracteres por manifest, pra não inflar o contexto
+
+
+def obter_manifest(owner: str, repo: str, arvore_raiz: list[dict] | None = None) -> list[dict]:
+    """Todos os manifests conhecidos que existirem — na raiz E dentro de
+    cada subpasta real do repositório (usa `arvore_raiz`, já coletada,
+    pra saber quais subpastas existem de verdade, em vez de adivinhar
+    nomes tipo "backend"/"frontend"). Projetos com backend e frontend
+    separados (comum em monorepo pessoal) têm manifests em pastas
+    diferentes — só olhar a raiz deixava a stack inferida incompleta (só
+    o lado que por acaso tivesse manifest na raiz, ou nenhum dos dois).
+    Devolve TODOS os encontrados, não só o primeiro."""
+    caminhos_a_tentar = list(_MANIFESTS_CONHECIDOS)
+    if arvore_raiz:
+        pastas = [item["path"] for item in arvore_raiz if item["type"] == "tree"]
+        caminhos_a_tentar += [f"{pasta}/{manifesto}" for pasta in pastas for manifesto in _MANIFESTS_CONHECIDOS]
+
+    encontrados = []
+    for caminho in caminhos_a_tentar:
         try:
             resposta = _get(
                 f"/repos/{owner}/{repo}/contents/{caminho}",
@@ -124,8 +138,8 @@ def obter_manifest(owner: str, repo: str) -> dict | None:
             if "404" in str(exc):
                 continue
             raise
-        return {"arquivo": caminho, "conteudo": resposta.text}
-    return None
+        encontrados.append({"arquivo": caminho, "conteudo": resposta.text[:_TAMANHO_MAX_MANIFEST]})
+    return encontrados
 
 
 def obter_mudancas_desde(owner: str, repo: str, sha_anterior: str, sha_atual: str, limite_arquivos: int = 30) -> dict:
