@@ -169,5 +169,16 @@ complexo — provavelmente precisaria virar um agente com tool-calling
 já usamos no Agenda. Decisão deliberada: começar raso, validar qualidade
 das sugestões primeiro, só aprofundar se necessário.
 
-**Status:** não iniciado. V1 do Norte usa só o contexto raso descrito
-acima.
+**Confirmado que é necessário** (teste real com o repositório toss-flow,
+ver conversa de design): o primeiro card gerado sugeriu implementar uma
+funcionalidade (upload de planilha) que a própria `descricao` do projeto
+já dizia existir — o Norte não tem como saber o que já está implementado
+de fato sem ler o código, só o resumo compacto (descricao/arquitetura/
+README). Foi adicionada uma regra de prompt pra mitigar o caso óbvio
+(nunca contradizer a própria descricao/arquitetura), mas isso não
+resolve o problema de raiz — só a leitura de conteúdo real resolve.
+**O chefe confirmou que isso é prioridade pra próxima sprint, não "algum
+dia".**
+
+**Status:** não iniciado, mas confirmado como necessário e priorizado
+pra próxima sprint. V1 do Norte usa só o contexto raso descrito acima.
