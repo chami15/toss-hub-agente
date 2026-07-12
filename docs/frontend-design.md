@@ -108,16 +108,22 @@ palavra-chave — não é um LLM em chat livre de verdade).
 ### Norte (Projetos)
 
 **Padrão de interação:** um card por vez, por projeto — **sem chat, sem
-lista de tarefas tradicional**. Ainda em desenho (ver conversa de
-design), não implementado.
+lista de tarefas tradicional**. Backend implementado e validado com
+repositório real; frontend ainda por desenhar.
 
 - Pré-requisito: autorização OAuth do GitHub feita fora do fluxo normal
   (script manual único, mesmo espírito do
   `scripts/autorizar_google_calendar.py` do Agenda) — sem token válido, o
   cadastro de projeto falha rápido com mensagem clara.
-- Cadastrar um projeto = colar o link do repositório. Isso só faz o scan
-  inicial (descrição/stack/arquitetura) — **não gera nenhum card
-  sozinho**.
+- Cadastrar um projeto = colar o link do repositório **+ escolher a
+  branch de um dropdown** (não digitar à mão): o frontend chama
+  `GET /norte/repositorios/branches?repositorio_url=...` assim que o link
+  é colado, mostra as branches reais como opções, e só então o chefe
+  confirma — nunca deixa cadastrar apontando pra uma branch que não
+  existe (achado testando: nem todo repositório tem o conteúdo real na
+  default branch do GitHub). Se o chefe não escolher nenhuma, usa a
+  default do repositório automaticamente. Isso só faz o scan inicial
+  (descrição/stack/arquitetura) — **não gera nenhum card sozinho**.
 - Cada projeto mostra **só um card ativo por vez** (`sugerido` ou
   `aceito`) — nunca uma lista de várias sugestões acumuladas. Abaixo
   dele, um histórico/feed dos cards já resolvidos (`rejeitado` /

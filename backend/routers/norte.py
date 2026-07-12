@@ -8,7 +8,7 @@ precisa do endpoint `/cards/gerar` explícito.
 """
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from resolvers import norte as resolver
@@ -21,6 +21,7 @@ _TipoCard = Literal["feature", "bug", "refatoracao", "proximo_passo"]
 class ProjetoInput(BaseModel):
     nome: str
     repositorio_url: str
+    branch: str | None = None  # se omitido, usa a default branch do GitHub
 
 
 class StatusProjetoInput(BaseModel):
@@ -34,10 +35,23 @@ class CardManualInput(BaseModel):
     arquivos_afetados: list[str] = Field(..., min_length=1)
 
 
+@router.get("/repositorios/branches")
+def listar_branches_disponiveis(repositorio_url: str = Query(...)):
+    """Descoberta pro frontend: lista as branches reais do repositório
+    ANTES de cadastrar o projeto, pra oferecer como opções (em vez do
+    chefe digitar às cegas e arriscar uma branch que não existe)."""
+    try:
+        return resolver.listar_branches_disponiveis(repositorio_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @router.post("/projetos")
 async def criar_projeto(corpo: ProjetoInput):
     try:
-        return await resolver.criar_projeto(corpo.nome, corpo.repositorio_url)
+        return await resolver.criar_projeto(corpo.nome, corpo.repositorio_url, corpo.branch)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except RuntimeError as exc:

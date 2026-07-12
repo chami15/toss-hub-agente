@@ -78,31 +78,44 @@ def _get(path: str, headers: dict | None = None) -> requests.Response:
 
 
 def obter_branch_padrao(owner: str, repo: str) -> str:
+    """A default branch configurada no GitHub — só usada quando o chefe
+    NÃO escolheu uma branch explícita no cadastro do projeto. Depois de
+    resolvida uma vez (no cadastro), o valor concreto fica guardado em
+    `projetos.branch` — o resolver nunca chama isso de novo depois, pra
+    nunca "trocar de branch" sozinho se a default do repositório mudar."""
     return _get(f"/repos/{owner}/{repo}").json()["default_branch"]
 
 
-def obter_commit_mais_recente(owner: str, repo: str) -> dict:
-    """SHA + mensagem do commit mais recente da branch padrão."""
-    branch = obter_branch_padrao(owner, repo)
+def listar_branches(owner: str, repo: str) -> list[str]:
+    """Todas as branches do repositório — usado pro chefe escolher uma
+    (em vez de digitar às cegas) antes de cadastrar o projeto."""
+    dados = _get(f"/repos/{owner}/{repo}/branches?per_page=100").json()
+    return [b["name"] for b in dados]
+
+
+def obter_commit_mais_recente(owner: str, repo: str, branch: str) -> dict:
+    """SHA + mensagem do commit mais recente da branch informada."""
     commits = _get(f"/repos/{owner}/{repo}/commits?sha={branch}&per_page=1").json()
     if not commits:
-        raise RuntimeError(f"Repositório {owner}/{repo} não tem nenhum commit.")
+        raise RuntimeError(f"Branch '{branch}' de {owner}/{repo} não tem nenhum commit.")
     commit = commits[0]
     return {"sha": commit["sha"], "mensagem": commit["commit"]["message"]}
 
 
-def obter_arvore_raiz(owner: str, repo: str) -> list[dict]:
+def obter_arvore_raiz(owner: str, repo: str, branch: str) -> list[dict]:
     """Estrutura de alto nível — só o nível raiz do repositório, NÃO
     recursivo (decisão deliberada: contexto raso, ver conversa de
     design). Cada item: {"path": ..., "type": "blob" | "tree"}."""
-    branch = obter_branch_padrao(owner, repo)
     dados = _get(f"/repos/{owner}/{repo}/git/trees/{branch}").json()
     return [{"path": item["path"], "type": item["type"]} for item in dados.get("tree", [])]
 
 
-def obter_readme(owner: str, repo: str) -> str | None:
+def obter_readme(owner: str, repo: str, branch: str) -> str | None:
     try:
-        resposta = _get(f"/repos/{owner}/{repo}/readme", headers={"Accept": "application/vnd.github.raw+json"})
+        resposta = _get(
+            f"/repos/{owner}/{repo}/readme?ref={branch}",
+            headers={"Accept": "application/vnd.github.raw+json"},
+        )
     except RuntimeError as exc:
         if "404" in str(exc):
             return None
@@ -113,7 +126,7 @@ def obter_readme(owner: str, repo: str) -> str | None:
 _TAMANHO_MAX_MANIFEST = 2000  # caracteres por manifest, pra não inflar o contexto
 
 
-def obter_manifest(owner: str, repo: str, arvore_raiz: list[dict] | None = None) -> list[dict]:
+def obter_manifest(owner: str, repo: str, branch: str, arvore_raiz: list[dict] | None = None) -> list[dict]:
     """Todos os manifests conhecidos que existirem — na raiz E dentro de
     cada subpasta real do repositório (usa `arvore_raiz`, já coletada,
     pra saber quais subpastas existem de verdade, em vez de adivinhar
@@ -131,7 +144,7 @@ def obter_manifest(owner: str, repo: str, arvore_raiz: list[dict] | None = None)
     for caminho in caminhos_a_tentar:
         try:
             resposta = _get(
-                f"/repos/{owner}/{repo}/contents/{caminho}",
+                f"/repos/{owner}/{repo}/contents/{caminho}?ref={branch}",
                 headers={"Accept": "application/vnd.github.raw+json"},
             )
         except RuntimeError as exc:

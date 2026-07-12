@@ -45,13 +45,33 @@ def _garantir_sem_card_ativo(projeto_id: int) -> None:
 # Projetos
 # --------------------------------------------------------------------------
 
-async def criar_projeto(nome: str, repositorio_url: str) -> dict:
+def listar_branches_disponiveis(repositorio_url: str) -> list[str]:
+    owner, repo = _parse_repositorio_url(repositorio_url)
+    return github_client.listar_branches(owner, repo)
+
+
+async def criar_projeto(nome: str, repositorio_url: str, branch: str | None = None) -> dict:
+    """Se `branch` vier, valida contra as branches reais do repositório
+    ANTES de qualquer chamada de LLM — nunca deixa cadastrar apontando
+    pra uma branch que não existe. Se não vier, resolve a default branch
+    do GitHub. De qualquer forma, o valor CONCRETO escolhido fica
+    guardado em `projetos.branch` — nunca mais re-resolvido depois."""
     owner, repo = _parse_repositorio_url(repositorio_url)
 
-    arvore_raiz = github_client.obter_arvore_raiz(owner, repo)
-    readme = github_client.obter_readme(owner, repo)
-    manifests = github_client.obter_manifest(owner, repo, arvore_raiz)
-    commit_atual = github_client.obter_commit_mais_recente(owner, repo)
+    if branch:
+        branches_existentes = github_client.listar_branches(owner, repo)
+        if branch not in branches_existentes:
+            raise ValueError(
+                f"Branch '{branch}' não existe em {owner}/{repo}. "
+                f"Branches disponíveis: {', '.join(branches_existentes)}."
+            )
+    else:
+        branch = github_client.obter_branch_padrao(owner, repo)
+
+    arvore_raiz = github_client.obter_arvore_raiz(owner, repo, branch)
+    readme = github_client.obter_readme(owner, repo, branch)
+    manifests = github_client.obter_manifest(owner, repo, branch, arvore_raiz)
+    commit_atual = github_client.obter_commit_mais_recente(owner, repo, branch)
 
     resultado = await agente_norte.escanear_projeto(arvore_raiz, readme, manifests)
     escaneamento = resultado["dado"]
@@ -64,6 +84,7 @@ async def criar_projeto(nome: str, repositorio_url: str) -> dict:
             repositorio_url,
             owner,
             repo,
+            branch,
             escaneamento.descricao,
             escaneamento.stack,
             escaneamento.arquitetura_resumo,
@@ -110,9 +131,9 @@ async def gerar_proximo_card(projeto_id: int) -> dict:
     _garantir_sem_card_ativo(projeto_id)
 
     projeto = obter_projeto(projeto_id)
-    owner, repo = projeto["repositorio_owner"], projeto["repositorio_nome"]
+    owner, repo, branch = projeto["repositorio_owner"], projeto["repositorio_nome"], projeto["branch"]
 
-    commit_atual = github_client.obter_commit_mais_recente(owner, repo)
+    commit_atual = github_client.obter_commit_mais_recente(owner, repo, branch)
     if projeto["ultimo_commit_sha"]:
         mudancas = github_client.obter_mudancas_desde(owner, repo, projeto["ultimo_commit_sha"], commit_atual["sha"])
     else:
