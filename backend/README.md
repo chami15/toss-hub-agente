@@ -1,14 +1,17 @@
 # Backend — Hub de Agentes
 
-Fundação (banco + schema + scripts + API de leitura) + três agentes:
+Fundação (banco + schema + scripts + API de leitura) + quatro agentes:
 **Financeiro** (Cifra: upload de extrato Itaú/Nubank, dashboard ao vivo,
 relatório mensal narrado por LLM), **Agenda** (Google Calendar: consulta
 direta sem LLM, negociação de horário guiada, criar/mover/cancelar evento
-sempre com confirmação humana antes de executar) e **Saúde** (Vita: perfil,
+sempre com confirmação humana antes de executar), **Saúde** (Vita: perfil,
 peso, hidratação, sono, atividade física e ficha de treino via forms
 determinísticos, sem LLM — só refeição, plano de dieta e relatório semanal
-passam por LLM, cada um numa chamada estruturada única). Ainda **sem**
-motor de tick — isso é a próxima fatia.
+passam por LLM, cada um numa chamada estruturada única) e **Norte**
+(projetos do GitHub: um card de sugestão por vez — feature, bug ou próximo
+passo —, nunca mais de um ativo por projeto, encadeando o próximo card
+automaticamente ao resolver o atual). Ainda **sem** motor de tick — isso é
+a próxima fatia.
 
 ## ⚠️ Antes de usar de verdade
 
@@ -61,6 +64,35 @@ domínio: toda escrita mexe só no nosso próprio banco, nunca num sistema
 externo, então não existe a mesma razão de pedir confirmação que existe no
 Agenda (ver conversa de design).
 
+**Norte**: precisa de um OAuth App do GitHub com **Device Flow**
+habilitado (`github.com/settings/developers`) — só o `client_id` no
+`.env`, Device Flow não usa `client_secret`. **Antes de usar o agente**,
+rode uma vez, na sua máquina:
+
+```bash
+python -m scripts.autorizar_github
+```
+
+Isso mostra um código pra você digitar em `github.com/login/device` e
+grava o `github_token.json` quando você aprovar — mesmo espírito do
+`autorizar_google_calendar.py` do Agenda: passo manual único, nunca roda
+sozinho numa requisição da API. Sem o token, cadastrar um projeto falha
+rápido com mensagem clara.
+
+Guardrail central do domínio (pedido explícito na conversa de design): o
+agente só é acionado (chamada de LLM/GitHub) em dois momentos — o chefe
+clica pra gerar o card quando o projeto não tem nenhum ativo, ou resolver
+(aceitar→finalizar, ou rejeitar) o card atual dispara o próximo
+automaticamente. **Nunca em qualquer outro momento.** O resolver checa se
+já existe um card não-terminado **antes** de chamar GitHub/LLM — nunca
+gasta uma chamada sequer só pra descobrir depois que já existia (a
+`UNIQUE INDEX` em `cards` é só o backstop). A leitura do repositório em si
+(árvore de arquivos, README, manifest, commits/arquivos alterados) é toda
+determinística (`agents/norte/github_client.py`, chamadas diretas à API
+do GitHub) — o LLM só entra pra interpretar esse contexto já coletado,
+nunca pra "explorar" o repositório sozinho (contexto raso de propósito
+nessa v1, ver `docs/backlog-futuro.md`).
+
 ## Como subir
 
 ```bash
@@ -87,7 +119,7 @@ uvicorn main:app --reload
 ## Conferindo
 
 - `http://localhost:8000/health` → `{"status":"ok"}`
-- `http://localhost:8000/agentes` → lista com Você (chefe), Cifra (financeiro), Agenda, Vita (saúde)
+- `http://localhost:8000/agentes` → lista com Você (chefe), Cifra (financeiro), Agenda, Vita (saúde), Norte (projetos)
 - `http://localhost:8000/docs` → Swagger de todas as rotas
 - `http://localhost:8080` → Adminer, pra inspecionar as tabelas na mão
   (sistema: PostgreSQL · servidor: `db` · usuário: `hub` · senha: `hub` · base: `hub_agentes`)
@@ -176,6 +208,8 @@ sql/                       # SQL puro, nunca embutido no Python
   ficha_treino.sql
   planos_dieta.sql
   relatorios_saude.sql
+  projetos.sql
+  cards.sql
 
 agents/                    # lógica dos agentes LLM, um domínio por pasta
   financeiro/
@@ -198,6 +232,11 @@ agents/                    # lógica dos agentes LLM, um domínio por pasta
                               # tool-loop: estimar macro (texto/foto), plano
                               # de dieta, relatório semanal — inclui a
                               # checagem de consistência calorias-vs-macros
+  norte/
+    github_client.py           # só leitura determinística do GitHub (árvore,
+                               # README, manifest, commits/diff) — sem LLM
+    agente.py                   # 2 chamadas estruturadas: escanear projeto
+                                # (1x, no cadastro) e gerar 1 card por vez
   _shared/
     guardrails.py               # middleware de tool-calling (captura erro, teto de
                                 # chamadas) — reusado por qualquer agente com tool-loop
@@ -209,6 +248,8 @@ resolvers/                 # regra de negócio (o router chama isso, nunca o ban
   agenda.py                  # roteador de intenção + negociação + gate de confirmação
   saude.py                    # perfil, peso, hidratação, sono, atividade, refeição,
                               # ficha de treino, plano de dieta, relatório semanal
+  norte.py                     # projetos + cards — guardrail de "só 1 card ativo
+                               # por vez" checado antes de qualquer chamada de LLM
 
 routers/                   # HTTP fino — só parse de request/response
   agentes.py                # GET /agentes
@@ -218,11 +259,13 @@ routers/                   # HTTP fino — só parse de request/response
   saude.py                      # um endpoint por ação (forms) — perfil, peso,
                                 # hidratação, sono, atividade, refeição, ficha de
                                 # treino, plano de dieta, relatório, dashboard
+  norte.py                       # projetos + cards (gerar/aceitar/rejeitar/finalizar)
 
 scripts/
   migrate.py                # aplica as migrations (idempotente)
   seed.py                    # cria agentes + relacionamentos-base, via executar_query
   autorizar_google_calendar.py  # passo manual único: abre navegador, grava token.json
+  autorizar_github.py            # passo manual único: Device Flow, grava github_token.json
 
 docker-compose.yml          # postgres + adminer
 ```
@@ -230,8 +273,10 @@ docker-compose.yml          # postgres + adminer
 ## Próxima fatia (a combinar)
 
 Motor de tick (`resolvers/tick.py`) que percorre os agentes ativos e aplica
-os efeitos, e mais agentes — definindo um de cada vez antes de codar, mesmo
-processo que usamos pro Financeiro, pro Agenda e pro Saúde. Do próprio
-agente de Saúde, ficou pra depois (ver `docs/backlog-futuro.md`): o agente
-sugerir/montar a ficha de treino sozinho (fase 2 — v1 é só o chefe
-cadastrando a própria ficha) e o canal Telegram.
+os efeitos — definindo um de cada vez antes de codar, mesmo processo que
+usamos pro Financeiro, pro Agenda, pro Saúde e pro Norte (4 agentes
+fecham a sprint atual). Itens adiados de propósito, ver
+`docs/backlog-futuro.md`: canal Telegram; agente de Saúde sugerir/montar a
+ficha de treino sozinho; acesso multi-usuário aos cards do Norte; leitura
+mais profunda do repositório no Norte (conteúdo de arquivo, não só nomes)
+se o contexto raso da v1 não gerar sugestões boas o suficiente.

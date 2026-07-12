@@ -52,5 +52,12 @@ class Settings(BaseSettings):
     # contexto pra qualquer mensagem nova e não-relacionada que vier depois.
     agenda_pendencia_ttl_minutos: int = 15
 
+    # GitHub (agente Norte) — OAuth App com Device Flow habilitado (só
+    # precisa de client_id, device flow não usa client_secret). Token
+    # gerado uma vez por scripts/autorizar_github.py, nunca vai pro git.
+    github_client_id: str = ""
+    github_token_path: str = "github_token.json"
+    github_oauth_scope: str = "repo"
+
 
 settings = Settings()

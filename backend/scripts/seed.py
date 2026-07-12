@@ -54,6 +54,18 @@ AGENTES = [
         "avatar_config": {"cor": "#f97316", "rosto": "💪"},
         "mesa": 3,
     },
+    {
+        "nome": "Norte",
+        "tipo": "colaborador",
+        "especialidade": "norte",
+        "personalidade": (
+            "Você é o agente Norte. Direto, objetivo, focado em manter o momentum "
+            "dos projetos pessoais do chefe. Sugere sempre UM passo concreto por "
+            "vez, nunca uma lista — e nunca insiste na mesma sugestão já rejeitada."
+        ),
+        "avatar_config": {"cor": "#0891b2", "rosto": "🧭"},
+        "mesa": 4,
+    },
 ]
 
 

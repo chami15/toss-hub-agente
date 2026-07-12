@@ -8,3 +8,6 @@ venv/
 # Credenciais do Google Calendar — nunca comitar
 credentials.json
 token.json
+
+# Credencial do GitHub (agente Norte) — nunca comitar
+github_token.json
