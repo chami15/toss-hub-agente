@@ -1,0 +1,6 @@
+# Dependências só de desenvolvimento/teste — nunca instaladas em produção.
+-r requirements.txt
+
+pytest==8.3.4
+pytest-asyncio==0.25.2
+pytest-mock==3.14.0

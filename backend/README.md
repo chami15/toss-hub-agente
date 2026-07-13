@@ -116,6 +116,23 @@ python -m scripts.seed
 uvicorn main:app --reload
 ```
 
+## Testes
+
+```bash
+pip install -r requirements-dev.txt   # só uma vez
+pytest                                 # roda tudo — descoberta automática
+```
+
+Reaproveita o **mesmo Postgres do `docker-compose.yml`** (precisa estar de
+pé — `docker compose up -d`) — não sobe container novo nenhum, só cria um
+banco separado (`<nome_do_banco>_test`) dentro dele, recriado do zero a
+cada rodada de teste. Nunca toca no banco de desenvolvimento real. Nenhuma
+chamada de LLM/API externa de verdade acontece — tudo mockado
+(`unittest.mock`), determinístico, sem custo de token. Ver
+`tests/conftest.py` (fixtures de banco/cliente HTTP) e
+`docs/guia-criacao-de-agentes.md` (seção 9 — o que testar em todo agente
+novo antes de aprovar).
+
 ## Conferindo
 
 - `http://localhost:8000/health` → `{"status":"ok"}`

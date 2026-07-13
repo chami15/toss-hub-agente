@@ -169,8 +169,13 @@ não exposto ao chefe.
 
 #### O que falta para concluir esta sprint
 
-1. Suíte de testes automatizados cobrindo os quatro agentes (regressão
-   pros bugs já corrigidos + os guardrails centrais de cada domínio).
+1. ~~Suíte de testes automatizados cobrindo os quatro agentes~~ —
+   **feita**: `pytest` + `pytest-asyncio` + `unittest.mock`/`pytest-mock`,
+   47 testes cobrindo os quatro agentes (Financeiro, Agenda, Saúde,
+   Norte), reaproveitando o Postgres do `docker-compose.yml` (banco
+   `<nome>_test` separado, recriado a cada rodada) — nenhum container
+   novo, nenhuma chamada de LLM/API externa real. Ver seção "Testes" do
+   `README.md` e `tests/`.
 2. Confirmar que a fundação (banco, scripts, camadas) aguenta a
    introdução do módulo de interação sem retrabalho estrutural.
 
@@ -204,6 +209,10 @@ módulo sem gerar retrabalho.
   módulo de frontend (2D), ver `docs/avaliacao-mvp.md`.
 - **Sem motor de tick ainda** — planejado como orquestrador simples em
   `resolvers/tick.py`, percorrendo agentes ativos.
+- **Testes**: `pytest` + `pytest-asyncio` (resolvers são majoritariamente
+  `async`) + `unittest.mock`/`pytest-mock` (mocka LLM e API externa,
+  nunca o banco) — suíte reaproveita o Postgres do `docker-compose.yml`
+  já existente, banco de teste separado por sufixo `_test`.
 
 ---
 
