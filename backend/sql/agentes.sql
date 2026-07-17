@@ -23,3 +23,9 @@ ON CONFLICT (nome) DO UPDATE SET
     avatar_config = EXCLUDED.avatar_config,
     mesa          = EXCLUDED.mesa
 RETURNING id, nome;
+
+--QUERY: atualizar_estado_ativos
+-- Só colaboradores (o chefe não "age" num tick). Etapa 1 do motor de
+-- tick: sempre volta pra 'idle' — vira estado de verdade (pensando/
+-- falando/executando) quando a camada social/proatividade existir.
+UPDATE agentes SET estado = %s WHERE ativo AND tipo = 'colaborador';
