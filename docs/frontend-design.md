@@ -148,6 +148,63 @@ repositório real; frontend ainda por desenhar.
 
 ---
 
+## Módulo de interação (motor de tick — Etapa 1 pronta, Etapa 2 em debate)
+
+Backend do relógio simulado (Etapa 1) já existe; a camada social
+(Etapa 2) está em desenho, ainda sem código. O que já dá pra prever
+sobre o frontend, pra não ficar refazendo depois:
+
+**Relógio simulado**
+- Disparo é sempre manual (`POST /tick/avancar`), nunca automático
+  nesta fase — precisa de um controle explícito na UI (botão "avançar
+  tempo"), não um timer rodando sozinho.
+- Suporte a `dry_run`: a UI deveria deixar claro quando está só
+  "conferindo" (calcula e mostra o que aconteceria) vs. de fato
+  avançando e gravando.
+- Exibir o tick atual e a hora simulada em algum lugar sempre visível
+  do escritório (`GET /tick/atual`), já que tudo (mensagens, estado dos
+  agentes) é referenciado por número de tick.
+- Exibir orçamento diário gasto/disponível (`GET /tick/orcamento`) —
+  visível pro chefe, ao contrário do custo por ação individual (que
+  nunca aparece, ver RNF02).
+- Backlog: automação completa do relógio (rodar sozinho em intervalo)
+  fica pra depois, com visão de um botão + contador regressivo na UI
+  em vez do disparo manual atual.
+
+**Mensagens entre agentes (mural/social e trabalho)**
+- Toda mensagem trocada (mural ou direcionada, social ou trabalho) fica
+  em `mensagens`, sempre associada a um tick. A UI precisa de uma visão
+  tipo "mural" — mensagens sem destinatário (`destinatario_id NULL`)
+  aparecem pra todo mundo, como um bate-papo de copa; mensagens
+  direcionadas (`destinatario_id` preenchido) são mais como um DM entre
+  dois agentes específicos.
+- Diferenciar visualmente mensagem de **trabalho** (agente relatando
+  algo que fez/vai fazer) de mensagem **social** (papo, relacionamento)
+  — são a mesma tabela, mas significados bem diferentes pro chefe
+  acompanhar.
+- Estado do agente (`idle`/`pensando`/`falando`/`executando`, já
+  existente em `agentes.estado`) deveria refletir visualmente no
+  avatar/mesa do escritório 2D — é o mesmo campo que a Etapa 1 do tick
+  já atualiza a cada avanço.
+
+**`eventos_mundo` (gancho de conversa social)**
+- Pool curado manualmente (clima, futebol, fim de semana, etc.), sem
+  geração automática por LLM nesta fase. A UI precisa de uma forma
+  simples de **adicionar um evento novo** (form curto: descrição, pronto
+  — não precisa de mais campos), já que é conteúdo que só você
+  alimenta, não o sistema sozinho.
+- Não precisa de tela de gestão elaborada (editar/remover) na primeira
+  versão — só adicionar é suficiente pra começar.
+
+**Afinidade e relacionamento entre agentes**
+- `relacionamentos.afinidade` (-100 a 100) entre cada par de agentes —
+  ainda não decidido se isso aparece na UI de alguma forma (ex: um
+  indicador de "proximidade" entre os avatares) ou fica só como dado
+  interno que molda o comportamento sem ficar visível. Ver "Decisões em
+  aberto" abaixo.
+
+---
+
 ## Escritório 2D (visão geral, ainda não desenhado)
 
 Ainda não há protótipo nenhum de tela. O que já está decidido/disponível
@@ -211,6 +268,17 @@ são o que a API já suporta e o frontend precisa cobrir.
 - RF19: Atalho de campo único pra peso e hidratação, sem abrir o menu
   completo.
 
+**Módulo de interação (motor de tick)**
+- RF20: Avançar o relógio simulado manualmente (`POST /tick/avancar`),
+  com opção de `dry_run` pra conferir sem gravar.
+- RF21: Exibir o tick atual, a hora simulada e o orçamento diário
+  gasto/disponível sempre visíveis no escritório.
+- RF22: Exibir o mural de mensagens (sem destinatário) e as mensagens
+  direcionadas entre pares de agentes, diferenciando visualmente tipo
+  trabalho de tipo social.
+- RF23: Adicionar um novo `eventos_mundo` por um form simples
+  (descrição), sem geração automática por LLM.
+
 ## Requisitos não funcionais
 
 - **RNF01 (controle de custo):** nenhuma ação que dispare uma chamada de
@@ -239,6 +307,9 @@ são o que a API já suporta e o frontend precisa cobrir.
 - **RNF08 (2D primeiro):** interface inicial é 2D (cartões/painéis), sem
   biblioteca gráfica pesada — 3D é evolução posterior, não bloqueia o
   resto (ver `avaliacao-mvp.md`).
+- **RNF09 (tick sempre manual):** nenhuma automação de relógio nesta
+  fase — todo avanço de tick é uma ação deliberada do chefe, mesma
+  disciplina do RNF01 aplicada ao próprio motor de interação.
 
 ---
 
@@ -261,3 +332,12 @@ são o que a API já suporta e o frontend precisa cobrir.
   projeto, badge, ordenação por tempo parado no topo da lista? A regra
   (tempo desde o último card resolvido) já existe, falta o tratamento
   visual.
+- **Afinidade entre agentes aparece na UI ou fica só interna?** Ainda
+  não decidido se o "escritório vivo" mostra de alguma forma visual
+  (proximidade dos avatares, indicador de relação) o quanto dois
+  agentes se dão bem, ou se isso só molda comportamento (quem fala com
+  quem) sem nunca virar informação exposta ao chefe.
+- **Como visualizar o mural de mensagens:** feed único tipo timeline,
+  separado por tick, ou algo mais espacial (balão de fala saindo do
+  avatar no escritório 2D)? Ainda não desenhado — depende de como o
+  motor de tick (Etapa 2) for implementado de verdade.
