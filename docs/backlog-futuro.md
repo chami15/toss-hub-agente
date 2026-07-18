@@ -217,3 +217,24 @@ local.
 
 **Status:** não iniciado. Suíte de testes local é pré-requisito (feita
 primeiro, ver Sprint 0).
+
+---
+
+## Afinidade sensível ao conteúdo/sentimento da conversa — módulo de interação
+
+**Ideia:** hoje (Etapa 2, camada social) a afinidade entre dois agentes
+cresce só pela frequência de troca de mensagem (fórmula de retorno
+decrescente, ver conversa de design). A ideia adiada é fazer o
+*tamanho* do ganho de afinidade variar de acordo com o teor da
+conversa — ex: falar de assuntos específicos ou uma mensagem com tom
+mais "caloroso" renderia mais afinidade do que uma troca genérica.
+
+**Por que foi adiada:** fazer isso direito exige ou uma chamada de LLM
+extra por mensagem só pra classificar sentimento/tópico (dobra o custo
+de cada interação social) ou uma heurística de palavra-chave (frágil,
+fácil de furar e de dar resultado estranho). Decisão: validar primeiro
+a mecânica simples de frequência com retorno decrescente rodando de
+verdade, e só depois avaliar se vale a pena adicionar essa camada.
+
+**Status:** não iniciado. Pré-requisito: Etapa 2 (camada social) do
+motor de tick rodando de forma estável.
