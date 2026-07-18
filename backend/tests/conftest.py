@@ -98,6 +98,6 @@ def agente_agenda_id() -> int:
     rows = executar_query(
         "agentes:upsert",
         returning=True,
-        params=("Agenda", "colaborador", "agenda", None, "{}", 1),
+        params=("Agenda", "colaborador", "agenda", None, "{}", 1, 5),
     )
     return rows[0]["id"]

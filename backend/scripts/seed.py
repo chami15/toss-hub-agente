@@ -19,6 +19,7 @@ AGENTES = [
         "personalidade": None,
         "avatar_config": {"cor": "#111827", "rosto": "🧑‍💼"},
         "mesa": 0,
+        "extroversao": 5,
     },
     {
         "nome": "Cifra",
@@ -31,6 +32,7 @@ AGENTES = [
         ),
         "avatar_config": {"cor": "#16a34a", "rosto": "🤑"},
         "mesa": 1,
+        "extroversao": 5,
     },
     {
         "nome": "Agenda",
@@ -42,6 +44,7 @@ AGENTES = [
         ),
         "avatar_config": {"cor": "#2563eb", "rosto": "📅"},
         "mesa": 2,
+        "extroversao": 6,
     },
     {
         "nome": "Vita",
@@ -53,6 +56,7 @@ AGENTES = [
         ),
         "avatar_config": {"cor": "#f97316", "rosto": "💪"},
         "mesa": 3,
+        "extroversao": 8,
     },
     {
         "nome": "Norte",
@@ -65,7 +69,25 @@ AGENTES = [
         ),
         "avatar_config": {"cor": "#0891b2", "rosto": "🧭"},
         "mesa": 4,
+        "extroversao": 3,
     },
+]
+
+# Pool curado manualmente pro módulo de interação, Etapa 2 (camada
+# social) — gancho de conversa social entre os agentes. Sem geração por
+# LLM nesta fase (ver conversa de design). Seed só insere se a tabela
+# estiver vazia — não é upsert, então rodar de novo não duplica.
+EVENTOS_MUNDO = [
+    "Hoje está fazendo muito calor.",
+    "Choveu bastante essa madrugada.",
+    "É sexta-feira — sextou.",
+    "Fim de semana chegando.",
+    "Rolou clássico de futebol no fim de semana.",
+    "Segunda-feira, começo de semana.",
+    "O trânsito hoje estava um caos.",
+    "É dia de pagamento.",
+    "Tem jogo de futebol hoje à noite.",
+    "O tempo virou e esfriou de repente.",
 ]
 
 
@@ -83,6 +105,7 @@ def main() -> None:
                 a["personalidade"],
                 json.dumps(a["avatar_config"]),
                 a["mesa"],
+                a["extroversao"],
             ),
         )
         row = rows[0]
@@ -97,6 +120,14 @@ def main() -> None:
             commit=True,
             params=(origem, destino),
         )
+
+    total_eventos = executar_query("eventos_mundo:contar")[0]["total"]
+    if total_eventos == 0:
+        for descricao in EVENTOS_MUNDO:
+            executar_query("eventos_mundo:inserir", returning=True, params=(descricao, None))
+        print(f"  eventos_mundo ok: {len(EVENTOS_MUNDO)} eventos inseridos.")
+    else:
+        print(f"  eventos_mundo ok: já existem {total_eventos}, nada inserido.")
 
     print("Seed OK.")
 

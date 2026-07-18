@@ -59,5 +59,17 @@ class Settings(BaseSettings):
     github_token_path: str = "github_token.json"
     github_oauth_scope: str = "repo"
 
+    # Módulo de interação, Etapa 2 (camada social) — constantes-exemplo
+    # combinadas na conversa de design, ajustáveis depois de rodar de
+    # verdade. Ver docs/produto-e-sprints.md pro desenho completo.
+    interacao_peso_extroversao: float = 0.5       # contribuição máx. da extroversão na chance de falar
+    interacao_incremento_cooldown: float = 0.05   # soma por tick parado sem falar socialmente
+    interacao_chance_falar_max: float = 0.9       # nunca vira obrigação (nunca chega a 100%)
+    interacao_peso_afinidade_max: float = 3.0     # quanto a afinidade pode inflar o peso na roleta
+    interacao_peso_minimo: float = 0.1            # piso do peso — nunca zera/inverte com afinidade negativa
+    interacao_afinidade_incremento_max: float = 3.0  # ganho de afinidade quando afinidade atual = 0
+    interacao_historico_mensagens_par: int = 3    # quantas mensagens recentes do par entram no prompt
+    interacao_rate_limit_par_por_dia: int = 6     # máx. de mensagens sociais por par, por dia real
+
 
 settings = Settings()
