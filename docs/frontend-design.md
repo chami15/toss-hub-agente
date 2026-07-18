@@ -148,11 +148,12 @@ repositório real; frontend ainda por desenhar.
 
 ---
 
-## Módulo de interação (motor de tick — Etapa 1 pronta, Etapa 2 em debate)
+## Módulo de interação (motor de tick — Etapas 1 e 2 prontas, Etapa 3 em debate)
 
-Backend do relógio simulado (Etapa 1) já existe; a camada social
-(Etapa 2) está em desenho, ainda sem código. O que já dá pra prever
-sobre o frontend, pra não ficar refazendo depois:
+Backend do relógio simulado (Etapa 1) e da camada social entre agentes
+(Etapa 2) já existem e estão testados. Etapa 3 (proatividade de
+trabalho por domínio) ainda não tem desenho nem código. O que já dá pra
+prever sobre o frontend, pra não ficar refazendo depois:
 
 **Relógio simulado**
 - Disparo é sempre manual (`POST /tick/avancar`), nunca automático
@@ -172,36 +173,41 @@ sobre o frontend, pra não ficar refazendo depois:
   em vez do disparo manual atual.
 
 **Mensagens entre agentes (mural/social e trabalho)**
-- Toda mensagem trocada (mural ou direcionada, social ou trabalho) fica
-  em `mensagens`, sempre associada a um tick. A UI precisa de uma visão
-  tipo "mural" — mensagens sem destinatário (`destinatario_id NULL`)
-  aparecem pra todo mundo, como um bate-papo de copa; mensagens
-  direcionadas (`destinatario_id` preenchido) são mais como um DM entre
-  dois agentes específicos.
-- Diferenciar visualmente mensagem de **trabalho** (agente relatando
-  algo que fez/vai fazer) de mensagem **social** (papo, relacionamento)
-  — são a mesma tabela, mas significados bem diferentes pro chefe
-  acompanhar.
+- Toda mensagem trocada fica em `mensagens`, sempre associada a um
+  tick. Hoje (Etapa 2) só existe mensagem **social direcionada** — um
+  agente pra outro (`POST /interacao/social/processar`, disparo
+  manual). Mensagem de **trabalho** e mensagem de **mural**
+  (`destinatario_id NULL`, sem destinatário específico) ainda não são
+  geradas por nenhuma etapa — o schema já suporta os dois, mas a UI não
+  precisa de uma visão de mural ainda, só de conversa entre pares.
+- Diferenciar visualmente mensagem de **trabalho** (quando a Etapa 3
+  existir) de mensagem **social** — mesma tabela, significados bem
+  diferentes pro chefe acompanhar.
 - Estado do agente (`idle`/`pensando`/`falando`/`executando`, já
-  existente em `agentes.estado`) deveria refletir visualmente no
-  avatar/mesa do escritório 2D — é o mesmo campo que a Etapa 1 do tick
-  já atualiza a cada avanço.
+  existente em `agentes.estado`) reflete visualmente no avatar/mesa do
+  escritório 2D — a Etapa 2 já marca `'falando'` quando o agente manda
+  uma mensagem social; volta a `'idle'` no próximo `POST /tick/avancar`.
+- `POST /interacao/social/processar?dry_run=true` mostra, sem gastar
+  nada, quem tentaria falar e com quem nesse tick — útil como preview
+  antes de confirmar de verdade.
 
 **`eventos_mundo` (gancho de conversa social)**
-- Pool curado manualmente (clima, futebol, fim de semana, etc.), sem
-  geração automática por LLM nesta fase. A UI precisa de uma forma
-  simples de **adicionar um evento novo** (form curto: descrição, pronto
-  — não precisa de mais campos), já que é conteúdo que só você
-  alimenta, não o sistema sozinho.
+- Pool curado manualmente (clima, futebol, fim de semana, etc.), já
+  seedado (10 eventos iniciais) e sorteado de verdade a cada rodada
+  social (`GET /interacao/eventos-mundo` lista, `POST` adiciona) — sem
+  geração automática por LLM. A UI precisa de uma forma simples de
+  **adicionar um evento novo** (form curto: descrição, pronto — não
+  precisa de mais campos).
 - Não precisa de tela de gestão elaborada (editar/remover) na primeira
-  versão — só adicionar é suficiente pra começar.
+  versão — só adicionar/listar é suficiente pra começar.
 
 **Afinidade e relacionamento entre agentes**
-- `relacionamentos.afinidade` (-100 a 100) entre cada par de agentes —
-  ainda não decidido se isso aparece na UI de alguma forma (ex: um
-  indicador de "proximidade" entre os avatares) ou fica só como dado
-  interno que molda o comportamento sem ficar visível. Ver "Decisões em
-  aberto" abaixo.
+- `relacionamentos.afinidade` (-100 a 100) entre cada par — cresce por
+  interação social com retorno decrescente (Etapa 2), todos começam
+  neutros (0), sem mecanismo de queda ainda. Ainda não decidido se isso
+  aparece na UI (ex: indicador de "proximidade" entre avatares) ou fica
+  só interno, moldando quem fala com quem sem nunca ficar visível. Ver
+  "Decisões em aberto" abaixo.
 
 ---
 
