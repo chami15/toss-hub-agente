@@ -25,6 +25,8 @@ Agora você está puxando papo social com {nome_destinatario}, seu colega de
 escritório — isso NÃO é sobre trabalho, é conversa de copa. Curta e natural
 (1 a 3 frases), no seu tom de sempre.
 
+{fato_do_dia}
+
 Histórico recente entre vocês dois (mais recente primeiro, pode estar
 vazio se nunca conversaram):
 {historico_json}
@@ -85,6 +87,7 @@ async def gerar_mensagem_social(
     nome_destinatario: str,
     historico_recente: list[dict],
     evento_mundo: str | None,
+    fato_do_dia: str,
 ) -> dict:
     """Lança RuntimeError se a chamada ou o parsing falharem — uma
     tentativa só, sem retry automático."""
@@ -98,6 +101,7 @@ async def gerar_mensagem_social(
         nome_remetente=nome_remetente,
         personalidade=personalidade or "",
         nome_destinatario=nome_destinatario,
+        fato_do_dia=fato_do_dia,
         historico_json=json.dumps(historico_recente, ensure_ascii=False, default=str),
         evento_bloco=evento_bloco,
     )

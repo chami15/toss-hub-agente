@@ -27,10 +27,36 @@ from utils.query_executor import executar_query
 
 _ESTADO_FALANDO = "falando"
 
+_DIAS_SEMANA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
+
 
 def _inicio_do_dia_real() -> datetime:
     hoje = datetime.now(ZoneInfo(settings.timezone_padrao)).date()
     return datetime.combine(hoje, datetime.min.time(), tzinfo=ZoneInfo(settings.timezone_padrao))
+
+
+def _periodo_do_dia(hora: int) -> str:
+    if hora < 6:
+        return "madrugada"
+    if hora < 12:
+        return "manhã"
+    if hora < 18:
+        return "tarde"
+    return "noite"
+
+
+def _fato_do_dia(hora_simulada: datetime) -> str:
+    """Derivado do relógio SIMULADO (`ticks.hora_simulada`), não da data
+    real — garante consistência entre agentes no mesmo tick (é sempre o
+    mesmo valor calculado, nunca sorteado) sem depender de nenhuma
+    entrada de calendário no pool de `eventos_mundo` (achado testando de
+    verdade: um tick podia sortear "sextou" e outro "segunda-feira" no
+    mesmo dia real — ver docs/backlog-futuro.md pro calendário fictício
+    completo, adiado pra próxima sprint)."""
+    dia_semana = _DIAS_SEMANA[hora_simulada.weekday()]
+    fim_de_semana = " (fim de semana)" if hora_simulada.weekday() >= 5 else ""
+    periodo = _periodo_do_dia(hora_simulada.hour)
+    return f"No escritório, hoje é {dia_semana}{fim_de_semana}, período da {periodo}."
 
 
 def _chance_falar(extroversao: int, ticks_parado: int) -> float:
@@ -120,6 +146,7 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
         return resultado
 
     evento = _sortear_evento_mundo()
+    fato_do_dia = _fato_do_dia(tick_atual["hora_simulada"])
 
     for agente in colaboradores:
         ticks_parado = _ticks_parado(agente["id"], numero_tick)
@@ -152,6 +179,7 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
                         destinatario["nome"],
                         historico,
                         evento["descricao"] if evento else None,
+                        fato_do_dia,
                     )
                     conteudo = resposta["dado"].conteudo
                     executar_query(

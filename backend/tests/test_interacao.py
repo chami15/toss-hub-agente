@@ -4,8 +4,9 @@ quem fala), guardrails (orçamento, rate limit por par) e persistência
 (mensagem, afinidade, estado do agente). Mocka só o modelo/a função do
 agente de interação — nunca a lógica de decisão em si, mesma disciplina
 usada nos outros domínios."""
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -55,6 +56,27 @@ class TestFuncoesPuras:
         assert interacao._delta_afinidade(0) == pytest.approx(3.0)
         assert interacao._delta_afinidade(50) == pytest.approx(1.5)
         assert interacao._delta_afinidade(100) == pytest.approx(0.0)
+
+    def test_fato_do_dia_deriva_do_relogio_simulado_nao_da_data_real(self):
+        # Sexta-feira (2026-01-02 é sexta), manhã.
+        sexta_de_manha = datetime(2026, 1, 2, 9, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
+        fato = interacao._fato_do_dia(sexta_de_manha)
+        assert "sexta-feira" in fato
+        assert "manhã" in fato
+        assert "fim de semana" not in fato
+
+        # Sábado à noite.
+        sabado_a_noite = datetime(2026, 1, 3, 20, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
+        fato_fds = interacao._fato_do_dia(sabado_a_noite)
+        assert "sábado" in fato_fds
+        assert "fim de semana" in fato_fds
+        assert "noite" in fato_fds
+
+    def test_periodo_do_dia_cobre_as_quatro_faixas(self):
+        assert interacao._periodo_do_dia(3) == "madrugada"
+        assert interacao._periodo_do_dia(9) == "manhã"
+        assert interacao._periodo_do_dia(15) == "tarde"
+        assert interacao._periodo_do_dia(21) == "noite"
 
 
 class TestGuardrails:
@@ -164,6 +186,9 @@ class TestRodadaReal:
         resultado = await interacao.processar_interacao_social()
 
         assert mock_gerar.call_count == 1
+        fato_do_dia_passado = mock_gerar.call_args.args[-1]
+        assert "hoje é" in fato_do_dia_passado
+
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         assert len(mensagens) >= 1
         assert mensagens[0]["tipo"] == "social"

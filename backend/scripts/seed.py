@@ -77,13 +77,17 @@ AGENTES = [
 # social) — gancho de conversa social entre os agentes. Sem geração por
 # LLM nesta fase (ver conversa de design). Seed só insere se a tabela
 # estiver vazia — não é upsert, então rodar de novo não duplica.
+#
+# Sem entrada de dia-da-semana/fim-de-semana aqui de propósito — achado
+# testando de verdade: como o sorteio é aleatório, um tick podia sortear
+# "sextou" e outro (mesmo dia real) sortear "segunda-feira", contradição
+# entre agentes. Isso agora vem de `_fato_do_dia()` em
+# `resolvers/interacao.py`, derivado de `ticks.hora_simulada` — sempre
+# consistente, porque é calculado, não sorteado.
 EVENTOS_MUNDO = [
     "Hoje está fazendo muito calor.",
     "Choveu bastante essa madrugada.",
-    "É sexta-feira — sextou.",
-    "Fim de semana chegando.",
     "Rolou clássico de futebol no fim de semana.",
-    "Segunda-feira, começo de semana.",
     "O trânsito hoje estava um caos.",
     "É dia de pagamento.",
     "Tem jogo de futebol hoje à noite.",

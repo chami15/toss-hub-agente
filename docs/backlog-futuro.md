@@ -238,3 +238,30 @@ verdade, e só depois avaliar se vale a pena adicionar essa camada.
 
 **Status:** não iniciado. Pré-requisito: Etapa 2 (camada social) do
 motor de tick rodando de forma estável.
+
+---
+
+## Calendário fictício completo — motor de tick
+
+**Ideia:** ir além do fato simples de dia-da-semana/período do dia
+(derivado de `ticks.hora_simulada`, isso já entra na Etapa 2) e simular
+de verdade a passagem do tempo dentro do "escritório vivo" — X ticks
+equivalendo a um dia fictício, Y ticks a uma semana fictícia, e assim
+por diante, com um calendário interno completo (estações, feriados
+fictícios, etc.). O objetivo é os próprios agentes terem uma base
+temporal rica pra se orientar e conversar (saber se é dia ou noite, que
+dia da semana fictício é, potencialmente até época do ano fictícia),
+não só o chefe observando de fora.
+
+**Por que foi adiada:** é uma feature grande por si só, que merece
+debate de design próprio (quanto tempo fictício cada tick representa,
+como isso se relaciona com `tick_minutos_simulados` já existente, se
+afeta comportamento dos agentes ou é só contexto passivo, se vale a
+pena ter feriados/estações fictícios). Misturar isso com o fechamento
+simples da Etapa 2 (dia da semana + período do dia) ou com o começo da
+Etapa 3 ia acumular risco demais de uma vez só — mesma disciplina de
+etapas que guia todo o módulo de interação.
+
+**Status:** não iniciado. Ideia confirmada pelo chefe como prioridade
+da próxima sprint (não "algum dia") — retomar com debate de design
+próprio antes de qualquer código.
