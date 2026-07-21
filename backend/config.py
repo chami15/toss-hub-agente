@@ -71,5 +71,10 @@ class Settings(BaseSettings):
     interacao_historico_mensagens_par: int = 3    # quantas mensagens recentes do par entram no prompt
     interacao_rate_limit_par_por_dia: int = 6     # máx. de mensagens sociais por par, por dia real
 
+    # Módulo de interação, Etapa 3 (proatividade de trabalho) — Norte é o
+    # primeiro domínio com gatilho real; os outros ainda não têm regra.
+    interacao_dias_estagnacao_norte: int = 3         # dias reais parado (sem card ativo) pra virar candidato
+    interacao_rate_limit_trabalho_por_dia: int = 5   # máx. de avisos proativos de trabalho por agente, por dia real
+
 
 settings = Settings()

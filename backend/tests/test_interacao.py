@@ -1,26 +1,30 @@
-"""Testes do motor de tick — Etapa 2 (camada social): elegibilidade
+"""Testes do motor de interação — Etapa 2 (camada social): elegibilidade
 determinística (quem tenta falar), roleta ponderada pela afinidade (com
 quem fala), guardrails (orçamento, rate limit por par) e persistência
-(mensagem, afinidade, estado do agente). Mocka só o modelo/a função do
-agente de interação — nunca a lógica de decisão em si, mesma disciplina
-usada nos outros domínios."""
-from datetime import date, datetime
+(mensagem, afinidade, estado do agente); e Etapa 3 (proatividade de
+trabalho): gatilho de estagnação do Norte, prioridade sobre social, teto
+diário de avisos. Mocka só o modelo/a função do agente de interação (ou
+`resolvers.norte.gerar_proximo_card` na Etapa 3) — nunca a lógica de
+decisão em si, mesma disciplina usada nos outros domínios."""
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 import pytest
 
 import resolvers.interacao as interacao
 import resolvers.tick as tick
+from config import settings
 from tests.helpers import resultado_agente
 from utils.query_executor import executar_query
 
 
-def _criar_agente(nome: str, extroversao: int = 5, ativo: bool = True) -> int:
+def _criar_agente(nome: str, extroversao: int = 5, ativo: bool = True, especialidade: str = "teste") -> int:
     rows = executar_query(
         "agentes:upsert",
         returning=True,
-        params=(nome, "colaborador", "teste", f"Personalidade de {nome}.", "{}", 0, extroversao),
+        params=(nome, "colaborador", especialidade, f"Personalidade de {nome}.", "{}", 0, extroversao),
     )
     agente_id = rows[0]["id"]
     if not ativo:
@@ -29,6 +33,23 @@ def _criar_agente(nome: str, extroversao: int = 5, ativo: bool = True) -> int:
             conn.execute("UPDATE agentes SET ativo = FALSE WHERE id = %s", (agente_id,))
             conn.commit()
     return agente_id
+
+
+def _criar_projeto_norte(nome: str = "Projeto", dias_atras: int = 10) -> int:
+    rows = executar_query(
+        "projetos:inserir",
+        returning=True,
+        params=(nome, f"https://github.com/o/{nome}", "o", nome, "main", "desc", ["Python"], "arch", "sha0"),
+    )
+    projeto_id = rows[0]["id"]
+    from utils.db import Database
+    with Database() as conn:
+        conn.execute(
+            "UPDATE projetos SET criado_em = now() - (%s || ' days')::interval WHERE id = %s",
+            (str(dias_atras), projeto_id),
+        )
+        conn.commit()
+    return projeto_id
 
 
 def _criar_chefe(nome: str = "Você") -> int:
@@ -96,7 +117,7 @@ class TestFuncoesPuras:
 class TestGuardrails:
     async def test_sem_tick_ainda_levanta_erro(self):
         with pytest.raises(ValueError, match="Nenhum tick rodou"):
-            await interacao.processar_interacao_social()
+            await interacao.processar_tick_completo()
 
     async def test_orcamento_esgotado_bloqueia_tudo_sem_chamar_llm(self, mocker):
         _criar_agente("A", extroversao=10)
@@ -114,19 +135,26 @@ class TestGuardrails:
             return_value=_mensagem_gerada(),
         )
 
-        resultado = await interacao.processar_interacao_social()
+        resultado = await interacao.processar_tick_completo()
 
         assert "esgotado" in resultado["aviso"]
         assert mock_gerar.call_count == 0
         assert executar_query("mensagens:listar_todas", params=(10,)) == []
 
-    async def test_menos_de_dois_colaboradores_nao_quebra(self):
-        _criar_agente("Sozinho", extroversao=10)
+    async def test_um_colaborador_sozinho_nao_disputa_social_mas_nao_quebra(self):
+        # Com só 1 colaborador ativo não tem com quem falar socialmente,
+        # mas isso não deveria bloquear a rodada inteira — trabalho (se
+        # esse único agente tivesse motivo) ainda seria possível.
+        agente_id = _criar_agente("Sozinho", extroversao=10)
         tick.avancar_tick()
 
-        resultado = await interacao.processar_interacao_social()
+        resultado = await interacao.processar_tick_completo()
 
-        assert "Menos de 2" in resultado["aviso"]
+        assert "aviso" not in resultado
+        entrada = resultado["interacoes"][0]
+        assert entrada["agente_id"] == agente_id
+        assert entrada["tipo"] is None
+        assert entrada["quer_falar"] is False
 
     async def test_rate_limit_do_par_impede_novo_destinatario_sem_chamar_llm(self, mocker):
         a_id = _criar_agente("A", extroversao=10)
@@ -148,7 +176,7 @@ class TestGuardrails:
             return_value=_mensagem_gerada(),
         )
 
-        resultado = await interacao.processar_interacao_social()
+        resultado = await interacao.processar_tick_completo()
 
         entrada_a = next(i for i in resultado["interacoes"] if i["agente_id"] == a_id)
         assert entrada_a["quer_falar"] is True
@@ -169,7 +197,7 @@ class TestDryRun:
             return_value=_mensagem_gerada(),
         )
 
-        resultado = await interacao.processar_interacao_social(dry_run=True)
+        resultado = await interacao.processar_tick_completo(dry_run=True)
 
         assert any(i["quer_falar"] for i in resultado["interacoes"])
         assert all(i["mensagem"] is None for i in resultado["interacoes"])
@@ -197,7 +225,7 @@ class TestRodadaReal:
             return_value=_mensagem_gerada("Oi, tudo certo?"),
         )
 
-        resultado = await interacao.processar_interacao_social()
+        resultado = await interacao.processar_tick_completo()
 
         assert mock_gerar.call_count == 1
         fato_do_dia_passado = mock_gerar.call_args.args[-2]
@@ -228,7 +256,7 @@ class TestRodadaReal:
             return_value=_mensagem_gerada(),
         )
 
-        await interacao.processar_interacao_social()
+        await interacao.processar_tick_completo()
 
         eventos = executar_query("eventos_mundo:listar")
         assert eventos[0]["ultimo_uso_tick"] == evento["tick"] or eventos[0]["ultimo_uso_tick"] is not None
@@ -261,7 +289,7 @@ class TestChefeComoDestinatario:
             return_value=_mensagem_gerada("Bom dia, chefe!"),
         )
 
-        resultado = await interacao.processar_interacao_social()
+        resultado = await interacao.processar_tick_completo()
 
         assert mock_gerar.call_count == 1
         assert mock_gerar.call_args.args[-1] is True  # destinatario_eh_chefe
@@ -283,8 +311,147 @@ class TestChefeComoDestinatario:
             return_value=_mensagem_gerada(),
         )
 
-        resultado = await interacao.processar_interacao_social(dry_run=True)
+        resultado = await interacao.processar_tick_completo(dry_run=True)
 
         chefe_row = executar_query("agentes:buscar_chefe")[0]
         agentes_no_resultado = {i["agente_id"] for i in resultado["interacoes"]}
         assert chefe_row["id"] not in agentes_no_resultado
+
+
+class TestProatividadeNorte:
+    def _card_fake(self, projeto_id: int, titulo: str = "Corrigir X") -> dict:
+        return {
+            "id": 1,
+            "projeto_id": projeto_id,
+            "tipo": "bug",
+            "titulo": titulo,
+            "descricao": "d",
+            "arquivos_afetados": ["a.py"],
+            "origem": "agente",
+            "status": "sugerido",
+            "criado_em": None,
+        }
+
+    async def test_projeto_estagnado_dispara_trabalho_e_gera_card(self, mocker):
+        norte_id = _criar_agente("Norte", extroversao=3, especialidade="norte")
+        _criar_agente("Outro", extroversao=10)
+        chefe_id = _criar_chefe()
+        tick.avancar_tick()
+        projeto_id = _criar_projeto_norte(dias_atras=10)
+
+        mock_gerar_card = mocker.patch(
+            "resolvers.interacao.resolver_norte.gerar_proximo_card",
+            new=AsyncMock(return_value=self._card_fake(projeto_id)),
+        )
+        # "Outro" não tem motivo de trabalho, então cai no fluxo social —
+        # roda de verdade (sem dry_run) nesse teste, então precisa mockar
+        # a geração de mensagem social também, senão às vezes chamaria a
+        # OpenAI de verdade (achado rodando a suíte real: teste ficou
+        # flaky sem isso).
+        mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada_norte = next(i for i in resultado["interacoes"] if i["agente_id"] == norte_id)
+        assert entrada_norte["tipo"] == "trabalho"
+        assert "Corrigir X" in entrada_norte["mensagem"]
+        assert mock_gerar_card.call_count == 1
+
+        mensagens = executar_query("mensagens:listar_todas", params=(10,))
+        trabalho = [m for m in mensagens if m["tipo"] == "trabalho"]
+        assert len(trabalho) == 1
+        assert trabalho[0]["remetente_id"] == norte_id
+        assert trabalho[0]["destinatario_id"] == chefe_id
+
+        norte_row = executar_query("agentes:buscar_por_id", params=(norte_id,))[0]
+        assert norte_row["estado"] == "executando"
+
+    async def test_projeto_recente_nao_dispara_trabalho(self, mocker):
+        norte_id = _criar_agente("Norte", extroversao=3, especialidade="norte")
+        _criar_agente("Outro", extroversao=10)
+        _criar_chefe()
+        tick.avancar_tick()
+        _criar_projeto_norte(dias_atras=1)  # abaixo do limite (3 dias, default)
+
+        mock_gerar_card = mocker.patch(
+            "resolvers.interacao.resolver_norte.gerar_proximo_card", new=AsyncMock()
+        )
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        entrada_norte = next(i for i in resultado["interacoes"] if i["agente_id"] == norte_id)
+        assert entrada_norte["tipo"] != "trabalho"
+        assert mock_gerar_card.call_count == 0
+
+    async def test_trabalho_tem_prioridade_e_nunca_disputa_social_no_mesmo_tick(self, mocker):
+        # Precisa de um parceiro social de verdade disponível (senão o
+        # teste não prova nada — o Norte não teria com quem falar de
+        # qualquer jeito). random.random mockado pra 0.0 favoreceria
+        # MUITO falar socialmente se ele chegasse a disputar; a prova
+        # de prioridade é ele nunca sequer tentar, mesmo assim.
+        norte_id = _criar_agente("Norte", extroversao=10, especialidade="norte")
+        _criar_agente("Outro", extroversao=10)
+        _criar_chefe()
+        tick.avancar_tick()
+        projeto_id = _criar_projeto_norte(dias_atras=10)
+
+        mocker.patch(
+            "resolvers.interacao.resolver_norte.gerar_proximo_card",
+            new=AsyncMock(return_value=self._card_fake(projeto_id)),
+        )
+        mock_social = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+        mocker.patch("resolvers.interacao.random.random", return_value=0.0)  # favoreceria falar socialmente
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada_norte = next(i for i in resultado["interacoes"] if i["agente_id"] == norte_id)
+        assert entrada_norte["tipo"] == "trabalho"
+        # "Outro" pode ter falado socialmente por conta própria — o que
+        # não pode acontecer é o NORTE ter disputado social nesse tick.
+        assert all(chamada.args[1] != "Norte" for chamada in mock_social.call_args_list)
+
+    async def test_teto_diario_de_avisos_bloqueia_novo_trabalho(self, mocker):
+        norte_id = _criar_agente("Norte", extroversao=3, especialidade="norte")
+        chefe_id = _criar_chefe()
+        _criar_agente("Outro", extroversao=10)
+        tick_info = tick.avancar_tick()
+        numero_tick = tick_info["numero"]
+
+        for _ in range(settings.interacao_rate_limit_trabalho_por_dia):
+            executar_query(
+                "mensagens:inserir",
+                returning=True,
+                params=(norte_id, chefe_id, "trabalho", "aviso antigo", numero_tick),
+            )
+
+        _criar_projeto_norte(dias_atras=10)
+        mock_gerar_card = mocker.patch(
+            "resolvers.interacao.resolver_norte.gerar_proximo_card", new=AsyncMock()
+        )
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        entrada_norte = next(i for i in resultado["interacoes"] if i["agente_id"] == norte_id)
+        assert entrada_norte["tipo"] != "trabalho"
+        assert mock_gerar_card.call_count == 0
+
+    def test_projeto_com_card_ativo_nao_aparece_mais_como_estagnado(self):
+        projeto_id = _criar_projeto_norte(dias_atras=10)
+        executar_query(
+            "cards:inserir",
+            returning=True,
+            params=(projeto_id, "bug", "T", "D", ["a.py"], "agente", "sugerido", "gpt-4o", 10, 5, 0.01),
+        )
+
+        limite = datetime.now(ZoneInfo(settings.timezone_padrao)) - timedelta(
+            days=settings.interacao_dias_estagnacao_norte
+        )
+        rows = executar_query("projetos:listar_estagnados", params=(limite,))
+
+        assert rows == []

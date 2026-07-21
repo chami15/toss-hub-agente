@@ -1,20 +1,30 @@
-"""Camada social do motor de tick — Etapa 2 (ver conversa de design do
-módulo de interação). Toda a decisão de QUEM tenta puxar assunto, COM
-QUEM fala e SE existe orçamento pra isso é resolvida de forma
-determinística (aritmética pura, sem custo) ANTES de qualquer chamada
-de LLM — mesma disciplina "check before you spend" do resto do hub.
+"""Motor de interação — Etapas 2 (social) e 3 (proatividade de
+trabalho) do motor de tick. Toda a decisão de SE um agente tem motivo
+de trabalho, QUEM tenta puxar assunto social, COM QUEM fala e SE existe
+orçamento pra isso é resolvida de forma determinística (aritmética
+pura, sem custo) ANTES de qualquer chamada de LLM — mesma disciplina
+"check before you spend" do resto do hub.
 
-Fluxo por rodada (chamada manual, sempre depois de `tick/avancar`):
-1. Checa orçamento diário disponível — zero, encerra sem gastar nada.
-2. Pra cada colaborador ativo, sorteia (ponderado por extroversão +
-   tempo parado) se ele tenta puxar papo social nesse tick.
-3. Quem tenta, sorteia (ponderado pela afinidade, nunca 100% garantido)
-   com quem fala, excluindo pares que já bateram o rate-limit do dia.
-4. Só então gera a mensagem via LLM, persiste, atualiza afinidade dos
-   dois lados e o estado do agente.
+Fluxo por rodada (chamada manual, sempre depois de `tick/avancar`),
+por colaborador ativo:
+1. Checa orçamento diário disponível — zero, encerra a rodada inteira
+   sem gastar nada.
+2. Trabalho tem prioridade: se o agente tem um motivo determinístico de
+   proatividade no próprio domínio (hoje só o Norte, estagnação de
+   projeto) e ainda não bateu o teto diário de avisos, usa o turno do
+   tick pra isso — gera a ação real (ex: novo card) e avisa o chefe com
+   uma mensagem tipo='trabalho', template determinístico (sem LLM
+   extra pra escrever a frase).
+3. Só quem NÃO tem motivo de trabalho (ou já bateu o teto) entra na
+   disputa social: sorteia (ponderado por extroversão + tempo parado)
+   se tenta puxar papo, e sorteia (ponderado pela afinidade, nunca
+   100% garantido) com quem fala — o chefe também é candidato a
+   receber papo social, nunca a puxar. Rate limit por par também
+   se aplica aqui.
 
-`dry_run=True` calcula tudo (quem falaria, com quem) sem gerar mensagem
-nem persistir nada — mesmo espírito do dry_run da Etapa 1.
+`dry_run=True` calcula tudo (quem trabalharia/falaria, com quem/sobre
+o quê) sem executar ação real nem persistir nada — mesmo espírito do
+dry_run da Etapa 1.
 """
 import random
 from datetime import datetime, timedelta
@@ -22,10 +32,12 @@ from zoneinfo import ZoneInfo
 
 from agents.interacao import agente as agente_interacao
 from config import settings
+from resolvers import norte as resolver_norte
 from resolvers import tick as resolver_tick
 from utils.query_executor import executar_query
 
 _ESTADO_FALANDO = "falando"
+_ESTADO_EXECUTANDO = "executando"
 
 _DIAS_SEMANA = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
 
@@ -124,11 +136,37 @@ def _atualizar_afinidade(agente_id: int, alvo_id: int) -> None:
     executar_query("relacionamentos:atualizar_afinidade", commit=True, params=(nova, agente_id, alvo_id))
 
 
-async def processar_interacao_social(dry_run: bool = False) -> dict:
+def _pode_trabalho_hoje(agente_id: int) -> bool:
+    inicio = _inicio_do_dia_real()
+    rows = executar_query("mensagens:contar_trabalho_do_agente_hoje", params=(agente_id, inicio))
+    return rows[0]["total"] < settings.interacao_rate_limit_trabalho_por_dia
+
+
+def _motivo_trabalho_norte() -> dict | None:
+    """Único gatilho de proatividade implementado até agora — os outros
+    3 agentes ainda não têm regra própria (ver conversa de design da
+    Etapa 3), então nunca entram em `_CHECADORES_TRABALHO`."""
+    limite = datetime.now(ZoneInfo(settings.timezone_padrao)) - timedelta(
+        days=settings.interacao_dias_estagnacao_norte
+    )
+    rows = executar_query("projetos:listar_estagnados", params=(limite,))
+    if not rows:
+        return None
+    projeto = rows[0]
+    dias_parado = (datetime.now(ZoneInfo(settings.timezone_padrao)) - projeto["referencia_tempo_parado"]).days
+    return {"projeto": projeto, "dias_parado": dias_parado}
+
+
+_CHECADORES_TRABALHO = {
+    "norte": _motivo_trabalho_norte,
+}
+
+
+async def processar_tick_completo(dry_run: bool = False) -> dict:
     tick_atual = resolver_tick.obter_tick_atual()
     if tick_atual is None:
         raise ValueError(
-            "Nenhum tick rodou ainda — avance o relógio (POST /tick/avancar) antes de processar interação social."
+            "Nenhum tick rodou ainda — avance o relógio (POST /tick/avancar) antes de processar interação."
         )
     numero_tick = tick_atual["numero"]
 
@@ -137,16 +175,20 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
     orcamento_disponivel = resolver_tick.orcamento_disponivel_hoje()
     resultado["orcamento_disponivel_hoje"] = round(orcamento_disponivel, 6)
     if orcamento_disponivel <= 0:
-        resultado["aviso"] = "Orçamento diário esgotado — nenhuma interação social processada neste tick."
+        resultado["aviso"] = "Orçamento diário esgotado — nenhuma interação processada neste tick."
         return resultado
 
     colaboradores = executar_query("agentes:listar_colaboradores_ativos")
-    if len(colaboradores) < 2:
-        resultado["aviso"] = "Menos de 2 colaboradores ativos — não há com quem interagir socialmente."
+    if not colaboradores:
+        resultado["aviso"] = "Nenhum colaborador ativo."
         return resultado
 
     chefe_rows = executar_query("agentes:buscar_chefe")
     chefe = chefe_rows[0] if chefe_rows else None
+    # Social precisa de pelo menos 2 colaboradores pra ter com quem falar,
+    # mas trabalho não — um único colaborador ativo ainda pode ser
+    # proativo no próprio domínio (ex: só o Norte ativo).
+    permite_social = len(colaboradores) >= 2
     # O chefe é candidato a RECEBER papo social (deixa mais imersivo — um
     # "bom dia" ocasional, por exemplo), mas nunca ELEGE falar — ele não é
     # simulado, é o chefe de verdade. Por isso entra só no pool de
@@ -157,21 +199,67 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
     fato_do_dia = _fato_do_dia(tick_atual["hora_simulada"])
 
     for agente in colaboradores:
-        ticks_parado = _ticks_parado(agente["id"], numero_tick)
-        chance = _chance_falar(agente["extroversao"], ticks_parado)
-        quer_falar = random.random() < chance
-
         entrada = {
             "agente_id": agente["id"],
             "agente_nome": agente["nome"],
-            "chance_falar": round(chance, 4),
-            "quer_falar": quer_falar,
+            "tipo": None,
+            "chance_falar": None,
+            "quer_falar": False,
             "destinatario_id": None,
             "destinatario_nome": None,
             "mensagem": None,
         }
 
+        # Trabalho tem prioridade sobre social (combinado na conversa de
+        # design da Etapa 3): se o agente tem motivo determinístico de
+        # proatividade e ainda não bateu o teto diário, usa o turno pra
+        # isso e NUNCA disputa o social nesse mesmo tick.
+        checador = _CHECADORES_TRABALHO.get(agente["especialidade"])
+        motivo = checador() if checador else None
+
+        if motivo and _pode_trabalho_hoje(agente["id"]):
+            entrada["tipo"] = "trabalho"
+            entrada["motivo"] = (
+                f"Projeto {motivo['projeto']['nome']} parado há {motivo['dias_parado']} dias sem card ativo."
+            )
+            if not dry_run:
+                if chefe is None:
+                    entrada["aviso"] = "Sem chefe cadastrado pra receber o aviso."
+                else:
+                    try:
+                        card = await resolver_norte.gerar_proximo_card(motivo["projeto"]["id"])
+                        conteudo = (
+                            f"Projeto {motivo['projeto']['nome']} parado há {motivo['dias_parado']} dias "
+                            f"sem card ativo — gerei um novo: '{card['titulo']}'."
+                        )
+                        executar_query(
+                            "mensagens:inserir",
+                            returning=True,
+                            params=(agente["id"], chefe["id"], "trabalho", conteudo, numero_tick),
+                        )
+                        executar_query(
+                            "agentes:atualizar_estado", commit=True, params=(_ESTADO_EXECUTANDO, agente["id"])
+                        )
+                        entrada["destinatario_id"] = chefe["id"]
+                        entrada["destinatario_nome"] = chefe["nome"]
+                        entrada["mensagem"] = conteudo
+                    except Exception as exc:
+                        entrada["aviso"] = f"Falha ao executar proatividade de trabalho: {exc}"
+            resultado["interacoes"].append(entrada)
+            continue
+
+        if not permite_social:
+            resultado["interacoes"].append(entrada)
+            continue
+
+        ticks_parado = _ticks_parado(agente["id"], numero_tick)
+        chance = _chance_falar(agente["extroversao"], ticks_parado)
+        quer_falar = random.random() < chance
+        entrada["chance_falar"] = round(chance, 4)
+        entrada["quer_falar"] = quer_falar
+
         if quer_falar:
+            entrada["tipo"] = "social"
             destinatario = _escolher_destinatario(agente["id"], candidatos_destinatario)
             if destinatario is None:
                 entrada["aviso"] = "Nenhum destinatário elegível (rate limit do dia atingido em todos os pares)."
@@ -204,7 +292,8 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
 
         resultado["interacoes"].append(entrada)
 
-    if not dry_run and evento is not None and any(i["mensagem"] for i in resultado["interacoes"]):
+    houve_social = any(i["tipo"] == "social" and i["mensagem"] for i in resultado["interacoes"])
+    if not dry_run and evento is not None and houve_social:
         executar_query("eventos_mundo:marcar_usado", commit=True, params=(numero_tick, evento["id"]))
 
     return resultado

@@ -1,6 +1,7 @@
-"""HTTP fino da camada social do motor de tick — Etapa 2. Processa, pra
-o tick atual, a rodada de interação social entre os colaboradores
-ativos (quem quer falar, com quem, e a mensagem gerada), sempre
+"""HTTP fino do motor de interação — Etapas 2 (social) e 3
+(proatividade de trabalho) do motor de tick. Processa, pra o tick
+atual, a rodada completa por colaborador ativo (trabalho tem
+prioridade sobre social — ver `resolvers/interacao.py`), sempre
 disparado manualmente e sempre depois de `POST /tick/avancar`.
 """
 from fastapi import APIRouter, HTTPException, Query
@@ -15,14 +16,14 @@ class EventoMundoInput(BaseModel):
     descricao: str = Field(..., min_length=1)
 
 
-@router.post("/social/processar")
-async def processar_interacao_social(
+@router.post("/tick/processar")
+async def processar_tick_completo(
     dry_run: bool = Query(
-        False, description="Calcula quem falaria e com quem, sem gerar mensagem nem persistir nada."
+        False, description="Calcula quem trabalharia/falaria e com quem, sem executar ação nem persistir nada."
     ),
 ):
     try:
-        return await resolver.processar_interacao_social(dry_run=dry_run)
+        return await resolver.processar_tick_completo(dry_run=dry_run)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 

@@ -33,6 +33,10 @@ WHERE tipo = 'social'
   AND ((remetente_id = %s AND destinatario_id = %s) OR (remetente_id = %s AND destinatario_id = %s))
   AND criado_em >= %s;
 
+--QUERY: contar_trabalho_do_agente_hoje
+SELECT COUNT(*) AS total FROM mensagens
+WHERE remetente_id = %s AND tipo = 'trabalho' AND criado_em >= %s;
+
 --QUERY: listar_por_tipo
 SELECT m.id, m.tipo, m.conteudo, m.tick, m.criado_em,
        m.remetente_id, r.nome AS remetente_nome,
