@@ -178,11 +178,22 @@ não exposto ao chefe.
   os pares começam neutros (0). Sem mecanismo de queda ainda: fica pro
   dia em que entrar checagem de sentimento via LLM (ver
   `docs/backlog-futuro.md`).
-- `eventos_mundo` é pool curado manualmente (clima, futebol, fim de
-  semana etc.) — sem LLM gerando eventos —, sorteado priorizando os
-  menos usados recentemente. Histórico recente de mensagens do par
-  entra no prompt, com regra explícita de não repetir assunto — evita o
-  loop de sempre falar do mesmo evento.
+- `eventos_mundo` é pool curado manualmente (clima, futebol, trânsito
+  etc. — sem entradas de dia da semana, ver abaixo) — sem LLM gerando
+  eventos —, sorteado priorizando os menos usados recentemente.
+  Histórico recente de mensagens do par entra no prompt, com regra
+  explícita de não repetir assunto — evita o loop de sempre falar do
+  mesmo evento.
+- **Achado testando de verdade** (validação manual do chefe, ponta a
+  ponta com Postgres e OpenAI reais): como `eventos_mundo` é sorteado
+  aleatoriamente, um tick podia sortear "sextou" e outro (mesmo dia
+  real) sortear "segunda-feira" — contradição entre agentes. Corrigido
+  tirando as entradas de calendário do pool e calculando um "fato do
+  dia" (dia da semana, fim de semana, período do dia) determinístico a
+  partir de `ticks.hora_simulada` — o relógio SIMULADO do escritório,
+  não a data real —, sempre consistente porque é calculado, não
+  sorteado. Calendário fictício completo (semanas/estações/feriados
+  fictícios) fica pra próxima sprint, ver `docs/backlog-futuro.md`.
 - Guardrails: orçamento diário (Etapa 1) checado ANTES de qualquer
   chamada de LLM, rate limit de mensagens sociais por par por dia,
   `dry_run` em todo endpoint que geraria mensagem de verdade, disparo
@@ -190,10 +201,14 @@ não exposto ao chefe.
 - Migration 008 (`agentes.extroversao`, `eventos_mundo.ultimo_uso_tick`)
   — nenhuma tabela nova, `mensagens`/`relacionamentos` já existiam
   reservadas desde a fundação.
-- 13 testes novos (`tests/test_interacao.py`) cobrindo as fórmulas
-  puras, os 3 guardrails e a persistência real (mensagem, afinidade nos
-  dois sentidos, estado do agente, evento marcado como usado) — suíte
-  total com 72 testes, rodada duas vezes seguidas contra Postgres real.
+- 15 testes novos (`tests/test_interacao.py`) cobrindo as fórmulas
+  puras (incluindo o fato do dia), os 3 guardrails e a persistência
+  real (mensagem, afinidade nos dois sentidos, estado do agente, evento
+  marcado como usado) — suíte total com 74 testes, rodada duas vezes
+  seguidas contra Postgres real. **Etapa 2 validada ponta a ponta pelo
+  chefe** na própria máquina, com Postgres e OpenAI reais (não só
+  testes automatizados) — todos os números batendo com a fórmula
+  esperada.
 
 **Documentação já existente:**
 - `docs/backlog-futuro.md` — ideias adiadas deliberadamente, com o porquê.
