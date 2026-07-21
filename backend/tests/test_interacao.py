@@ -31,8 +31,22 @@ def _criar_agente(nome: str, extroversao: int = 5, ativo: bool = True) -> int:
     return agente_id
 
 
+def _criar_chefe(nome: str = "Você") -> int:
+    rows = executar_query(
+        "agentes:upsert",
+        returning=True,
+        params=(nome, "chefe", "chefe", None, "{}", 0, 5),
+    )
+    return rows[0]["id"]
+
+
 def _mensagem_gerada(conteudo: str = "Oi, tudo certo por aí?"):
     return resultado_agente(SimpleNamespace(conteudo=conteudo))
+
+
+def _escolhe_o_chefe(population, weights, k):
+    chefe_candidato = [c for c in population if c["especialidade"] == "chefe"]
+    return chefe_candidato if chefe_candidato else [population[0]]
 
 
 class TestFuncoesPuras:
@@ -186,8 +200,9 @@ class TestRodadaReal:
         resultado = await interacao.processar_interacao_social()
 
         assert mock_gerar.call_count == 1
-        fato_do_dia_passado = mock_gerar.call_args.args[-1]
+        fato_do_dia_passado = mock_gerar.call_args.args[-2]
         assert "hoje é" in fato_do_dia_passado
+        assert mock_gerar.call_args.args[-1] is False  # destinatario_eh_chefe
 
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         assert len(mensagens) >= 1
@@ -226,3 +241,50 @@ class TestEventosMundoManual:
         listados = interacao.listar_eventos_mundo()
         assert any(e["descricao"] == "Sextou." for e in listados)
         assert criado["descricao"] == "Sextou."
+
+
+class TestChefeComoDestinatario:
+    async def test_agente_pode_puxar_papo_com_o_chefe(self, mocker):
+        chefe_id = _criar_chefe()
+        a_id = _criar_agente("A", extroversao=10)
+        _criar_agente("B", extroversao=10)
+        tick.avancar_tick()
+
+        executar_query("relacionamentos:upsert_neutro", commit=True, params=(a_id, chefe_id))
+        executar_query("relacionamentos:upsert_neutro", commit=True, params=(chefe_id, a_id))
+
+        # Só A elege falar (0.0 < chance); B não (1.0 < chance é falso).
+        mocker.patch("resolvers.interacao.random.random", side_effect=[0.0, 1.0])
+        mocker.patch("resolvers.interacao.random.choices", side_effect=_escolhe_o_chefe)
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada("Bom dia, chefe!"),
+        )
+
+        resultado = await interacao.processar_interacao_social()
+
+        assert mock_gerar.call_count == 1
+        assert mock_gerar.call_args.args[-1] is True  # destinatario_eh_chefe
+
+        mensagens = executar_query("mensagens:listar_todas", params=(10,))
+        assert any(m["destinatario_id"] == chefe_id for m in mensagens)
+
+        par = executar_query("relacionamentos:buscar_por_par", params=(a_id, chefe_id))[0]
+        assert par["afinidade"] == 3
+
+    async def test_chefe_nunca_e_sorteado_para_falar(self, mocker):
+        _criar_chefe()
+        _criar_agente("A", extroversao=10)
+        _criar_agente("B", extroversao=10)
+        tick.avancar_tick()
+
+        mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        resultado = await interacao.processar_interacao_social(dry_run=True)
+
+        chefe_row = executar_query("agentes:buscar_chefe")[0]
+        agentes_no_resultado = {i["agente_id"] for i in resultado["interacoes"]}
+        assert chefe_row["id"] not in agentes_no_resultado

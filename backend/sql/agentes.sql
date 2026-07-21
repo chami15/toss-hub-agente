@@ -39,3 +39,9 @@ SELECT id, nome, especialidade, personalidade, extroversao, estado
 FROM agentes
 WHERE ativo AND tipo = 'colaborador'
 ORDER BY id;
+
+--QUERY: buscar_chefe
+SELECT id, nome, especialidade, personalidade, extroversao, estado
+FROM agentes
+WHERE tipo = 'chefe' AND ativo
+LIMIT 1;

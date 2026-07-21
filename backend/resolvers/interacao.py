@@ -145,6 +145,14 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
         resultado["aviso"] = "Menos de 2 colaboradores ativos — não há com quem interagir socialmente."
         return resultado
 
+    chefe_rows = executar_query("agentes:buscar_chefe")
+    chefe = chefe_rows[0] if chefe_rows else None
+    # O chefe é candidato a RECEBER papo social (deixa mais imersivo — um
+    # "bom dia" ocasional, por exemplo), mas nunca ELEGE falar — ele não é
+    # simulado, é o chefe de verdade. Por isso entra só no pool de
+    # destinatários, nunca no loop de `colaboradores` que decide quem tenta.
+    candidatos_destinatario = colaboradores + ([chefe] if chefe else [])
+
     evento = _sortear_evento_mundo()
     fato_do_dia = _fato_do_dia(tick_atual["hora_simulada"])
 
@@ -164,7 +172,7 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
         }
 
         if quer_falar:
-            destinatario = _escolher_destinatario(agente["id"], colaboradores)
+            destinatario = _escolher_destinatario(agente["id"], candidatos_destinatario)
             if destinatario is None:
                 entrada["aviso"] = "Nenhum destinatário elegível (rate limit do dia atingido em todos os pares)."
             else:
@@ -173,6 +181,7 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
 
                 if not dry_run:
                     historico = _historico_do_par(agente["id"], destinatario["id"])
+                    destinatario_eh_chefe = chefe is not None and destinatario["id"] == chefe["id"]
                     resposta = await agente_interacao.gerar_mensagem_social(
                         agente["personalidade"],
                         agente["nome"],
@@ -180,6 +189,7 @@ async def processar_interacao_social(dry_run: bool = False) -> dict:
                         historico,
                         evento["descricao"] if evento else None,
                         fato_do_dia,
+                        destinatario_eh_chefe,
                     )
                     conteudo = resposta["dado"].conteudo
                     executar_query(

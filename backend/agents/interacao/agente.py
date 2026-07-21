@@ -21,9 +21,9 @@ load_dotenv()
 _PROMPT_SOCIAL = """Você é {nome_remetente}, um agente colaborador do hub.
 {personalidade}
 
-Agora você está puxando papo social com {nome_destinatario}, seu colega de
-escritório — isso NÃO é sobre trabalho, é conversa de copa. Curta e natural
-(1 a 3 frases), no seu tom de sempre.
+Agora você está puxando papo social com {rotulo_destinatario} — é conversa
+de copa, não um relatório formal. Curta e natural (1 a 3 frases), no seu
+tom de sempre.
 
 {fato_do_dia}
 
@@ -37,8 +37,12 @@ Regras:
 - NÃO repita um assunto que já aparece no histórico acima.
 - Se houver um evento do mundo listado, use-o só como gancho/inspiração —
   nunca a única coisa mencionada. Traga também algo do seu próprio
-  contexto, trabalho ou opinião.
+  contexto ou opinião.
+- Pode tocar em trabalho de forma informal (fofoca, comentário,
+  opinião sobre uma tarefa ou sobre o chefe) — mas sempre no tom de
+  bate-papo, nunca como um aviso/relatório formal.
 - Sem formalidade, sem lista, sem assinatura — é só uma fala de bate-papo.
+- {nota_chefe}
 """
 
 
@@ -88,6 +92,7 @@ async def gerar_mensagem_social(
     historico_recente: list[dict],
     evento_mundo: str | None,
     fato_do_dia: str,
+    destinatario_eh_chefe: bool = False,
 ) -> dict:
     """Lança RuntimeError se a chamada ou o parsing falharem — uma
     tentativa só, sem retry automático."""
@@ -97,13 +102,20 @@ async def gerar_mensagem_social(
         if evento_mundo
         else "Nenhum evento do mundo disponível — puxe assunto com seu próprio contexto."
     )
+    if destinatario_eh_chefe:
+        rotulo_destinatario = f"seu chefe, {nome_destinatario}"
+        nota_chefe = "Ele é o chefe — mantenha um tom simpático e um pouco mais respeitoso que com um colega."
+    else:
+        rotulo_destinatario = f"seu colega de escritório, {nome_destinatario}"
+        nota_chefe = "É um colega, pode ser mais à vontade."
     prompt = _PROMPT_SOCIAL.format(
         nome_remetente=nome_remetente,
         personalidade=personalidade or "",
-        nome_destinatario=nome_destinatario,
+        rotulo_destinatario=rotulo_destinatario,
         fato_do_dia=fato_do_dia,
         historico_json=json.dumps(historico_recente, ensure_ascii=False, default=str),
         evento_bloco=evento_bloco,
+        nota_chefe=nota_chefe,
     )
     try:
         resultado = await modelo.ainvoke(prompt)
