@@ -265,3 +265,23 @@ etapas que guia todo o módulo de interação.
 **Status:** não iniciado. Ideia confirmada pelo chefe como prioridade
 da próxima sprint (não "algum dia") — retomar com debate de design
 próprio antes de qualquer código.
+
+---
+
+## Trabalho formal entre agentes (não só agente→chefe) — módulo de interação
+
+**Ideia:** hoje (Etapa 3) `mensagens.tipo='trabalho'` é escopado só pra
+agente→chefe (alertas/atualizações proativas, ex: Norte avisando de
+card gerado por estagnação). A ideia adiada é permitir mensagem
+formal de trabalho **entre agentes** também — ex: a Cifra avisando
+formalmente a Agenda sobre algo relevante aos dois domínios, uma
+coordenação de verdade entre colaboradores, não só fofoca social.
+
+**Por que foi adiada:** ainda não existe nenhum caso de uso concreto
+("por que a Cifra precisaria mandar um recado formal pra Agenda? que
+decisão isso dispara?"). Decisão: manter o escopo da Etapa 3 enxuto
+(só agente→chefe) até aparecer uma razão real de coordenação entre
+domínios que justifique essa mensagem.
+
+**Status:** não iniciado. Pré-requisito: Etapa 3 (proatividade de
+trabalho) rodando de forma estável, e um caso de uso real identificado.
