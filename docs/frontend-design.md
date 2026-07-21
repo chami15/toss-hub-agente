@@ -148,12 +148,12 @@ repositório real; frontend ainda por desenhar.
 
 ---
 
-## Módulo de interação (motor de tick — Etapas 1 e 2 prontas, Etapa 3 em debate)
+## Módulo de interação (motor de tick — Etapas 1, 2 e 3 prontas)
 
-Backend do relógio simulado (Etapa 1) e da camada social entre agentes
-(Etapa 2) já existem e estão testados. Etapa 3 (proatividade de
-trabalho por domínio) ainda não tem desenho nem código. O que já dá pra
-prever sobre o frontend, pra não ficar refazendo depois:
+Backend do relógio simulado (Etapa 1), da camada social entre agentes
+(Etapa 2) e da proatividade de trabalho (Etapa 3, só o Norte por
+enquanto) já existem e estão testados. O que já dá pra prever sobre o
+frontend, pra não ficar refazendo depois:
 
 **Relógio simulado**
 - Disparo é sempre manual (`POST /tick/avancar`), nunca automático
@@ -174,22 +174,29 @@ prever sobre o frontend, pra não ficar refazendo depois:
 
 **Mensagens entre agentes (mural/social e trabalho)**
 - Toda mensagem trocada fica em `mensagens`, sempre associada a um
-  tick. Hoje (Etapa 2) só existe mensagem **social direcionada** — um
-  agente pra outro (`POST /interacao/social/processar`, disparo
-  manual). Mensagem de **trabalho** e mensagem de **mural**
-  (`destinatario_id NULL`, sem destinatário específico) ainda não são
-  geradas por nenhuma etapa — o schema já suporta os dois, mas a UI não
-  precisa de uma visão de mural ainda, só de conversa entre pares.
-- Diferenciar visualmente mensagem de **trabalho** (quando a Etapa 3
-  existir) de mensagem **social** — mesma tabela, significados bem
-  diferentes pro chefe acompanhar.
+  tick, gerada por `POST /interacao/tick/processar` (renomeado de
+  `/interacao/social/processar` — agora cobre trabalho e social juntos,
+  disparo manual sempre depois de `POST /tick/avancar`).
+- **`tipo='social'`**: entre colaboradores, ou colaborador→chefe
+  (imersão, "bom dia" ocasional) — pode tocar em trabalho de forma
+  informal, mas nunca é um relatório.
+- **`tipo='trabalho'`**: hoje só o Norte gera, sempre direcionado ao
+  chefe — aviso de proatividade (ex: "Projeto X parado há N dias, gerei
+  um novo card"). Mensagem de **mural** (`destinatario_id NULL`) ainda
+  não é gerada por nenhuma etapa — schema já suporta, UI não precisa
+  disso ainda.
+- Diferenciar visualmente `trabalho` (fundo mais “oficial”, talvez com
+  destaque/badge — é a atualização que o chefe realmente quer ver) de
+  `social` (tom mais leve, copa) — mesma tabela, propósitos bem
+  diferentes.
 - Estado do agente (`idle`/`pensando`/`falando`/`executando`, já
   existente em `agentes.estado`) reflete visualmente no avatar/mesa do
-  escritório 2D — a Etapa 2 já marca `'falando'` quando o agente manda
-  uma mensagem social; volta a `'idle'` no próximo `POST /tick/avancar`.
-- `POST /interacao/social/processar?dry_run=true` mostra, sem gastar
-  nada, quem tentaria falar e com quem nesse tick — útil como preview
-  antes de confirmar de verdade.
+  escritório 2D — `'falando'` numa mensagem social, `'executando'` numa
+  proatividade de trabalho; volta a `'idle'` no próximo
+  `POST /tick/avancar`.
+- `POST /interacao/tick/processar?dry_run=true` mostra, sem gastar nem
+  executar nada, quem trabalharia/falaria e com quem/sobre o quê nesse
+  tick — útil como preview antes de confirmar de verdade.
 
 **`eventos_mundo` (gancho de conversa social)**
 - Pool curado manualmente (clima, futebol, fim de semana, etc.), já
@@ -284,6 +291,10 @@ são o que a API já suporta e o frontend precisa cobrir.
   trabalho de tipo social.
 - RF23: Adicionar um novo `eventos_mundo` por um form simples
   (descrição), sem geração automática por LLM.
+- RF24: Processar a rodada completa do tick (`POST
+  /interacao/tick/processar`, com `dry_run`) — trabalho tem prioridade
+  sobre social; destacar visualmente quando um agente gerou um aviso
+  de trabalho de verdade (hoje só o Norte).
 
 ## Requisitos não funcionais
 

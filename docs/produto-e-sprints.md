@@ -209,6 +209,46 @@ não exposto ao chefe.
   chefe** na própria máquina, com Postgres e OpenAI reais (não só
   testes automatizados) — todos os números batendo com a fórmula
   esperada.
+- **Extensão pós-validação**: o chefe também virou candidato a
+  RECEBER papo social (nunca a puxar — ele não é simulado), reforçando
+  a imersão de escritório vivo; e o prompt foi afrouxado pra permitir
+  o social tocar em trabalho de forma informal (fofoca/opinião, nunca
+  relatório formal) — esse continua sendo o papel exclusivo do tipo
+  `trabalho`.
+
+**Módulo de interação — Etapa 3 (proatividade de trabalho, Norte primeiro):**
+- `resolvers/interacao.py` ganhou um dispatch de "motivo de trabalho"
+  por `especialidade` (`_CHECADORES_TRABALHO`) — só o Norte tem regra
+  implementada por enquanto. Gatilho 100% determinístico: projeto
+  `ativo`, sem card em aberto (`sugerido`/`aceito`), parado há mais de
+  `interacao_dias_estagnacao_norte` dias reais (desde o último card
+  resolvido, ou desde o cadastro se nunca resolveu nenhum) — o mais
+  parado primeiro, sempre só 1 por tick.
+- Quando dispara: reaproveita `resolvers.norte.gerar_proximo_card`
+  (já existente, sem duplicação) e manda um aviso ao chefe
+  (`mensagens.tipo='trabalho'`) com **template determinístico**, zero
+  chamada de LLM extra só pra escrever a frase — o título do card já
+  vem da própria chamada que gera o card.
+- **Trabalho ganha prioridade sobre social no mesmo tick**: um agente
+  com motivo de trabalho válido nunca disputa o social naquele tick.
+  Só quem não tem motivo (ou já bateu o teto diário) entra na
+  elegibilidade social normal da Etapa 2.
+- Guardrails: teto de `interacao_rate_limit_trabalho_por_dia` (5)
+  avisos proativos por agente por dia; sem repetir o mesmo alerta pro
+  mesmo projeto (reaproveita a trava de card único que já existia no
+  Norte — assim que gera o card, o projeto deixa de ser candidato);
+  orçamento diário compartilhado com a Etapa 2.
+- Endpoint renomeado de `/interacao/social/processar` pra
+  `/interacao/tick/processar` (cobre as duas etapas agora).
+- 7 testes novos cobrindo o gatilho, a prioridade, o teto diário e a
+  não-repetição — suíte com 81 testes, rodada 5 vezes seguidas (achado
+  e corrigido um teste flaky nesse processo: faltava mockar a geração
+  social de um segundo agente sem motivo de trabalho).
+- **Escopo consciente**: os outros 3 agentes (Cifra, Agenda, Vita)
+  ainda não têm gatilho de proatividade próprio — fica pra quando cada
+  um for desenhado individualmente. Trabalho formal ENTRE agentes
+  (não só agente→chefe) ficou no backlog, sem caso de uso definido
+  ainda.
 
 **Documentação já existente:**
 - `docs/backlog-futuro.md` — ideias adiadas deliberadamente, com o porquê.
@@ -222,10 +262,11 @@ não exposto ao chefe.
   interação (ver seção 2.2 abaixo), justamente porque o próximo módulo
   mexe em infraestrutura compartilhada por todos os agentes.
 - **Módulo de interação** (motor de tick) — dividido em 3 etapas pra
-  não acumular risco: **Etapa 1 (relógio simulado) e Etapa 2 (camada
-  social) feitas** — ver acima. **Etapa 3 (proatividade de trabalho por
-  domínio)** ainda não desenhada em detalhe — passa pelo mesmo processo
-  de debate/aprovação antes de virar código, como as anteriores.
+  não acumular risco: **Etapas 1 (relógio simulado), 2 (camada social)
+  e 3 (proatividade de trabalho) feitas** — ver acima. Etapa 3 hoje só
+  tem gatilho real pro Norte; os outros 3 agentes ainda não têm regra
+  de proatividade própria — fica pra quando cada um for desenhado
+  individualmente, mesmo processo de debate/aprovação de sempre.
 - **Módulo de frontend** — 2D primeiro, ver `docs/frontend-design.md`.
   Backend segue sendo priorizado antes.
 - **Quinto agente (e mais)** — confirmado que vai existir, sem data
@@ -279,13 +320,14 @@ módulo sem gerar retrabalho.
   de saída estruturada de LLM).
 - **Sem framework de frontend ainda** — planejado React + Vite pro
   módulo de frontend (2D), ver `docs/avaliacao-mvp.md`.
-- **Motor de tick (Etapas 1 e 2)**: `resolvers/tick.py` +
+- **Motor de tick (Etapas 1, 2 e 3)**: `resolvers/tick.py` +
   `resolvers/interacao.py` + `agents/interacao/agente.py` — relógio
   simulado manual (sem scheduler automático ainda, ver
-  `docs/backlog-futuro.md`) e camada social entre agentes (elegibilidade
+  `docs/backlog-futuro.md`), camada social entre agentes (elegibilidade
   e escolha de destinatário determinísticas, afinidade com retorno
-  decrescente, `eventos_mundo` curado manualmente). Etapa 3
-  (proatividade de trabalho por domínio) ainda não implementada.
+  decrescente, `eventos_mundo` curado manualmente) e proatividade de
+  trabalho (gatilho determinístico por domínio, hoje só o Norte tem
+  regra — estagnação de projeto — os outros 3 agentes ainda não).
 - **Testes**: `pytest` + `pytest-asyncio` (resolvers são majoritariamente
   `async`) + `unittest.mock`/`pytest-mock` (mocka LLM e API externa,
   nunca o banco) — suíte reaproveita o Postgres do `docker-compose.yml`
