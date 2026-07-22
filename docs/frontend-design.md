@@ -224,6 +224,26 @@ frontend, pra não ficar refazendo depois:
   ainda sem resposta, ele responde a mais antiga primeiro — nunca
   sorteio nesse caso, é prioridade garantida sobre a roleta normal.
 
+**Caixa de entrada do chefe (estilo WhatsApp/e-mail)**
+- `GET /mensagens/caixa-de-entrada` — só o que foi direcionado ao
+  chefe (de qualquer agente), já com o mesmo formato de balão acima
+  (`respondendo_a_id` + citação via JOIN). É a visão "minha caixa de
+  mensagens" — uma tela separada do mural geral (`GET /mensagens`),
+  focada só no que É pra ele.
+- `POST /mensagens/{id}/responder` — o chefe escreve a própria resposta
+  (texto literal, sem LLM) a uma mensagem que recebeu. Vira uma
+  mensagem normal, com o mesmo balão de citação apontando pra
+  original. Só funciona pra mensagem que foi de fato direcionada a ele
+  e que seja `tipo='social'` — avisos de trabalho (ex: card do Norte)
+  não se respondem por aqui, têm o próprio fluxo (aceitar/rejeitar/
+  finalizar).
+- Pensar a UI como uma lista de conversas por agente (uma "thread" por
+  colega, não um feed único misturado) — mais perto de DM/e-mail do
+  que de mural: clica no agente, vê o histórico com ele, responde ali.
+- Ainda não decidido: se essa tela também deveria notificar (badge de
+  "não lida") — hoje o campo `lida_pelo_chefe` já existe em
+  `mensagens` mas não é usado por nenhum endpoint ainda.
+
 **`eventos_mundo` (gancho de conversa social)**
 - Pool curado manualmente (clima, futebol, fim de semana, etc.), já
   seedado (10 eventos iniciais) e sorteado de verdade a cada rodada
@@ -321,6 +341,10 @@ são o que a API já suporta e o frontend precisa cobrir.
   /interacao/tick/processar`, com `dry_run`) — trabalho tem prioridade
   sobre social; destacar visualmente quando um agente gerou um aviso
   de trabalho de verdade (hoje só o Norte).
+- RF25: Exibir a caixa de entrada do chefe (`GET
+  /mensagens/caixa-de-entrada`) e responder uma mensagem social
+  recebida (`POST /mensagens/{id}/responder`) — estilo WhatsApp/e-mail,
+  uma thread por agente.
 
 ## Requisitos não funcionais
 
