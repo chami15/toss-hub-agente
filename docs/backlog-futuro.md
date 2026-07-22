@@ -312,3 +312,27 @@ temos.
 **Status:** não iniciado. Pré-requisito: automação do disparo do tick
 (ver backlog de `tick_intervalo_min`) e definição de quantos ticks
 equivalem a um dia fictício.
+
+---
+
+## Conteúdo social soando forçado/repetitivo — módulo de interação
+
+**Ideia:** achado na validação manual do chefe (thread de resposta):
+as mensagens sociais estão emendando um comentário sobre "o chefe" com
+frequência alta demais, de um jeito que soa repetitivo/forçado entre
+mensagens de agentes diferentes, em vez de variado e natural. Não é
+sobre a mecânica de decisão (elegibilidade, roleta, resposta de
+pendência — tudo isso já validado e funcionando certo), é sobre a
+QUALIDADE do texto gerado pelo prompt em si.
+
+**Por que foi adiada:** provável causa é a combinação das regras atuais
+do prompt ("não repita assunto do histórico" + "pode tocar em trabalho
+informalmente") empurrando o modelo sempre pro mesmo fallback (comentar
+sobre o chefe) quando não sabe mais o que variar. Precisa de ajuste
+fino de prompt (e possivelmente mais variedade de ganchos além de
+eventos_mundo + fofoca sobre o chefe) — não é um bug de lógica, é
+afinação de conteúdo, melhor tratada isolada depois de mais rodadas de
+observação real.
+
+**Status:** não iniciado. Precisa de mais exemplos reais rodando pra
+identificar o padrão exato antes de mexer no prompt.
