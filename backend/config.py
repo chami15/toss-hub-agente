@@ -59,5 +59,23 @@ class Settings(BaseSettings):
     github_token_path: str = "github_token.json"
     github_oauth_scope: str = "repo"
 
+    # Módulo de interação, Etapa 2 (camada social) — constantes-exemplo
+    # combinadas na conversa de design, ajustáveis depois de rodar de
+    # verdade. Ver docs/produto-e-sprints.md pro desenho completo.
+    interacao_peso_extroversao: float = 0.5       # contribuição máx. da extroversão na chance de falar
+    interacao_incremento_cooldown: float = 0.05   # soma por tick parado sem falar socialmente
+    interacao_chance_falar_max: float = 0.9       # nunca vira obrigação (nunca chega a 100%)
+    interacao_peso_afinidade_max: float = 3.0     # quanto a afinidade pode inflar o peso na roleta
+    interacao_peso_minimo: float = 0.1            # piso do peso — nunca zera/inverte com afinidade negativa
+    interacao_afinidade_incremento_max: float = 3.0  # ganho de afinidade quando afinidade atual = 0
+    interacao_historico_mensagens_par: int = 3    # quantas mensagens recentes do par entram no prompt
+    interacao_rate_limit_par_por_dia: int = 6     # máx. de mensagens sociais por par, por dia real
+    interacao_chance_novo_assunto: float = 0.3    # numa conversa já em andamento, chance de puxar assunto novo (senão, segue o papo)
+
+    # Módulo de interação, Etapa 3 (proatividade de trabalho) — Norte é o
+    # primeiro domínio com gatilho real; os outros ainda não têm regra.
+    interacao_dias_estagnacao_norte: int = 3         # dias reais parado (sem card ativo) pra virar candidato
+    interacao_rate_limit_trabalho_por_dia: int = 5   # máx. de avisos proativos de trabalho por agente, por dia real
+
 
 settings = Settings()

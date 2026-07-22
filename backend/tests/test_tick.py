@@ -11,7 +11,7 @@ def _criar_agente(nome: str, tipo: str = "colaborador", ativo: bool = True) -> i
     rows = executar_query(
         "agentes:upsert",
         returning=True,
-        params=(nome, tipo, "teste", None, "{}", 0),
+        params=(nome, tipo, "teste", None, "{}", 0, 5),
     )
     agente_id = rows[0]["id"]
     if not ativo:

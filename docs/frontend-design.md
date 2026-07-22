@@ -148,6 +148,123 @@ repositório real; frontend ainda por desenhar.
 
 ---
 
+## Módulo de interação (motor de tick — Etapas 1, 2 e 3 prontas)
+
+Backend do relógio simulado (Etapa 1), da camada social entre agentes
+(Etapa 2) e da proatividade de trabalho (Etapa 3, só o Norte por
+enquanto) já existem e estão testados. O que já dá pra prever sobre o
+frontend, pra não ficar refazendo depois:
+
+**Relógio simulado**
+- Disparo é sempre manual (`POST /tick/avancar`), nunca automático
+  nesta fase — precisa de um controle explícito na UI (botão "avançar
+  tempo"), não um timer rodando sozinho.
+- Suporte a `dry_run`: a UI deveria deixar claro quando está só
+  "conferindo" (calcula e mostra o que aconteceria) vs. de fato
+  avançando e gravando.
+- Exibir o tick atual e a hora simulada em algum lugar sempre visível
+  do escritório (`GET /tick/atual`), já que tudo (mensagens, estado dos
+  agentes) é referenciado por número de tick.
+- Exibir orçamento diário gasto/disponível (`GET /tick/orcamento`) —
+  visível pro chefe, ao contrário do custo por ação individual (que
+  nunca aparece, ver RNF02).
+- Backlog: automação completa do relógio (rodar sozinho em intervalo)
+  fica pra depois, com visão de um botão + contador regressivo na UI
+  em vez do disparo manual atual.
+
+**Mensagens entre agentes (mural/social e trabalho)**
+- Toda mensagem trocada fica em `mensagens`, sempre associada a um
+  tick, gerada por `POST /interacao/tick/processar` (renomeado de
+  `/interacao/social/processar` — agora cobre trabalho e social juntos,
+  disparo manual sempre depois de `POST /tick/avancar`).
+- **`tipo='social'`**: entre colaboradores, ou colaborador→chefe
+  (imersão, "bom dia" ocasional) — pode tocar em trabalho de forma
+  informal, mas nunca é um relatório.
+- **`tipo='trabalho'`**: os 4 agentes geram (Sabor A da proatividade),
+  sempre direcionado ao chefe — Norte (novo card por estagnação), Cifra
+  (relatório mensal fechado), Vita (relatório semanal fechado), Agenda
+  (resumo diário de compromissos). Mensagem de **mural**
+  (`destinatario_id NULL`) ainda não é gerada por nenhuma etapa — schema
+  já suporta, UI não precisa disso ainda.
+- Diferenciar visualmente `trabalho` (fundo mais “oficial”, talvez com
+  destaque/badge — é a atualização que o chefe realmente quer ver) de
+  `social` (tom mais leve, copa) — mesma tabela, propósitos bem
+  diferentes.
+- Estado do agente (`idle`/`pensando`/`falando`/`executando`, já
+  existente em `agentes.estado`) reflete visualmente no avatar/mesa do
+  escritório 2D — `'falando'` numa mensagem social, `'executando'` numa
+  proatividade de trabalho; volta a `'idle'` no próximo
+  `POST /tick/avancar`.
+- `POST /interacao/tick/processar?dry_run=true` mostra, sem gastar nem
+  executar nada, quem trabalharia/falaria e com quem/sobre o quê nesse
+  tick — útil como preview antes de confirmar de verdade.
+
+**Balãozinho de resposta (thread social)**
+- `mensagens.respondendo_a_id` (auto-referência a outra `mensagens.id`,
+  nullable) marca quando uma mensagem social é resposta direta a outra
+  — mesma ideia de "responder" do WhatsApp/Instagram DM.
+- Não precisa de campo duplicado nenhum pro conteúdo/remetente da
+  mensagem original — um JOIN da própria tabela `mensagens` nela mesma
+  já traz tudo pronto pra UI montar o balão (citação em cima, resposta
+  embaixo):
+  ```sql
+  SELECT m.id, m.conteudo, m.criado_em, m.remetente_id, r.nome AS remetente_nome,
+         m.respondendo_a_id,
+         original.conteudo AS respondendo_a_conteudo,
+         original_remetente.nome AS respondendo_a_remetente_nome
+  FROM mensagens m
+  JOIN agentes r ON r.id = m.remetente_id
+  LEFT JOIN mensagens original ON original.id = m.respondendo_a_id
+  LEFT JOIN agentes original_remetente ON original_remetente.id = original.remetente_id
+  ```
+- Quando `respondendo_a_id` for `NULL`, a mensagem é uma fala nova (sem
+  balão de citação) — a UI só desenha o balão quando o campo vier
+  preenchido.
+- Mecânica por trás (não afeta a UI diretamente, só o que aparece):
+  quando um agente decide falar e tem uma mensagem social recebida
+  ainda sem resposta, ele responde a mais antiga primeiro — nunca
+  sorteio nesse caso, é prioridade garantida sobre a roleta normal.
+
+**Caixa de entrada do chefe (estilo WhatsApp/e-mail)**
+- `GET /mensagens/caixa-de-entrada` — só o que foi direcionado ao
+  chefe (de qualquer agente), já com o mesmo formato de balão acima
+  (`respondendo_a_id` + citação via JOIN). É a visão "minha caixa de
+  mensagens" — uma tela separada do mural geral (`GET /mensagens`),
+  focada só no que É pra ele.
+- `POST /mensagens/{id}/responder` — o chefe escreve a própria resposta
+  (texto literal, sem LLM) a uma mensagem que recebeu. Vira uma
+  mensagem normal, com o mesmo balão de citação apontando pra
+  original. Só funciona pra mensagem que foi de fato direcionada a ele
+  e que seja `tipo='social'` — avisos de trabalho (ex: card do Norte)
+  não se respondem por aqui, têm o próprio fluxo (aceitar/rejeitar/
+  finalizar).
+- Pensar a UI como uma lista de conversas por agente (uma "thread" por
+  colega, não um feed único misturado) — mais perto de DM/e-mail do
+  que de mural: clica no agente, vê o histórico com ele, responde ali.
+- Ainda não decidido: se essa tela também deveria notificar (badge de
+  "não lida") — hoje o campo `lida_pelo_chefe` já existe em
+  `mensagens` mas não é usado por nenhum endpoint ainda.
+
+**`eventos_mundo` (gancho de conversa social)**
+- Pool curado manualmente (clima, futebol, fim de semana, etc.), já
+  seedado (10 eventos iniciais) e sorteado de verdade a cada rodada
+  social (`GET /interacao/eventos-mundo` lista, `POST` adiciona) — sem
+  geração automática por LLM. A UI precisa de uma forma simples de
+  **adicionar um evento novo** (form curto: descrição, pronto — não
+  precisa de mais campos).
+- Não precisa de tela de gestão elaborada (editar/remover) na primeira
+  versão — só adicionar/listar é suficiente pra começar.
+
+**Afinidade e relacionamento entre agentes**
+- `relacionamentos.afinidade` (-100 a 100) entre cada par — cresce por
+  interação social com retorno decrescente (Etapa 2), todos começam
+  neutros (0), sem mecanismo de queda ainda. Ainda não decidido se isso
+  aparece na UI (ex: indicador de "proximidade" entre avatares) ou fica
+  só interno, moldando quem fala com quem sem nunca ficar visível. Ver
+  "Decisões em aberto" abaixo.
+
+---
+
 ## Escritório 2D (visão geral, ainda não desenhado)
 
 Ainda não há protótipo nenhum de tela. O que já está decidido/disponível
@@ -211,6 +328,26 @@ são o que a API já suporta e o frontend precisa cobrir.
 - RF19: Atalho de campo único pra peso e hidratação, sem abrir o menu
   completo.
 
+**Módulo de interação (motor de tick)**
+- RF20: Avançar o relógio simulado manualmente (`POST /tick/avancar`),
+  com opção de `dry_run` pra conferir sem gravar.
+- RF21: Exibir o tick atual, a hora simulada e o orçamento diário
+  gasto/disponível sempre visíveis no escritório.
+- RF22: Exibir o mural de mensagens (sem destinatário) e as mensagens
+  direcionadas entre pares de agentes, diferenciando visualmente tipo
+  trabalho de tipo social.
+- RF23: Adicionar um novo `eventos_mundo` por um form simples
+  (descrição), sem geração automática por LLM.
+- RF24: Processar a rodada completa do tick (`POST
+  /interacao/tick/processar`, com `dry_run`) — trabalho tem prioridade
+  sobre social; destacar visualmente quando um agente gerou um aviso
+  de trabalho de verdade (os 4 agentes geram: card, relatório mensal,
+  relatório semanal, resumo de agenda).
+- RF25: Exibir a caixa de entrada do chefe (`GET
+  /mensagens/caixa-de-entrada`) e responder uma mensagem social
+  recebida (`POST /mensagens/{id}/responder`) — estilo WhatsApp/e-mail,
+  uma thread por agente.
+
 ## Requisitos não funcionais
 
 - **RNF01 (controle de custo):** nenhuma ação que dispare uma chamada de
@@ -239,6 +376,9 @@ são o que a API já suporta e o frontend precisa cobrir.
 - **RNF08 (2D primeiro):** interface inicial é 2D (cartões/painéis), sem
   biblioteca gráfica pesada — 3D é evolução posterior, não bloqueia o
   resto (ver `avaliacao-mvp.md`).
+- **RNF09 (tick sempre manual):** nenhuma automação de relógio nesta
+  fase — todo avanço de tick é uma ação deliberada do chefe, mesma
+  disciplina do RNF01 aplicada ao próprio motor de interação.
 
 ---
 
@@ -261,3 +401,12 @@ são o que a API já suporta e o frontend precisa cobrir.
   projeto, badge, ordenação por tempo parado no topo da lista? A regra
   (tempo desde o último card resolvido) já existe, falta o tratamento
   visual.
+- **Afinidade entre agentes aparece na UI ou fica só interna?** Ainda
+  não decidido se o "escritório vivo" mostra de alguma forma visual
+  (proximidade dos avatares, indicador de relação) o quanto dois
+  agentes se dão bem, ou se isso só molda comportamento (quem fala com
+  quem) sem nunca virar informação exposta ao chefe.
+- **Como visualizar o mural de mensagens:** feed único tipo timeline,
+  separado por tick, ou algo mais espacial (balão de fala saindo do
+  avatar no escritório 2D)? Ainda não desenhado — depende de como o
+  motor de tick (Etapa 2) for implementado de verdade.

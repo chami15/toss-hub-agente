@@ -112,10 +112,10 @@ módulo.
   fino) → `resolvers/` (regra de negócio + guardrails) → `utils/query_executor.py`
   (único ponto de acesso ao banco) → `sql/*.sql` (queries nomeadas,
   nunca inline).
-- Tabelas de fundação já existentes mas **ainda não usadas por nenhum
-  agente**: `mensagens`, `memorias`, `relacionamentos`, `tick_execucoes`
-  — reservadas pras próximas etapas do módulo de interação (social e
-  proatividade). `ticks` já está em uso pela Etapa 1 (ver abaixo).
+- Tabelas de fundação já existentes mas **ainda não usadas**: `memorias`,
+  `tick_execucoes` — reservadas pra Etapa 3 (proatividade de trabalho).
+  `ticks` (Etapa 1), `mensagens` e `relacionamentos` (Etapa 2) já estão
+  em uso — ver abaixo.
 
 **Módulo de agentes (quatro agentes, um por domínio):**
 
@@ -162,6 +162,121 @@ não exposto ao chefe.
 - 11 testes novos (`tests/test_tick.py`), rodados contra Postgres real
   duas vezes seguidas pra confirmar repetibilidade.
 
+**Módulo de interação — Etapa 2 (camada social):**
+- `resolvers/interacao.py` + `agents/interacao/agente.py` +
+  `routers/interacao.py`: a cada rodada (manual, sempre depois de
+  `POST /tick/avancar`), decide deterministicamente — sem gastar LLM —
+  quem tenta puxar assunto social nesse tick (extroversão do agente +
+  quantos ticks parado desde a última fala social) e, pra quem tenta,
+  com quem fala (roleta ponderada pela afinidade em `relacionamentos`,
+  nunca 100% garantido pro "melhor amigo" nem 0% pra ninguém — piso
+  mínimo protege contra afinidade negativa inverter o peso). Só depois
+  disso é que 1 chamada estruturada (Padrão A) gera o conteúdo da
+  mensagem.
+- Afinidade cresce por interação (não por tick), com retorno
+  decrescente — quanto mais alta já está, menor o próximo ganho. Todos
+  os pares começam neutros (0). Sem mecanismo de queda ainda: fica pro
+  dia em que entrar checagem de sentimento via LLM (ver
+  `docs/backlog-futuro.md`).
+- `eventos_mundo` é pool curado manualmente (clima, futebol, trânsito
+  etc. — sem entradas de dia da semana, ver abaixo) — sem LLM gerando
+  eventos —, sorteado priorizando os menos usados recentemente.
+  Histórico recente de mensagens do par entra no prompt, com regra
+  explícita de não repetir assunto — evita o loop de sempre falar do
+  mesmo evento.
+- **Achado testando de verdade** (validação manual do chefe, ponta a
+  ponta com Postgres e OpenAI reais): como `eventos_mundo` é sorteado
+  aleatoriamente, um tick podia sortear "sextou" e outro (mesmo dia
+  real) sortear "segunda-feira" — contradição entre agentes. Corrigido
+  tirando as entradas de calendário do pool e calculando um "fato do
+  dia" (dia da semana, fim de semana, período do dia) determinístico a
+  partir de `ticks.hora_simulada` — o relógio SIMULADO do escritório,
+  não a data real —, sempre consistente porque é calculado, não
+  sorteado. Calendário fictício completo (semanas/estações/feriados
+  fictícios) fica pra próxima sprint, ver `docs/backlog-futuro.md`.
+- Guardrails: orçamento diário (Etapa 1) checado ANTES de qualquer
+  chamada de LLM, rate limit de mensagens sociais por par por dia,
+  `dry_run` em todo endpoint que geraria mensagem de verdade, disparo
+  sempre manual.
+- Migration 008 (`agentes.extroversao`, `eventos_mundo.ultimo_uso_tick`)
+  — nenhuma tabela nova, `mensagens`/`relacionamentos` já existiam
+  reservadas desde a fundação.
+- 15 testes novos (`tests/test_interacao.py`) cobrindo as fórmulas
+  puras (incluindo o fato do dia), os 3 guardrails e a persistência
+  real (mensagem, afinidade nos dois sentidos, estado do agente, evento
+  marcado como usado) — suíte total com 74 testes, rodada duas vezes
+  seguidas contra Postgres real. **Etapa 2 validada ponta a ponta pelo
+  chefe** na própria máquina, com Postgres e OpenAI reais (não só
+  testes automatizados) — todos os números batendo com a fórmula
+  esperada.
+- **Extensão pós-validação**: o chefe também virou candidato a
+  RECEBER papo social (nunca a puxar — ele não é simulado), reforçando
+  a imersão de escritório vivo; e o prompt foi afrouxado pra permitir
+  o social tocar em trabalho de forma informal (fofoca/opinião, nunca
+  relatório formal) — esse continua sendo o papel exclusivo do tipo
+  `trabalho`.
+- **Thread de resposta (balãozinho)**: outro achado da validação
+  manual — agentes trocavam mensagem mas nunca se respondiam de
+  verdade, cada um só puxava assunto novo. `mensagens.respondendo_a_id`
+  (auto-referência, migration 009, campo único — remetente/conteúdo da
+  original sempre via JOIN, nunca duplicado) resolve isso: ao decidir
+  falar, o agente primeiro olha se tem mensagem social recebida sem
+  resposta e responde a mais antiga — prioridade garantida, sem
+  fórmula de probabilidade nova (o cooldown que já empurra
+  `chance_falar` garante a resposta eventual sozinho). Rate limit por
+  par continua valendo mesmo pra responder pendência.
+
+**Módulo de interação — Etapa 3 (proatividade de trabalho — Sabor A, os 4 agentes):**
+- Dois "sabores" de proatividade combinados: **Sabor A (alerta/ação
+  proativa)** — o agente percebe algo vencido, EXECUTA a ação e avisa —
+  feito agora; **Sabor B (aviso/cutucão comportamental)** — no backlog,
+  pra depois.
+- `resolvers/interacao.py` tem um registro `_HANDLERS_TRABALHO` por
+  `especialidade`, cada um com `checar(agente) / descrever(ctx) /
+  executar(ctx)`. Adicionar um agente proativo é só plugar um handler —
+  a lógica central do tick não muda. Todos os gatilhos são 100%
+  determinísticos (query, sem LLM) — "check before you spend".
+- **Norte**: projeto `ativo`, sem card em aberto, parado há mais de
+  `interacao_dias_estagnacao_norte` dias → gera o próximo card e avisa.
+- **Cifra**: mês FECHADO mais antigo com transações e sem relatório →
+  gera o relatório do mês e avisa ("Fechei o relatório de X — gastos
+  R$..., ganhos R$...").
+- **Vita**: semana FECHADA mais antiga com registro de saúde e sem
+  relatório → gera o relatório semanal daquela semana e avisa.
+- **Agenda**: primeira rodada de tick do dia em que ainda não mandou o
+  resumo → lê o Google Calendar do dia e manda o resumo determinístico
+  (horário — título); dia vazio vira "Nenhum compromisso para hoje,
+  bora descansar!". A leitura do Calendar é no `checar`, então se o
+  token do Google estiver fora, a Agenda cai pro social em vez de
+  travar (tratada como o "filho rebelde" da proatividade também).
+- **Aviso sempre com template determinístico** (zero LLM extra pra
+  escrever a frase — o dado já vem da ação executada). A ação em si
+  (gerar card/relatório) usa LLM onde já usava; a Agenda não usa LLM
+  nenhum (só lê e formata).
+- **Trabalho ganha prioridade sobre social no mesmo tick.**
+- Guardrails: teto de `interacao_rate_limit_trabalho_por_dia` (5)
+  avisos por agente por dia; anti-repetição por domínio sem peça nova
+  (relatório/card que passa a existir sai do gatilho; a Agenda checa se
+  já mandou trabalho hoje); orçamento diário compartilhado.
+- Endpoint renomeado de `/interacao/social/processar` pra
+  `/interacao/tick/processar` (cobre as duas etapas).
+- Testes: gatilho, prioridade, teto diário, não-repetição e degradação
+  graciosa (Agenda sem token) por agente — suíte com 105 testes.
+- **Validado manualmente pelo chefe**, ponta a ponta com Postgres e
+  OpenAI reais: Cifra fechou o relatório de um mês real e avisou com o
+  valor certo; Vita fechou o relatório de uma semana real; Agenda
+  mandou "Nenhum compromisso para hoje, bora descansar!" e, testado de
+  propósito, não repetiu o aviso no mesmo dia real até a mensagem ser
+  apagada manualmente (confirma que a trava é exatamente "já mandou
+  hoje"). Threading social (responder pendência, ficar no assunto)
+  também confirmado nesses mesmos ticks.
+- **No backlog**: Sabor B (avisos comportamentais); trabalho formal
+  ENTRE agentes (não só agente→chefe), sem caso de uso definido ainda.
+
+**Sprint 0 encerrada aqui** — módulo de agentes (4 domínios) + módulo
+de interação (3 etapas + proatividade Sabor A) completos, testados
+(automatizado e manual) e documentados. Próximo módulo: frontend.
+
 **Documentação já existente:**
 - `docs/backlog-futuro.md` — ideias adiadas deliberadamente, com o porquê.
 - `docs/frontend-design.md` — decisões de UI/UX por agente + requisitos
@@ -174,11 +289,10 @@ não exposto ao chefe.
   interação (ver seção 2.2 abaixo), justamente porque o próximo módulo
   mexe em infraestrutura compartilhada por todos os agentes.
 - **Módulo de interação** (motor de tick) — dividido em 3 etapas pra
-  não acumular risco: **Etapa 1 (relógio simulado) feita** — ver
-  acima. **Etapa 2 (social)** e **Etapa 3 (proatividade de trabalho por
-  domínio)** ainda não desenhadas em detalhe — cada uma passa pelo
-  mesmo processo de debate/aprovação antes de virar código, uma de
-  cada vez.
+  não acumular risco: **Etapas 1 (relógio simulado), 2 (camada social)
+  e 3 (proatividade de trabalho) feitas** — ver acima. Sabor A da
+  proatividade cobre os 4 agentes; falta o Sabor B (avisos
+  comportamentais), no backlog.
 - **Módulo de frontend** — 2D primeiro, ver `docs/frontend-design.md`.
   Backend segue sendo priorizado antes.
 - **Quinto agente (e mais)** — confirmado que vai existir, sem data
@@ -191,28 +305,27 @@ não exposto ao chefe.
 
 #### O que falta para concluir esta sprint
 
-1. ~~Suíte de testes automatizados cobrindo os quatro agentes~~ —
-   **feita**: `pytest` + `pytest-asyncio` + `unittest.mock`/`pytest-mock`,
-   reaproveitando o Postgres do `docker-compose.yml` (banco
-   `<nome>_test` separado, recriado a cada rodada) — nenhum container
-   novo, nenhuma chamada de LLM/API externa real. Ver seção "Testes" do
-   `README.md` e `tests/`.
-2. ~~Confirmar que a fundação (banco, scripts, camadas) aguenta a
-   introdução do módulo de interação sem retrabalho estrutural~~ —
-   **confirmada**: Etapa 1 do motor de tick usou a mesma arquitetura em
-   camadas e as tabelas já reservadas (`ticks`) sem precisar mexer em
-   nada estrutural. Suíte total agora com 59 testes, rodada duas vezes
-   seguidas contra Postgres real.
+1. ~~Suíte de testes automatizados cobrindo os quatro agentes~~ — **feita**.
+2. ~~Confirmar que a fundação aguenta o módulo de interação sem
+   retrabalho estrutural~~ — **confirmada**.
+3. ~~Módulo de interação (3 etapas + proatividade Sabor A nos 4
+   agentes), testado e validado manualmente~~ — **feito**.
 
-Depois disso, Sprint 0 é considerada encerrada e o módulo de interação
-começa oficialmente (com sua própria rodada de debate de design).
+**Sprint 0 encerrada.** Todo o backend do "escritório vivo" (módulo de
+agentes + módulo de interação) está funcionando, testado (automatizado
+e manual) e documentado. Próxima sprint: **módulo de frontend**
+(`docs/frontend-design.md` já tem o levantamento de requisitos pra
+começar com norte claro).
 
 #### Resultado esperado desta sprint
 
 Uma base de quatro agentes funcionando de forma confiável e testada,
 seguindo um processo replicável (ver guia de criação de agentes), com
-infraestrutura compartilhada estável o suficiente pra suportar o próximo
-módulo sem gerar retrabalho.
+infraestrutura compartilhada estável o suficiente pra suportar o
+módulo de interação sem retrabalho — e o próprio módulo de interação
+(relógio simulado, camada social, proatividade de trabalho) rodando de
+ponta a ponta, validado tanto por testes automatizados quanto por uso
+manual real. **Alcançado.**
 
 #### Stack técnica (Sprint 0)
 
@@ -232,10 +345,14 @@ módulo sem gerar retrabalho.
   de saída estruturada de LLM).
 - **Sem framework de frontend ainda** — planejado React + Vite pro
   módulo de frontend (2D), ver `docs/avaliacao-mvp.md`.
-- **Motor de tick (Etapa 1)**: `resolvers/tick.py` + `routers/tick.py`
-  — relógio simulado manual, sem scheduler automático ainda (ver
-  `docs/backlog-futuro.md` pra quando isso mudar). Etapas 2 (social) e
-  3 (proatividade) ainda não implementadas.
+- **Motor de tick (Etapas 1, 2 e 3)**: `resolvers/tick.py` +
+  `resolvers/interacao.py` + `agents/interacao/agente.py` — relógio
+  simulado manual (sem scheduler automático ainda, ver
+  `docs/backlog-futuro.md`), camada social entre agentes (elegibilidade
+  e escolha de destinatário determinísticas, afinidade com retorno
+  decrescente, `eventos_mundo` curado manualmente) e proatividade de
+  trabalho Sabor A nos 4 agentes (gatilho determinístico por domínio,
+  registro `_HANDLERS_TRABALHO` — Norte/Cifra/Vita/Agenda).
 - **Testes**: `pytest` + `pytest-asyncio` (resolvers são majoritariamente
   `async`) + `unittest.mock`/`pytest-mock` (mocka LLM e API externa,
   nunca o banco) — suíte reaproveita o Postgres do `docker-compose.yml`

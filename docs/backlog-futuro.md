@@ -217,3 +217,161 @@ local.
 
 **Status:** não iniciado. Suíte de testes local é pré-requisito (feita
 primeiro, ver Sprint 0).
+
+---
+
+## Afinidade sensível ao conteúdo/sentimento da conversa — módulo de interação
+
+**Ideia:** hoje (Etapa 2, camada social) a afinidade entre dois agentes
+cresce só pela frequência de troca de mensagem (fórmula de retorno
+decrescente, ver conversa de design). A ideia adiada é fazer o
+*tamanho* do ganho de afinidade variar de acordo com o teor da
+conversa — ex: falar de assuntos específicos ou uma mensagem com tom
+mais "caloroso" renderia mais afinidade do que uma troca genérica.
+
+**Por que foi adiada:** fazer isso direito exige ou uma chamada de LLM
+extra por mensagem só pra classificar sentimento/tópico (dobra o custo
+de cada interação social) ou uma heurística de palavra-chave (frágil,
+fácil de furar e de dar resultado estranho). Decisão: validar primeiro
+a mecânica simples de frequência com retorno decrescente rodando de
+verdade, e só depois avaliar se vale a pena adicionar essa camada.
+
+**Status:** não iniciado. Pré-requisito: Etapa 2 (camada social) do
+motor de tick rodando de forma estável.
+
+---
+
+## Calendário fictício completo — motor de tick
+
+**Ideia:** ir além do fato simples de dia-da-semana/período do dia
+(derivado de `ticks.hora_simulada`, isso já entra na Etapa 2) e simular
+de verdade a passagem do tempo dentro do "escritório vivo" — X ticks
+equivalendo a um dia fictício, Y ticks a uma semana fictícia, e assim
+por diante, com um calendário interno completo (estações, feriados
+fictícios, etc.). O objetivo é os próprios agentes terem uma base
+temporal rica pra se orientar e conversar (saber se é dia ou noite, que
+dia da semana fictício é, potencialmente até época do ano fictícia),
+não só o chefe observando de fora.
+
+**Por que foi adiada:** é uma feature grande por si só, que merece
+debate de design próprio (quanto tempo fictício cada tick representa,
+como isso se relaciona com `tick_minutos_simulados` já existente, se
+afeta comportamento dos agentes ou é só contexto passivo, se vale a
+pena ter feriados/estações fictícios). Misturar isso com o fechamento
+simples da Etapa 2 (dia da semana + período do dia) ou com o começo da
+Etapa 3 ia acumular risco demais de uma vez só — mesma disciplina de
+etapas que guia todo o módulo de interação.
+
+**Status:** não iniciado. Ideia confirmada pelo chefe como prioridade
+da próxima sprint (não "algum dia") — retomar com debate de design
+próprio antes de qualquer código.
+
+---
+
+## Trabalho formal entre agentes (não só agente→chefe) — módulo de interação
+
+**Ideia:** hoje (Etapa 3) `mensagens.tipo='trabalho'` é escopado só pra
+agente→chefe (alertas/atualizações proativas, ex: Norte avisando de
+card gerado por estagnação). A ideia adiada é permitir mensagem
+formal de trabalho **entre agentes** também — ex: a Cifra avisando
+formalmente a Agenda sobre algo relevante aos dois domínios, uma
+coordenação de verdade entre colaboradores, não só fofoca social.
+
+**Por que foi adiada:** ainda não existe nenhum caso de uso concreto
+("por que a Cifra precisaria mandar um recado formal pra Agenda? que
+decisão isso dispara?"). Decisão: manter o escopo da Etapa 3 enxuto
+(só agente→chefe) até aparecer uma razão real de coordenação entre
+domínios que justifique essa mensagem.
+
+**Status:** não iniciado. Pré-requisito: Etapa 3 (proatividade de
+trabalho) rodando de forma estável, e um caso de uso real identificado.
+
+---
+
+## Rate limits baseados em dia SIMULADO, não em dia real — módulo de interação
+
+**Ideia:** hoje todos os tetos diários do motor de tick (rate limit de
+mensagens sociais por par, teto de avisos proativos de trabalho por
+agente, orçamento diário) são calculados a partir do **dia real**
+(`datetime.now()`), porque o disparo do tick ainda é sempre manual —
+não existe "um dia" simulado consistente pra usar como referência
+ainda. Quando o relógio simulado virar automático (ver backlog do
+motor de tick / `tick_intervalo_min` já existente em `config.py`), com
+uma cadência definida de ticks por dia fictício (ex: 24 ticks = 1 dia),
+esses tetos deveriam passar a ser calculados em cima do dia SIMULADO
+(`ticks.hora_simulada`), não mais do relógio real — senão alguém
+disparando muitos ticks manualmente num único dia real burla o teto
+pretendido, e o inverso (poucos ticks num dia real longo) faz o teto
+resetar sem o "dia" fictício ter de fato avançado o suficiente.
+
+**Por que foi adiada:** só faz sentido migrar isso depois que existir
+uma cadência automática de tick definida — antes disso não tem "dia
+simulado" real pra basear o cálculo, só o disparo manual que já
+temos.
+
+**Status:** não iniciado. Pré-requisito: automação do disparo do tick
+(ver backlog de `tick_intervalo_min`) e definição de quantos ticks
+equivalem a um dia fictício.
+
+---
+
+## Conteúdo social soando forçado/repetitivo — módulo de interação
+
+**Ideia:** achado na validação manual do chefe (thread de resposta):
+as mensagens sociais estão emendando um comentário sobre "o chefe" com
+frequência alta demais, de um jeito que soa repetitivo/forçado entre
+mensagens de agentes diferentes, em vez de variado e natural. Não é
+sobre a mecânica de decisão (elegibilidade, roleta, resposta de
+pendência — tudo isso já validado e funcionando certo), é sobre a
+QUALIDADE do texto gerado pelo prompt em si.
+
+**Causa raiz (confirmada):** o próprio prompt mandava "não repita
+assunto do histórico" + "traga algo novo" em TODA mensagem, forçando
+novidade a cada turno — o oposto de uma conversa real. Somado a frases
+longas e elaboradas, dava o efeito de sempre emendar um comentário
+sobre o chefe.
+
+**Já tratado (primeira rodada):** prompt reescrito pra tom curto e
+casual (frase solta, gíria ok, sem terminar com pergunta/proposta,
+`max_length` 500 -> 300); e "puxar assunto novo" virou ocasional via
+`interacao_chance_novo_assunto` (30%) em vez do padrão de toda
+mensagem — resposta nunca puxa, conversa vazia sempre pode, conversa
+em andamento sorteia. Ver commit "Deixa a conversa social mais
+natural".
+
+**O que ainda pode faltar (observar em rodadas futuras):** afinar a %
+(30% pode precisar subir/descer), mais variedade de ganchos além de
+eventos_mundo + fofoca sobre o chefe, e avaliar se o tom ficou natural
+o suficiente ou se ainda escorrega pro mesmo fallback. Reabrir só
+depois de mais exemplos reais rodando.
+
+**Status:** primeira rodada de ajuste feita e testada; refinamento fino
+pendente de observação real.
+
+---
+
+## Proatividade Sabor B (aviso/cutucão comportamental) — módulo de interação
+
+**Ideia:** o Sabor A da proatividade (feito — os 4 agentes) é
+"alerta/ação proativa": o agente percebe um entregável vencido, EXECUTA
+a ação (gera relatório/card, lê a agenda) e avisa. O Sabor B, adiado,
+é o "cutucão comportamental": o agente percebe uma LACUNA no
+comportamento do chefe e alfineta, sem gerar artefato nenhum — ex:
+Vita "faz 2 dias sem registrar refeição", Cifra "gasto dessa semana
+bem acima da média", Agenda "compromisso amanhã ainda sem confirmar".
+
+**Por que foi adiado:** diferente do Sabor A (condição binária limpa:
+"existe mês/semana fechado sem relatório"), o Sabor B precisa de
+thresholds subjetivos (o que é "gasto acima do normal"? quantos dias
+sem refeição viram cutucão?) e de uma guarda anti-spam mais delicada
+pra não virar chateação. Decidido validar o Sabor A rodando primeiro.
+
+**Onde encaixa quando for retomado:** mesma infra já pronta — é só
+plugar mais handlers em `_HANDLERS_TRABALHO` (ou um registro paralelo),
+cada um com seu `checar` determinístico. O teto diário de avisos por
+agente e o orçamento compartilhado já cobrem o anti-spam base; o que
+falta é definir os gatilhos comportamentais por domínio, um a um, no
+mesmo processo de debate.
+
+**Status:** não iniciado. Pré-requisito: Sabor A rodando de forma
+estável e observado na prática.

@@ -49,6 +49,18 @@ WHERE tipo = 'saida'
   AND data >= %s
 ORDER BY data ASC;
 
+--QUERY: mes_fechado_sem_relatorio
+-- Proatividade do Cifra (Etapa 3): o mês FECHADO (anterior ao mês
+-- atual) mais antigo que tem transações mas ainda não tem relatório
+-- gerado. NULL se não houver nenhum. O parâmetro é a data de hoje.
+SELECT MIN(date_trunc('month', t.data)::date) AS mes
+FROM transacoes t
+WHERE date_trunc('month', t.data) < date_trunc('month', %s::date)
+  AND NOT EXISTS (
+      SELECT 1 FROM relatorios_financeiros r
+      WHERE r.mes_referencia = date_trunc('month', t.data)::date
+  );
+
 --QUERY: atualizar_categoria
 UPDATE transacoes SET categoria = %s WHERE id = %s;
 
