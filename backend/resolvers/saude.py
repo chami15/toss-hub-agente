@@ -309,8 +309,11 @@ def _calcular_dados_semana(inicio_semana: date) -> dict:
     }
 
 
-async def gerar_relatorio_semanal() -> dict:
-    inicio_semana = _inicio_semana()
+async def gerar_relatorio_semanal(inicio_semana: date | None = None) -> dict:
+    """`inicio_semana` (segunda-feira) opcional — sem ele, gera o da
+    semana atual (uso manual pelo chefe). A proatividade do Vita passa
+    uma semana JÁ FECHADA explícita (ver `resolvers/interacao.py`)."""
+    inicio_semana = inicio_semana or _inicio_semana()
 
     existente = executar_query("relatorios_saude:buscar_por_semana", params=(inicio_semana,))
     if existente:

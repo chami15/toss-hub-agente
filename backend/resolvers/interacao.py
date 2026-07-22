@@ -38,6 +38,7 @@ from agents.interacao import agente as agente_interacao
 from config import settings
 from resolvers import financeiro as resolver_financeiro
 from resolvers import norte as resolver_norte
+from resolvers import saude as resolver_saude
 from resolvers import tick as resolver_tick
 from utils.query_executor import executar_query
 
@@ -223,9 +224,32 @@ async def _executar_cifra(ctx: dict) -> str:
     )
 
 
+def _checar_vita() -> dict | None:
+    hoje = datetime.now(ZoneInfo(settings.timezone_padrao)).date()
+    rows = executar_query(
+        "refeicoes:semana_fechada_sem_relatorio", params=(settings.timezone_padrao, hoje)
+    )
+    semana = rows[0]["semana"] if rows else None
+    return {"semana": semana} if semana else None
+
+
+def _descrever_vita(ctx: dict) -> str:
+    return f"Relatório da semana de {ctx['semana'].strftime('%d/%m')} ainda não foi fechado."
+
+
+async def _executar_vita(ctx: dict) -> str:
+    relatorio = await resolver_saude.gerar_relatorio_semanal(ctx["semana"])
+    dias = relatorio.get("dias_com_refeicao_registrada", 0)
+    return (
+        f"Fechei o relatório da semana de {ctx['semana'].strftime('%d/%m')} — "
+        f"{dias} dia(s) com refeição registrada."
+    )
+
+
 _HANDLERS_TRABALHO = {
     "norte": {"checar": _checar_norte, "descrever": _descrever_norte, "executar": _executar_norte},
     "financeiro": {"checar": _checar_cifra, "descrever": _descrever_cifra, "executar": _executar_cifra},
+    "saude": {"checar": _checar_vita, "descrever": _descrever_vita, "executar": _executar_vita},
 }
 
 

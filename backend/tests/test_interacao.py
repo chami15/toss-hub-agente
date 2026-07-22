@@ -739,3 +739,96 @@ class TestProatividadeCifra:
         self._inserir_transacao("2020-03-10", valor=10.0, i=2)  # mais antigo
         ctx = interacao._checar_cifra()
         assert ctx["mes"] == _date(2020, 3, 1)
+
+
+class TestProatividadeVita:
+    def _inserir_refeicao_em(self, quando):
+        rows = executar_query(
+            "refeicoes:inserir",
+            returning=True,
+            params=("almoco", "texto", "arroz e feijão", None, 500, 60, 20, 10, "alta", "gpt-4o-mini", 10, 5, 0.0001),
+        )
+        rid = rows[0]["id"]
+        from utils.db import Database
+        with Database() as conn:
+            conn.execute("UPDATE refeicoes SET registrado_em = %s WHERE id = %s", (quando, rid))
+            conn.commit()
+        return rid
+
+    def _semana_fechada(self):
+        hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        segunda_atual = hoje - timedelta(days=hoje.weekday())
+        return segunda_atual - timedelta(days=7)
+
+    def _dentro_da_semana(self, semana):
+        return datetime.combine(semana + timedelta(days=2), datetime.min.time(), tzinfo=ZoneInfo("America/Sao_Paulo"))
+
+    async def test_semana_fechada_com_dado_dispara_e_gera(self, mocker):
+        vita_id = _criar_agente("Vita", extroversao=5, especialidade="saude")
+        chefe_id = _criar_chefe()
+        tick.avancar_tick()
+        semana = self._semana_fechada()
+        self._inserir_refeicao_em(self._dentro_da_semana(semana))
+
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.resolver_saude.gerar_relatorio_semanal",
+            new=AsyncMock(return_value={"dias_com_refeicao_registrada": 3}),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada = next(i for i in resultado["interacoes"] if i["agente_id"] == vita_id)
+        assert entrada["tipo"] == "trabalho"
+        assert "relatório da semana" in entrada["mensagem"]
+        assert "3 dia" in entrada["mensagem"]
+        assert mock_gerar.call_count == 1
+        assert mock_gerar.call_args.args[0] == semana
+
+        trabalho = [m for m in executar_query("mensagens:listar_todas", params=(10,)) if m["tipo"] == "trabalho"]
+        assert len(trabalho) == 1
+        assert trabalho[0]["remetente_id"] == vita_id
+        assert trabalho[0]["destinatario_id"] == chefe_id
+
+    async def test_semana_sem_dado_nao_dispara(self, mocker):
+        _criar_agente("Vita", extroversao=5, especialidade="saude")
+        _criar_chefe()
+        tick.avancar_tick()
+
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.resolver_saude.gerar_relatorio_semanal", new=AsyncMock()
+        )
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        assert resultado["interacoes"][0]["tipo"] != "trabalho"
+        assert mock_gerar.call_count == 0
+
+    async def test_semana_com_relatorio_nao_dispara(self, mocker):
+        _criar_agente("Vita", extroversao=5, especialidade="saude")
+        _criar_chefe()
+        tick.avancar_tick()
+        semana = self._semana_fechada()
+        self._inserir_refeicao_em(self._dentro_da_semana(semana))
+        executar_query(
+            "relatorios_saude:inserir",
+            returning=True,
+            params=(semana, '{"x": 1}', "gpt-4o", 10, 5, 0.01),
+        )
+
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.resolver_saude.gerar_relatorio_semanal", new=AsyncMock()
+        )
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        assert resultado["interacoes"][0]["tipo"] != "trabalho"
+        assert mock_gerar.call_count == 0
+
+    def test_checar_vita_pega_semana_fechada_mais_antiga(self):
+        semana_recente = self._semana_fechada()
+        semana_antiga = semana_recente - timedelta(days=7)
+        self._inserir_refeicao_em(self._dentro_da_semana(semana_recente))
+        self._inserir_refeicao_em(self._dentro_da_semana(semana_antiga))
+
+        ctx = interacao._checar_vita()
+        assert ctx["semana"] == semana_antiga
