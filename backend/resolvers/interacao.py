@@ -31,11 +31,12 @@ o quê) sem executar ação real nem persistir nada — mesmo espírito do
 dry_run da Etapa 1.
 """
 import random
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from agents.interacao import agente as agente_interacao
 from config import settings
+from resolvers import financeiro as resolver_financeiro
 from resolvers import norte as resolver_norte
 from resolvers import tick as resolver_tick
 from utils.query_executor import executar_query
@@ -156,10 +157,29 @@ def _pode_trabalho_hoje(agente_id: int) -> bool:
     return rows[0]["total"] < settings.interacao_rate_limit_trabalho_por_dia
 
 
-def _motivo_trabalho_norte() -> dict | None:
-    """Único gatilho de proatividade implementado até agora — os outros
-    3 agentes ainda não têm regra própria (ver conversa de design da
-    Etapa 3), então nunca entram em `_CHECADORES_TRABALHO`."""
+_MESES_PT = [
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+]
+
+
+def _nome_mes(mes: date) -> str:
+    return f"{_MESES_PT[mes.month - 1]}/{mes.year}"
+
+
+# ---------------------------------------------------------------------------
+# Handlers de proatividade de trabalho (Sabor A — "alerta/ação proativa").
+# Cada especialidade que tem gatilho registra um dict com três funções:
+#   checar()    -> contexto (dict) se há motivo AGORA, ou None. Determinístico,
+#                  sem LLM — é o "check before you spend".
+#   descrever() -> str curto do motivo (usado no dry_run, sem executar nada).
+#   executar()  -> async; faz a ação real (gera relatório/card/etc.) e devolve
+#                  a mensagem de aviso pro chefe (template determinístico).
+# Adicionar um agente novo é só plugar um handler aqui — a lógica central do
+# tick não muda. Agentes sem handler nunca disparam trabalho.
+# ---------------------------------------------------------------------------
+
+def _checar_norte() -> dict | None:
     limite = datetime.now(ZoneInfo(settings.timezone_padrao)) - timedelta(
         days=settings.interacao_dias_estagnacao_norte
     )
@@ -171,8 +191,41 @@ def _motivo_trabalho_norte() -> dict | None:
     return {"projeto": projeto, "dias_parado": dias_parado}
 
 
-_CHECADORES_TRABALHO = {
-    "norte": _motivo_trabalho_norte,
+def _descrever_norte(ctx: dict) -> str:
+    return f"Projeto {ctx['projeto']['nome']} parado há {ctx['dias_parado']} dias sem card ativo."
+
+
+async def _executar_norte(ctx: dict) -> str:
+    card = await resolver_norte.gerar_proximo_card(ctx["projeto"]["id"])
+    return (
+        f"Projeto {ctx['projeto']['nome']} parado há {ctx['dias_parado']} dias "
+        f"sem card ativo — gerei um novo: '{card['titulo']}'."
+    )
+
+
+def _checar_cifra() -> dict | None:
+    hoje = datetime.now(ZoneInfo(settings.timezone_padrao)).date()
+    rows = executar_query("transacoes:mes_fechado_sem_relatorio", params=(hoje,))
+    mes = rows[0]["mes"] if rows else None
+    return {"mes": mes} if mes else None
+
+
+def _descrever_cifra(ctx: dict) -> str:
+    return f"Relatório de {_nome_mes(ctx['mes'])} ainda não foi fechado."
+
+
+async def _executar_cifra(ctx: dict) -> str:
+    relatorio = await resolver_financeiro.gerar_relatorio(ctx["mes"])
+    kpis = relatorio["kpis"]
+    return (
+        f"Fechei o relatório de {_nome_mes(ctx['mes'])} — "
+        f"gastos R$ {kpis['gasto_mensal']:.2f}, ganhos R$ {kpis['ganho_mensal']:.2f}."
+    )
+
+
+_HANDLERS_TRABALHO = {
+    "norte": {"checar": _checar_norte, "descrever": _descrever_norte, "executar": _executar_norte},
+    "financeiro": {"checar": _checar_cifra, "descrever": _descrever_cifra, "executar": _executar_cifra},
 }
 
 
@@ -228,25 +281,20 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
         # Trabalho tem prioridade sobre social (combinado na conversa de
         # design da Etapa 3): se o agente tem motivo determinístico de
         # proatividade e ainda não bateu o teto diário, usa o turno pra
-        # isso e NUNCA disputa o social nesse mesmo tick.
-        checador = _CHECADORES_TRABALHO.get(agente["especialidade"])
-        motivo = checador() if checador else None
+        # isso e NUNCA disputa o social nesse mesmo tick. Qual gatilho
+        # cada agente tem fica em `_HANDLERS_TRABALHO`.
+        handler = _HANDLERS_TRABALHO.get(agente["especialidade"])
+        contexto_trabalho = handler["checar"]() if handler else None
 
-        if motivo and _pode_trabalho_hoje(agente["id"]):
+        if contexto_trabalho and _pode_trabalho_hoje(agente["id"]):
             entrada["tipo"] = "trabalho"
-            entrada["motivo"] = (
-                f"Projeto {motivo['projeto']['nome']} parado há {motivo['dias_parado']} dias sem card ativo."
-            )
+            entrada["motivo"] = handler["descrever"](contexto_trabalho)
             if not dry_run:
                 if chefe is None:
                     entrada["aviso"] = "Sem chefe cadastrado pra receber o aviso."
                 else:
                     try:
-                        card = await resolver_norte.gerar_proximo_card(motivo["projeto"]["id"])
-                        conteudo = (
-                            f"Projeto {motivo['projeto']['nome']} parado há {motivo['dias_parado']} dias "
-                            f"sem card ativo — gerei um novo: '{card['titulo']}'."
-                        )
+                        conteudo = await handler["executar"](contexto_trabalho)
                         executar_query(
                             "mensagens:inserir",
                             returning=True,

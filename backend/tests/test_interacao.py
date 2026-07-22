@@ -650,3 +650,92 @@ class TestNovoAssunto:
 
         alvo = next(e for e in executar_query("eventos_mundo:listar") if e["id"] == evento["id"])
         assert alvo["ultimo_uso_tick"] is None  # ninguém puxou assunto novo, evento intocado
+
+
+class TestProatividadeCifra:
+    def _inserir_transacao(self, data_str, valor=100.0, tipo="saida", i=0):
+        from datetime import date as _date
+        y, m, d = (int(x) for x in data_str.split("-"))
+        executar_query(
+            "transacoes:inserir",
+            returning=True,
+            params=(
+                "nubank", _date(y, m, d), valor, tipo, f"compra {i}", f"compra {i}",
+                None, f"hash-{data_str}-{tipo}-{valor}-{i}", None,
+            ),
+        )
+
+    def _relatorio_fake(self, gasto=100.0, ganho=200.0):
+        return {"kpis": {"gasto_mensal": gasto, "ganho_mensal": ganho}}
+
+    async def test_mes_fechado_sem_relatorio_dispara_e_gera(self, mocker):
+        cifra_id = _criar_agente("Cifra", extroversao=5, especialidade="financeiro")
+        chefe_id = _criar_chefe()
+        tick.avancar_tick()
+        self._inserir_transacao("2020-03-15", valor=250.0)  # mês fechado, sem relatório
+
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.resolver_financeiro.gerar_relatorio",
+            new=AsyncMock(return_value=self._relatorio_fake(gasto=250.0, ganho=0.0)),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada = next(i for i in resultado["interacoes"] if i["agente_id"] == cifra_id)
+        assert entrada["tipo"] == "trabalho"
+        assert "março/2020" in entrada["mensagem"]
+        assert "250.00" in entrada["mensagem"]
+        assert mock_gerar.call_count == 1
+
+        mensagens = executar_query("mensagens:listar_todas", params=(10,))
+        trabalho = [m for m in mensagens if m["tipo"] == "trabalho"]
+        assert len(trabalho) == 1
+        assert trabalho[0]["remetente_id"] == cifra_id
+        assert trabalho[0]["destinatario_id"] == chefe_id
+
+    async def test_so_mes_atual_nao_dispara(self, mocker):
+        _criar_agente("Cifra", extroversao=5, especialidade="financeiro")
+        _criar_chefe()
+        tick.avancar_tick()
+        hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        self._inserir_transacao(hoje.isoformat(), valor=50.0)  # mês atual, ainda aberto
+
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.resolver_financeiro.gerar_relatorio", new=AsyncMock()
+        )
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        entrada = resultado["interacoes"][0]
+        assert entrada["tipo"] != "trabalho"
+        assert mock_gerar.call_count == 0
+
+    async def test_mes_com_relatorio_nao_dispara(self, mocker):
+        from datetime import date as _date
+        _criar_agente("Cifra", extroversao=5, especialidade="financeiro")
+        _criar_chefe()
+        tick.avancar_tick()
+        self._inserir_transacao("2020-03-15", valor=250.0)
+        # Já existe relatório pra março/2020 → mês sai do gatilho.
+        executar_query(
+            "relatorios_financeiros:upsert",
+            returning=True,
+            params=(_date(2020, 3, 1), '{"x": 1}', "gpt-4o", 10, 5, 0.01),
+        )
+
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.resolver_financeiro.gerar_relatorio", new=AsyncMock()
+        )
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        entrada = resultado["interacoes"][0]
+        assert entrada["tipo"] != "trabalho"
+        assert mock_gerar.call_count == 0
+
+    def test_checar_cifra_pega_o_mes_fechado_mais_antigo(self):
+        from datetime import date as _date
+        self._inserir_transacao("2020-05-10", valor=10.0, i=1)
+        self._inserir_transacao("2020-03-10", valor=10.0, i=2)  # mais antigo
+        ctx = interacao._checar_cifra()
+        assert ctx["mes"] == _date(2020, 3, 1)
