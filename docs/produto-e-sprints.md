@@ -226,39 +226,44 @@ não exposto ao chefe.
   `chance_falar` garante a resposta eventual sozinho). Rate limit por
   par continua valendo mesmo pra responder pendência.
 
-**Módulo de interação — Etapa 3 (proatividade de trabalho, Norte primeiro):**
-- `resolvers/interacao.py` ganhou um dispatch de "motivo de trabalho"
-  por `especialidade` (`_CHECADORES_TRABALHO`) — só o Norte tem regra
-  implementada por enquanto. Gatilho 100% determinístico: projeto
-  `ativo`, sem card em aberto (`sugerido`/`aceito`), parado há mais de
-  `interacao_dias_estagnacao_norte` dias reais (desde o último card
-  resolvido, ou desde o cadastro se nunca resolveu nenhum) — o mais
-  parado primeiro, sempre só 1 por tick.
-- Quando dispara: reaproveita `resolvers.norte.gerar_proximo_card`
-  (já existente, sem duplicação) e manda um aviso ao chefe
-  (`mensagens.tipo='trabalho'`) com **template determinístico**, zero
-  chamada de LLM extra só pra escrever a frase — o título do card já
-  vem da própria chamada que gera o card.
-- **Trabalho ganha prioridade sobre social no mesmo tick**: um agente
-  com motivo de trabalho válido nunca disputa o social naquele tick.
-  Só quem não tem motivo (ou já bateu o teto diário) entra na
-  elegibilidade social normal da Etapa 2.
+**Módulo de interação — Etapa 3 (proatividade de trabalho — Sabor A, os 4 agentes):**
+- Dois "sabores" de proatividade combinados: **Sabor A (alerta/ação
+  proativa)** — o agente percebe algo vencido, EXECUTA a ação e avisa —
+  feito agora; **Sabor B (aviso/cutucão comportamental)** — no backlog,
+  pra depois.
+- `resolvers/interacao.py` tem um registro `_HANDLERS_TRABALHO` por
+  `especialidade`, cada um com `checar(agente) / descrever(ctx) /
+  executar(ctx)`. Adicionar um agente proativo é só plugar um handler —
+  a lógica central do tick não muda. Todos os gatilhos são 100%
+  determinísticos (query, sem LLM) — "check before you spend".
+- **Norte**: projeto `ativo`, sem card em aberto, parado há mais de
+  `interacao_dias_estagnacao_norte` dias → gera o próximo card e avisa.
+- **Cifra**: mês FECHADO mais antigo com transações e sem relatório →
+  gera o relatório do mês e avisa ("Fechei o relatório de X — gastos
+  R$..., ganhos R$...").
+- **Vita**: semana FECHADA mais antiga com registro de saúde e sem
+  relatório → gera o relatório semanal daquela semana e avisa.
+- **Agenda**: primeira rodada de tick do dia em que ainda não mandou o
+  resumo → lê o Google Calendar do dia e manda o resumo determinístico
+  (horário — título); dia vazio vira "Nenhum compromisso para hoje,
+  bora descansar!". A leitura do Calendar é no `checar`, então se o
+  token do Google estiver fora, a Agenda cai pro social em vez de
+  travar (tratada como o "filho rebelde" da proatividade também).
+- **Aviso sempre com template determinístico** (zero LLM extra pra
+  escrever a frase — o dado já vem da ação executada). A ação em si
+  (gerar card/relatório) usa LLM onde já usava; a Agenda não usa LLM
+  nenhum (só lê e formata).
+- **Trabalho ganha prioridade sobre social no mesmo tick.**
 - Guardrails: teto de `interacao_rate_limit_trabalho_por_dia` (5)
-  avisos proativos por agente por dia; sem repetir o mesmo alerta pro
-  mesmo projeto (reaproveita a trava de card único que já existia no
-  Norte — assim que gera o card, o projeto deixa de ser candidato);
-  orçamento diário compartilhado com a Etapa 2.
+  avisos por agente por dia; anti-repetição por domínio sem peça nova
+  (relatório/card que passa a existir sai do gatilho; a Agenda checa se
+  já mandou trabalho hoje); orçamento diário compartilhado.
 - Endpoint renomeado de `/interacao/social/processar` pra
-  `/interacao/tick/processar` (cobre as duas etapas agora).
-- 7 testes novos cobrindo o gatilho, a prioridade, o teto diário e a
-  não-repetição — suíte com 81 testes, rodada 5 vezes seguidas (achado
-  e corrigido um teste flaky nesse processo: faltava mockar a geração
-  social de um segundo agente sem motivo de trabalho).
-- **Escopo consciente**: os outros 3 agentes (Cifra, Agenda, Vita)
-  ainda não têm gatilho de proatividade próprio — fica pra quando cada
-  um for desenhado individualmente. Trabalho formal ENTRE agentes
-  (não só agente→chefe) ficou no backlog, sem caso de uso definido
-  ainda.
+  `/interacao/tick/processar` (cobre as duas etapas).
+- Testes: gatilho, prioridade, teto diário, não-repetição e degradação
+  graciosa (Agenda sem token) por agente — suíte com 105 testes.
+- **No backlog**: Sabor B (avisos comportamentais); trabalho formal
+  ENTRE agentes (não só agente→chefe), sem caso de uso definido ainda.
 
 **Documentação já existente:**
 - `docs/backlog-futuro.md` — ideias adiadas deliberadamente, com o porquê.
@@ -273,10 +278,9 @@ não exposto ao chefe.
   mexe em infraestrutura compartilhada por todos os agentes.
 - **Módulo de interação** (motor de tick) — dividido em 3 etapas pra
   não acumular risco: **Etapas 1 (relógio simulado), 2 (camada social)
-  e 3 (proatividade de trabalho) feitas** — ver acima. Etapa 3 hoje só
-  tem gatilho real pro Norte; os outros 3 agentes ainda não têm regra
-  de proatividade própria — fica pra quando cada um for desenhado
-  individualmente, mesmo processo de debate/aprovação de sempre.
+  e 3 (proatividade de trabalho) feitas** — ver acima. Sabor A da
+  proatividade cobre os 4 agentes; falta o Sabor B (avisos
+  comportamentais), no backlog.
 - **Módulo de frontend** — 2D primeiro, ver `docs/frontend-design.md`.
   Backend segue sendo priorizado antes.
 - **Quinto agente (e mais)** — confirmado que vai existir, sem data
@@ -336,8 +340,8 @@ módulo sem gerar retrabalho.
   `docs/backlog-futuro.md`), camada social entre agentes (elegibilidade
   e escolha de destinatário determinísticas, afinidade com retorno
   decrescente, `eventos_mundo` curado manualmente) e proatividade de
-  trabalho (gatilho determinístico por domínio, hoje só o Norte tem
-  regra — estagnação de projeto — os outros 3 agentes ainda não).
+  trabalho Sabor A nos 4 agentes (gatilho determinístico por domínio,
+  registro `_HANDLERS_TRABALHO` — Norte/Cifra/Vita/Agenda).
 - **Testes**: `pytest` + `pytest-asyncio` (resolvers são majoritariamente
   `async`) + `unittest.mock`/`pytest-mock` (mocka LLM e API externa,
   nunca o banco) — suíte reaproveita o Postgres do `docker-compose.yml`

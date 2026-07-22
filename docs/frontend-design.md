@@ -180,11 +180,12 @@ frontend, pra não ficar refazendo depois:
 - **`tipo='social'`**: entre colaboradores, ou colaborador→chefe
   (imersão, "bom dia" ocasional) — pode tocar em trabalho de forma
   informal, mas nunca é um relatório.
-- **`tipo='trabalho'`**: hoje só o Norte gera, sempre direcionado ao
-  chefe — aviso de proatividade (ex: "Projeto X parado há N dias, gerei
-  um novo card"). Mensagem de **mural** (`destinatario_id NULL`) ainda
-  não é gerada por nenhuma etapa — schema já suporta, UI não precisa
-  disso ainda.
+- **`tipo='trabalho'`**: os 4 agentes geram (Sabor A da proatividade),
+  sempre direcionado ao chefe — Norte (novo card por estagnação), Cifra
+  (relatório mensal fechado), Vita (relatório semanal fechado), Agenda
+  (resumo diário de compromissos). Mensagem de **mural**
+  (`destinatario_id NULL`) ainda não é gerada por nenhuma etapa — schema
+  já suporta, UI não precisa disso ainda.
 - Diferenciar visualmente `trabalho` (fundo mais “oficial”, talvez com
   destaque/badge — é a atualização que o chefe realmente quer ver) de
   `social` (tom mais leve, copa) — mesma tabela, propósitos bem
@@ -340,7 +341,8 @@ são o que a API já suporta e o frontend precisa cobrir.
 - RF24: Processar a rodada completa do tick (`POST
   /interacao/tick/processar`, com `dry_run`) — trabalho tem prioridade
   sobre social; destacar visualmente quando um agente gerou um aviso
-  de trabalho de verdade (hoje só o Norte).
+  de trabalho de verdade (os 4 agentes geram: card, relatório mensal,
+  relatório semanal, resumo de agenda).
 - RF25: Exibir a caixa de entrada do chefe (`GET
   /mensagens/caixa-de-entrada`) e responder uma mensagem social
   recebida (`POST /mensagens/{id}/responder`) — estilo WhatsApp/e-mail,

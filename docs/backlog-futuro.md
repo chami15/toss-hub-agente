@@ -347,3 +347,31 @@ depois de mais exemplos reais rodando.
 
 **Status:** primeira rodada de ajuste feita e testada; refinamento fino
 pendente de observação real.
+
+---
+
+## Proatividade Sabor B (aviso/cutucão comportamental) — módulo de interação
+
+**Ideia:** o Sabor A da proatividade (feito — os 4 agentes) é
+"alerta/ação proativa": o agente percebe um entregável vencido, EXECUTA
+a ação (gera relatório/card, lê a agenda) e avisa. O Sabor B, adiado,
+é o "cutucão comportamental": o agente percebe uma LACUNA no
+comportamento do chefe e alfineta, sem gerar artefato nenhum — ex:
+Vita "faz 2 dias sem registrar refeição", Cifra "gasto dessa semana
+bem acima da média", Agenda "compromisso amanhã ainda sem confirmar".
+
+**Por que foi adiado:** diferente do Sabor A (condição binária limpa:
+"existe mês/semana fechado sem relatório"), o Sabor B precisa de
+thresholds subjetivos (o que é "gasto acima do normal"? quantos dias
+sem refeição viram cutucão?) e de uma guarda anti-spam mais delicada
+pra não virar chateação. Decidido validar o Sabor A rodando primeiro.
+
+**Onde encaixa quando for retomado:** mesma infra já pronta — é só
+plugar mais handlers em `_HANDLERS_TRABALHO` (ou um registro paralelo),
+cada um com seu `checar` determinístico. O teto diário de avisos por
+agente e o orçamento compartilhado já cobrem o anti-spam base; o que
+falta é definir os gatilhos comportamentais por domínio, um a um, no
+mesmo processo de debate.
+
+**Status:** não iniciado. Pré-requisito: Sabor A rodando de forma
+estável e observado na prática.
