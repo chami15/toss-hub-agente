@@ -70,3 +70,26 @@ LEFT JOIN agentes original_remetente ON original_remetente.id = original.remeten
 WHERE m.tipo = %s
 ORDER BY m.id DESC
 LIMIT %s;
+
+--QUERY: buscar_por_id
+SELECT id, tipo, conteudo, tick, criado_em, remetente_id, destinatario_id, respondendo_a_id
+FROM mensagens
+WHERE id = %s;
+
+--QUERY: caixa_de_entrada
+-- "Caixa de mensagens do chefe": tudo que foi direcionado a ele,
+-- filtrado no servidor (o frontend não precisa saber o id do chefe).
+SELECT m.id, m.tipo, m.conteudo, m.tick, m.criado_em,
+       m.remetente_id, r.nome AS remetente_nome,
+       m.destinatario_id, d.nome AS destinatario_nome,
+       m.respondendo_a_id,
+       original.conteudo AS respondendo_a_conteudo,
+       original_remetente.nome AS respondendo_a_remetente_nome
+FROM mensagens m
+JOIN agentes r ON r.id = m.remetente_id
+LEFT JOIN agentes d ON d.id = m.destinatario_id
+LEFT JOIN mensagens original ON original.id = m.respondendo_a_id
+LEFT JOIN agentes original_remetente ON original_remetente.id = original.remetente_id
+WHERE m.destinatario_id = %s
+ORDER BY m.id DESC
+LIMIT %s;
