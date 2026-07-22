@@ -262,8 +262,20 @@ não exposto ao chefe.
   `/interacao/tick/processar` (cobre as duas etapas).
 - Testes: gatilho, prioridade, teto diário, não-repetição e degradação
   graciosa (Agenda sem token) por agente — suíte com 105 testes.
+- **Validado manualmente pelo chefe**, ponta a ponta com Postgres e
+  OpenAI reais: Cifra fechou o relatório de um mês real e avisou com o
+  valor certo; Vita fechou o relatório de uma semana real; Agenda
+  mandou "Nenhum compromisso para hoje, bora descansar!" e, testado de
+  propósito, não repetiu o aviso no mesmo dia real até a mensagem ser
+  apagada manualmente (confirma que a trava é exatamente "já mandou
+  hoje"). Threading social (responder pendência, ficar no assunto)
+  também confirmado nesses mesmos ticks.
 - **No backlog**: Sabor B (avisos comportamentais); trabalho formal
   ENTRE agentes (não só agente→chefe), sem caso de uso definido ainda.
+
+**Sprint 0 encerrada aqui** — módulo de agentes (4 domínios) + módulo
+de interação (3 etapas + proatividade Sabor A) completos, testados
+(automatizado e manual) e documentados. Próximo módulo: frontend.
 
 **Documentação já existente:**
 - `docs/backlog-futuro.md` — ideias adiadas deliberadamente, com o porquê.
@@ -293,28 +305,27 @@ não exposto ao chefe.
 
 #### O que falta para concluir esta sprint
 
-1. ~~Suíte de testes automatizados cobrindo os quatro agentes~~ —
-   **feita**: `pytest` + `pytest-asyncio` + `unittest.mock`/`pytest-mock`,
-   reaproveitando o Postgres do `docker-compose.yml` (banco
-   `<nome>_test` separado, recriado a cada rodada) — nenhum container
-   novo, nenhuma chamada de LLM/API externa real. Ver seção "Testes" do
-   `README.md` e `tests/`.
-2. ~~Confirmar que a fundação (banco, scripts, camadas) aguenta a
-   introdução do módulo de interação sem retrabalho estrutural~~ —
-   **confirmada**: Etapa 1 do motor de tick usou a mesma arquitetura em
-   camadas e as tabelas já reservadas (`ticks`) sem precisar mexer em
-   nada estrutural. Suíte total agora com 59 testes, rodada duas vezes
-   seguidas contra Postgres real.
+1. ~~Suíte de testes automatizados cobrindo os quatro agentes~~ — **feita**.
+2. ~~Confirmar que a fundação aguenta o módulo de interação sem
+   retrabalho estrutural~~ — **confirmada**.
+3. ~~Módulo de interação (3 etapas + proatividade Sabor A nos 4
+   agentes), testado e validado manualmente~~ — **feito**.
 
-Depois disso, Sprint 0 é considerada encerrada e o módulo de interação
-começa oficialmente (com sua própria rodada de debate de design).
+**Sprint 0 encerrada.** Todo o backend do "escritório vivo" (módulo de
+agentes + módulo de interação) está funcionando, testado (automatizado
+e manual) e documentado. Próxima sprint: **módulo de frontend**
+(`docs/frontend-design.md` já tem o levantamento de requisitos pra
+começar com norte claro).
 
 #### Resultado esperado desta sprint
 
 Uma base de quatro agentes funcionando de forma confiável e testada,
 seguindo um processo replicável (ver guia de criação de agentes), com
-infraestrutura compartilhada estável o suficiente pra suportar o próximo
-módulo sem gerar retrabalho.
+infraestrutura compartilhada estável o suficiente pra suportar o
+módulo de interação sem retrabalho — e o próprio módulo de interação
+(relógio simulado, camada social, proatividade de trabalho) rodando de
+ponta a ponta, validado tanto por testes automatizados quanto por uso
+manual real. **Alcançado.**
 
 #### Stack técnica (Sprint 0)
 
