@@ -325,14 +325,25 @@ sobre a mecânica de decisão (elegibilidade, roleta, resposta de
 pendência — tudo isso já validado e funcionando certo), é sobre a
 QUALIDADE do texto gerado pelo prompt em si.
 
-**Por que foi adiada:** provável causa é a combinação das regras atuais
-do prompt ("não repita assunto do histórico" + "pode tocar em trabalho
-informalmente") empurrando o modelo sempre pro mesmo fallback (comentar
-sobre o chefe) quando não sabe mais o que variar. Precisa de ajuste
-fino de prompt (e possivelmente mais variedade de ganchos além de
-eventos_mundo + fofoca sobre o chefe) — não é um bug de lógica, é
-afinação de conteúdo, melhor tratada isolada depois de mais rodadas de
-observação real.
+**Causa raiz (confirmada):** o próprio prompt mandava "não repita
+assunto do histórico" + "traga algo novo" em TODA mensagem, forçando
+novidade a cada turno — o oposto de uma conversa real. Somado a frases
+longas e elaboradas, dava o efeito de sempre emendar um comentário
+sobre o chefe.
 
-**Status:** não iniciado. Precisa de mais exemplos reais rodando pra
-identificar o padrão exato antes de mexer no prompt.
+**Já tratado (primeira rodada):** prompt reescrito pra tom curto e
+casual (frase solta, gíria ok, sem terminar com pergunta/proposta,
+`max_length` 500 -> 300); e "puxar assunto novo" virou ocasional via
+`interacao_chance_novo_assunto` (30%) em vez do padrão de toda
+mensagem — resposta nunca puxa, conversa vazia sempre pode, conversa
+em andamento sorteia. Ver commit "Deixa a conversa social mais
+natural".
+
+**O que ainda pode faltar (observar em rodadas futuras):** afinar a %
+(30% pode precisar subir/descer), mais variedade de ganchos além de
+eventos_mundo + fofoca sobre o chefe, e avaliar se o tom ficou natural
+o suficiente ou se ainda escorrega pro mesmo fallback. Reabrir só
+depois de mais exemplos reais rodando.
+
+**Status:** primeira rodada de ajuste feita e testada; refinamento fino
+pendente de observação real.
