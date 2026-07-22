@@ -168,19 +168,37 @@ def _nome_mes(mes: date) -> str:
     return f"{_MESES_PT[mes.month - 1]}/{mes.year}"
 
 
+def _meia_noite(d: date) -> datetime:
+    return datetime.combine(d, datetime.min.time(), tzinfo=ZoneInfo(settings.timezone_padrao))
+
+
+def _formatar_horario(inicio_iso: str) -> str:
+    if "T" not in inicio_iso:
+        return "dia todo"  # evento de dia inteiro (só data, sem hora)
+    try:
+        return datetime.fromisoformat(inicio_iso).strftime("%H:%M")
+    except ValueError:
+        return inicio_iso
+
+
 # ---------------------------------------------------------------------------
 # Handlers de proatividade de trabalho (Sabor A — "alerta/ação proativa").
 # Cada especialidade que tem gatilho registra um dict com três funções:
-#   checar()    -> contexto (dict) se há motivo AGORA, ou None. Determinístico,
-#                  sem LLM — é o "check before you spend".
-#   descrever() -> str curto do motivo (usado no dry_run, sem executar nada).
-#   executar()  -> async; faz a ação real (gera relatório/card/etc.) e devolve
-#                  a mensagem de aviso pro chefe (template determinístico).
+#   checar(agente) -> contexto (dict) se há motivo AGORA, ou None.
+#                  Determinístico, sem LLM — é o "check before you spend".
+#                  Recebe o agente (alguns gatilhos dependem do próprio id,
+#                  ex: Agenda checa se já mandou o resumo do dia). Pode
+#                  levantar exceção (ex: Agenda com token do Google fora) —
+#                  o tick trata como "sem trabalho" e cai pro social.
+#   descrever(ctx) -> str curto do motivo (usado no dry_run, sem executar).
+#   executar(ctx)  -> async; faz a ação real (gera relatório/card/etc.) e
+#                  devolve a mensagem de aviso pro chefe (template
+#                  determinístico).
 # Adicionar um agente novo é só plugar um handler aqui — a lógica central do
 # tick não muda. Agentes sem handler nunca disparam trabalho.
 # ---------------------------------------------------------------------------
 
-def _checar_norte() -> dict | None:
+def _checar_norte(agente: dict) -> dict | None:
     limite = datetime.now(ZoneInfo(settings.timezone_padrao)) - timedelta(
         days=settings.interacao_dias_estagnacao_norte
     )
@@ -204,7 +222,7 @@ async def _executar_norte(ctx: dict) -> str:
     )
 
 
-def _checar_cifra() -> dict | None:
+def _checar_cifra(agente: dict) -> dict | None:
     hoje = datetime.now(ZoneInfo(settings.timezone_padrao)).date()
     rows = executar_query("transacoes:mes_fechado_sem_relatorio", params=(hoje,))
     mes = rows[0]["mes"] if rows else None
@@ -224,7 +242,7 @@ async def _executar_cifra(ctx: dict) -> str:
     )
 
 
-def _checar_vita() -> dict | None:
+def _checar_vita(agente: dict) -> dict | None:
     hoje = datetime.now(ZoneInfo(settings.timezone_padrao)).date()
     rows = executar_query(
         "refeicoes:semana_fechada_sem_relatorio", params=(settings.timezone_padrao, hoje)
@@ -246,10 +264,49 @@ async def _executar_vita(ctx: dict) -> str:
     )
 
 
+def _checar_agenda(agente: dict) -> dict | None:
+    # Uma vez por dia real: se a Agenda já mandou algo de trabalho hoje
+    # (o resumo diário é a única coisa que ela manda como trabalho), não
+    # repete — anti-repetição sem tabela nova, reaproveitando o mesmo
+    # contador do teto diário.
+    inicio = _inicio_do_dia_real()
+    ja_enviou = executar_query(
+        "mensagens:contar_trabalho_do_agente_hoje", params=(agente["id"], inicio)
+    )[0]["total"]
+    if ja_enviou > 0:
+        return None
+
+    # Leitura do Calendar aqui (não no executar) de propósito: se o token
+    # do Google estiver fora, isto levanta exceção, o tick trata como
+    # "sem trabalho" e a Agenda cai pro social — em vez de ficar presa
+    # tentando o dia todo. Calendário vazio NÃO é erro (vira "bora
+    # descansar").
+    from agents.agenda import google_calendar
+
+    hoje = datetime.now(ZoneInfo(settings.timezone_padrao)).date()
+    eventos = google_calendar.resumir_eventos(
+        google_calendar.listar_eventos(_meia_noite(hoje).isoformat(), _meia_noite(hoje + timedelta(days=1)).isoformat())
+    )
+    return {"eventos": eventos}
+
+
+def _descrever_agenda(ctx: dict) -> str:
+    return f"Resumo da agenda de hoje ainda não enviado ({len(ctx['eventos'])} compromisso(s))."
+
+
+async def _executar_agenda(ctx: dict) -> str:
+    eventos = ctx["eventos"]
+    if not eventos:
+        return "Nenhum compromisso para hoje, bora descansar!"
+    linhas = [f"{_formatar_horario(e['inicio'])} — {e['titulo']}" for e in eventos]
+    return "Compromissos de hoje:\n" + "\n".join(linhas)
+
+
 _HANDLERS_TRABALHO = {
     "norte": {"checar": _checar_norte, "descrever": _descrever_norte, "executar": _executar_norte},
     "financeiro": {"checar": _checar_cifra, "descrever": _descrever_cifra, "executar": _executar_cifra},
     "saude": {"checar": _checar_vita, "descrever": _descrever_vita, "executar": _executar_vita},
+    "agenda": {"checar": _checar_agenda, "descrever": _descrever_agenda, "executar": _executar_agenda},
 }
 
 
@@ -308,7 +365,15 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
         # isso e NUNCA disputa o social nesse mesmo tick. Qual gatilho
         # cada agente tem fica em `_HANDLERS_TRABALHO`.
         handler = _HANDLERS_TRABALHO.get(agente["especialidade"])
-        contexto_trabalho = handler["checar"]() if handler else None
+        contexto_trabalho = None
+        if handler:
+            try:
+                contexto_trabalho = handler["checar"](agente)
+            except Exception as exc:
+                # Checagem de trabalho não pode derrubar o tick — ex:
+                # Agenda com o token do Google fora. Registra e segue: o
+                # agente cai pro social normalmente neste tick.
+                entrada["aviso"] = f"Falha ao checar proatividade de trabalho: {exc}"
 
         if contexto_trabalho and _pode_trabalho_hoje(agente["id"]):
             entrada["tipo"] = "trabalho"

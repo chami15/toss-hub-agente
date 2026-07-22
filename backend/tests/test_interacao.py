@@ -737,7 +737,7 @@ class TestProatividadeCifra:
         from datetime import date as _date
         self._inserir_transacao("2020-05-10", valor=10.0, i=1)
         self._inserir_transacao("2020-03-10", valor=10.0, i=2)  # mais antigo
-        ctx = interacao._checar_cifra()
+        ctx = interacao._checar_cifra({"id": 1})
         assert ctx["mes"] == _date(2020, 3, 1)
 
 
@@ -830,5 +830,97 @@ class TestProatividadeVita:
         self._inserir_refeicao_em(self._dentro_da_semana(semana_recente))
         self._inserir_refeicao_em(self._dentro_da_semana(semana_antiga))
 
-        ctx = interacao._checar_vita()
+        ctx = interacao._checar_vita({"id": 1})
         assert ctx["semana"] == semana_antiga
+
+
+class TestProatividadeAgenda:
+    def _evento_raw(self, titulo, inicio_iso):
+        return {
+            "id": f"ev-{titulo}",
+            "summary": titulo,
+            "start": {"dateTime": inicio_iso},
+            "end": {"dateTime": inicio_iso},
+        }
+
+    async def test_com_eventos_manda_resumo(self, mocker):
+        agenda_id = _criar_agente("Agenda", extroversao=5, especialidade="agenda")
+        chefe_id = _criar_chefe()
+        tick.avancar_tick()
+
+        mocker.patch(
+            "agents.agenda.google_calendar.listar_eventos",
+            return_value=[
+                self._evento_raw("Reunião com cliente", "2026-07-22T14:30:00-03:00"),
+                self._evento_raw("Almoço", "2026-07-22T12:00:00-03:00"),
+            ],
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada = next(i for i in resultado["interacoes"] if i["agente_id"] == agenda_id)
+        assert entrada["tipo"] == "trabalho"
+        assert "Compromissos de hoje" in entrada["mensagem"]
+        assert "14:30 — Reunião com cliente" in entrada["mensagem"]
+        assert "12:00 — Almoço" in entrada["mensagem"]
+
+        trabalho = [m for m in executar_query("mensagens:listar_todas", params=(10,)) if m["tipo"] == "trabalho"]
+        assert len(trabalho) == 1
+        assert trabalho[0]["destinatario_id"] == chefe_id
+
+    async def test_sem_eventos_manda_bora_descansar(self, mocker):
+        agenda_id = _criar_agente("Agenda", extroversao=5, especialidade="agenda")
+        _criar_chefe()
+        tick.avancar_tick()
+
+        mocker.patch("agents.agenda.google_calendar.listar_eventos", return_value=[])
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada = next(i for i in resultado["interacoes"] if i["agente_id"] == agenda_id)
+        assert entrada["tipo"] == "trabalho"
+        assert entrada["mensagem"] == "Nenhum compromisso para hoje, bora descansar!"
+
+    async def test_nao_repete_o_resumo_no_mesmo_dia(self, mocker):
+        agenda_id = _criar_agente("Agenda", extroversao=5, especialidade="agenda")
+        chefe_id = _criar_chefe()
+        tick_info = tick.avancar_tick()
+        # Já mandou o resumo hoje (mensagem de trabalho da Agenda).
+        executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(agenda_id, chefe_id, "trabalho", "resumo de hoje", tick_info["numero"], None),
+        )
+
+        mock_listar = mocker.patch("agents.agenda.google_calendar.listar_eventos", return_value=[])
+
+        resultado = await interacao.processar_tick_completo(dry_run=True)
+
+        entrada = next(i for i in resultado["interacoes"] if i["agente_id"] == agenda_id)
+        assert entrada["tipo"] != "trabalho"
+        assert mock_listar.call_count == 0  # nem leu o calendário
+
+    async def test_token_do_google_fora_cai_pro_social(self, mocker):
+        agenda_id = _criar_agente("Agenda", extroversao=10, especialidade="agenda")
+        _criar_agente("Colega", extroversao=10)
+        _criar_chefe()
+        tick.avancar_tick()
+
+        mocker.patch(
+            "agents.agenda.google_calendar.listar_eventos",
+            side_effect=RuntimeError("Sem token do Google."),
+        )
+        mocker.patch("resolvers.interacao.random.random", return_value=0.0)
+        mock_social = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada = next(i for i in resultado["interacoes"] if i["agente_id"] == agenda_id)
+        assert "Falha ao checar" in entrada.get("aviso", "")
+        assert entrada["tipo"] == "social"  # caiu pro social em vez de travar
+        assert mock_social.call_count >= 1
+        trabalho = [m for m in executar_query("mensagens:listar_todas", params=(10,)) if m["tipo"] == "trabalho"]
+        assert trabalho == []
