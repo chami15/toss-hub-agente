@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     interacao_afinidade_incremento_max: float = 3.0  # ganho de afinidade quando afinidade atual = 0
     interacao_historico_mensagens_par: int = 3    # quantas mensagens recentes do par entram no prompt
     interacao_rate_limit_par_por_dia: int = 6     # máx. de mensagens sociais por par, por dia real
+    interacao_chance_novo_assunto: float = 0.3    # numa conversa já em andamento, chance de puxar assunto novo (senão, segue o papo)
 
     # Módulo de interação, Etapa 3 (proatividade de trabalho) — Norte é o
     # primeiro domínio com gatilho real; os outros ainda não têm regra.

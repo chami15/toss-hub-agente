@@ -210,6 +210,7 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
     candidatos_destinatario = colaboradores + ([chefe] if chefe else [])
 
     evento = _sortear_evento_mundo()
+    evento_usado_neste_tick = False
     fato_do_dia = _fato_do_dia(tick_atual["hora_simulada"])
 
     for agente in colaboradores:
@@ -303,15 +304,33 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
                     historico = _historico_do_par(agente["id"], destinatario["id"])
                     destinatario_eh_chefe = chefe is not None and destinatario["id"] == chefe["id"]
                     mensagem_para_responder = pendente["conteudo"] if respondendo_a_id else None
+
+                    # Puxar assunto novo é ocasional, não o padrão de toda
+                    # mensagem (senão soa forçado — achado na validação
+                    # manual). Resposta nunca puxa (fica no assunto);
+                    # conversa vazia sempre pode (precisa começar por
+                    # algo); conversa em andamento sorteia.
+                    if respondendo_a_id:
+                        pode_novo_assunto = False
+                    elif not historico:
+                        pode_novo_assunto = True
+                    else:
+                        pode_novo_assunto = random.random() < settings.interacao_chance_novo_assunto
+
+                    evento_desc = evento["descricao"] if (evento and pode_novo_assunto) else None
+                    if evento_desc is not None:
+                        evento_usado_neste_tick = True
+
                     resposta = await agente_interacao.gerar_mensagem_social(
                         agente["personalidade"],
                         agente["nome"],
                         destinatario["nome"],
                         historico,
-                        evento["descricao"] if evento else None,
+                        evento_desc,
                         fato_do_dia,
                         destinatario_eh_chefe,
                         mensagem_para_responder,
+                        pode_novo_assunto,
                     )
                     conteudo = resposta["dado"].conteudo
                     executar_query(
@@ -326,8 +345,11 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
 
         resultado["interacoes"].append(entrada)
 
-    houve_social = any(i["tipo"] == "social" and i["mensagem"] for i in resultado["interacoes"])
-    if not dry_run and evento is not None and houve_social:
+    # Só marca o evento como usado se ele foi de fato injetado em alguma
+    # mensagem — com a chance de novo assunto, nem todo tick com papo
+    # social usa o evento, e o `ultimo_uso_tick` precisa refletir uso
+    # real (é o que ordena o sorteio "menos usado primeiro").
+    if not dry_run and evento is not None and evento_usado_neste_tick:
         executar_query("eventos_mundo:marcar_usado", commit=True, params=(numero_tick, evento["id"]))
 
     return resultado

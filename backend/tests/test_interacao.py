@@ -228,10 +228,11 @@ class TestRodadaReal:
         resultado = await interacao.processar_tick_completo()
 
         assert mock_gerar.call_count == 1
-        fato_do_dia_passado = mock_gerar.call_args.args[-3]
+        fato_do_dia_passado = mock_gerar.call_args.args[-4]
         assert "hoje é" in fato_do_dia_passado
-        assert mock_gerar.call_args.args[-2] is False  # destinatario_eh_chefe
-        assert mock_gerar.call_args.args[-1] is None  # mensagem_para_responder (sem pendência)
+        assert mock_gerar.call_args.args[-3] is False  # destinatario_eh_chefe
+        assert mock_gerar.call_args.args[-2] is None  # mensagem_para_responder (sem pendência)
+        assert mock_gerar.call_args.args[-1] is True  # pode_novo_assunto (histórico vazio)
 
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         assert len(mensagens) >= 1
@@ -293,7 +294,7 @@ class TestChefeComoDestinatario:
         resultado = await interacao.processar_tick_completo()
 
         assert mock_gerar.call_count == 1
-        assert mock_gerar.call_args.args[-2] is True  # destinatario_eh_chefe
+        assert mock_gerar.call_args.args[-3] is True  # destinatario_eh_chefe
 
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         assert any(m["destinatario_id"] == chefe_id for m in mensagens)
@@ -482,7 +483,8 @@ class TestRespostaSocial:
         entrada_a = next(i for i in resultado["interacoes"] if i["agente_id"] == a_id)
         assert entrada_a["destinatario_id"] == b_id
         assert entrada_a["respondendo_a_id"] == pendente["id"]
-        assert mock_gerar.call_args.args[-1] == "Oi A, tudo bem?"
+        assert mock_gerar.call_args.args[-2] == "Oi A, tudo bem?"  # mensagem_para_responder
+        assert mock_gerar.call_args.args[-1] is False  # pode_novo_assunto — resposta nunca puxa
 
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         resposta = next(m for m in mensagens if m["id"] != pendente["id"])
@@ -578,3 +580,73 @@ class TestRespostaSocial:
         assert entrada_a.get("respondendo_a_id") != pendente["id"]
         assert entrada_a["destinatario_id"] is None
         assert mock_gerar.call_count == 0
+
+
+class TestNovoAssunto:
+    async def test_conversa_em_andamento_pode_nao_puxar_assunto_novo(self, mocker):
+        a_id = _criar_agente("A", extroversao=10)
+        b_id = _criar_agente("B", extroversao=0)
+        tick.avancar_tick()
+        # Histórico existente do par (mensagem de A pra B) — não é
+        # pendência pra A (A mandou), mas garante conversa em andamento,
+        # então A entra no sorteio de puxar-ou-não assunto novo.
+        executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(a_id, b_id, "social", "papo antigo", 1, None),
+        )
+        # A fala (0.0<chance); sorteio de novo assunto dá "não" (0.99 >= 0.3);
+        # B não fala (0.99).
+        mocker.patch("resolvers.interacao.random.random", side_effect=[0.0, 0.99, 0.99])
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        await interacao.processar_tick_completo()
+
+        chamada_a = next(c for c in mock_gerar.call_args_list if c.args[1] == "A")
+        assert chamada_a.args[-1] is False  # pode_novo_assunto
+        assert chamada_a.args[4] is None  # evento_desc não injetado
+
+    async def test_conversa_vazia_sempre_permite_assunto_novo(self, mocker):
+        _criar_agente("A", extroversao=10)
+        _criar_agente("B", extroversao=0)
+        tick.avancar_tick()
+
+        # Sem histórico nenhum — A fala (0.0), B não (0.99). Não deve
+        # rolar dado de novo assunto (conversa vazia sempre permite).
+        mocker.patch("resolvers.interacao.random.random", side_effect=[0.0, 0.99])
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        await interacao.processar_tick_completo()
+
+        chamada_a = next(c for c in mock_gerar.call_args_list if c.args[1] == "A")
+        assert chamada_a.args[-1] is True  # pode_novo_assunto
+
+    async def test_evento_nao_e_marcado_se_ninguem_puxou_assunto_novo(self, mocker):
+        a_id = _criar_agente("A", extroversao=10)
+        b_id = _criar_agente("B", extroversao=0)
+        tick.avancar_tick()
+        executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(a_id, b_id, "social", "papo antigo", 1, None),
+        )
+        evento = executar_query(
+            "eventos_mundo:inserir", returning=True, params=("Está calor hoje.", None)
+        )[0]
+
+        mocker.patch("resolvers.interacao.random.random", side_effect=[0.0, 0.99, 0.99])
+        mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        await interacao.processar_tick_completo()
+
+        alvo = next(e for e in executar_query("eventos_mundo:listar") if e["id"] == evento["id"])
+        assert alvo["ultimo_uso_tick"] is None  # ninguém puxou assunto novo, evento intocado

@@ -18,36 +18,29 @@ from config import settings
 
 load_dotenv()
 
-_PROMPT_SOCIAL = """Você é {nome_remetente}, um agente colaborador do hub.
-{personalidade}
+_PROMPT_SOCIAL = """Você é {nome_remetente}. {personalidade}
 
-Agora você está puxando papo social com {rotulo_destinatario} — é conversa
-de copa, não um relatório formal. Curta e natural (1 a 3 frases), no seu
-tom de sempre.
+Você tá de papo com {rotulo_destinatario} — bate-papo de escritório, tipo
+mandar mensagem pra um amigo. Nada formal.
 
 {fato_do_dia}
 
-Histórico recente entre vocês dois (mais recente primeiro, pode estar
-vazio se nunca conversaram):
+Conversa recente entre vocês (mais recente primeiro, pode estar vazia):
 {historico_json}
 
-{evento_bloco}
+{instrucao_assunto}
 
-Regras:
-- NÃO repita um assunto que já aparece no histórico acima.
-- Se houver um evento do mundo listado, use-o só como gancho/inspiração —
-  nunca a única coisa mencionada. Traga também algo do seu próprio
-  contexto ou opinião.
-- Pode tocar em trabalho de forma informal (fofoca, comentário,
-  opinião sobre uma tarefa ou sobre o chefe) — mas sempre no tom de
-  bate-papo, nunca como um aviso/relatório formal.
-- Sem formalidade, sem lista, sem assinatura — é só uma fala de bate-papo.
+Como escrever:
+- Bem curto. Uma ou duas frases no máximo, do jeito que se fala no dia a dia.
+- Descontraído e simples. Pode usar gíria, pode ser só uma frase solta.
+- NÃO precisa terminar com pergunta nem proposta — às vezes é só um comentário.
+- Nada de texto grande, arrumadinho ou burocrático. É conversa, não recado formal.
 - {nota_chefe}
 """
 
 
 class MensagemSocialGerada(BaseModel):
-    conteudo: str = Field(..., min_length=1, max_length=500, description="A mensagem social em si, curta e natural.")
+    conteudo: str = Field(..., min_length=1, max_length=300, description="A mensagem social em si, bem curta e natural.")
 
 
 _model_social = None
@@ -94,39 +87,52 @@ async def gerar_mensagem_social(
     fato_do_dia: str,
     destinatario_eh_chefe: bool = False,
     mensagem_para_responder: str | None = None,
+    pode_puxar_assunto_novo: bool = True,
 ) -> dict:
     """Lança RuntimeError se a chamada ou o parsing falharem — uma
     tentativa só, sem retry automático.
 
-    Quando `mensagem_para_responder` vem preenchida, o bloco de
-    evento/gancho normal é substituído por uma instrução de responder
-    de verdade ao que foi dito — nesse caso já existe assunto (a
-    própria mensagem recebida), não precisa de gancho novo."""
+    Três modos, decididos ANTES daqui pelo resolver (ver
+    `resolvers/interacao.py`), pra não deixar toda mensagem virar um
+    assunto novo (o que soava forçado/repetitivo na validação manual):
+    - respondendo a uma mensagem: fica no assunto do que foi dito;
+    - `pode_puxar_assunto_novo=False`: segue o papo em andamento, sem
+      trazer assunto novo — o caso mais comum numa conversa de verdade;
+    - `pode_puxar_assunto_novo=True`: pode puxar assunto novo (usa o
+      evento como gancho, se tiver) — ocasional, ou pra começar do
+      zero quando não há conversa em andamento."""
     modelo = _get_model_social()
     if mensagem_para_responder:
-        evento_bloco = (
-            f'Você está RESPONDENDO a esta mensagem que {nome_destinatario} te mandou: '
-            f'"{mensagem_para_responder}" — responda de verdade ao que foi dito, não puxe outro assunto do nada.'
+        instrucao_assunto = (
+            f'{nome_destinatario} acabou de te falar: "{mensagem_para_responder}". '
+            "Responde a isso, no mesmo assunto — não puxa outro assunto do nada."
+        )
+    elif not pode_puxar_assunto_novo:
+        instrucao_assunto = (
+            "Segue o papo no clima do que já tá rolando aí em cima. Só comenta, "
+            "reage, continua a conversa — NÃO puxa assunto novo agora."
+        )
+    elif evento_mundo:
+        instrucao_assunto = (
+            f'Puxa um assunto. Se quiser, usa isso de gancho: "{evento_mundo}" — '
+            "mas pode ser qualquer coisa leve do teu dia também."
         )
     else:
-        evento_bloco = (
-            f'Evento do mundo disponível como gancho: "{evento_mundo}"'
-            if evento_mundo
-            else "Nenhum evento do mundo disponível — puxe assunto com seu próprio contexto."
-        )
+        instrucao_assunto = "Puxa um assunto leve pra começar a conversa."
+
     if destinatario_eh_chefe:
         rotulo_destinatario = f"seu chefe, {nome_destinatario}"
-        nota_chefe = "Ele é o chefe — mantenha um tom simpático e um pouco mais respeitoso que com um colega."
+        nota_chefe = "É o chefe — pode ser simpático, mas um pouco mais na dele que com um colega."
     else:
-        rotulo_destinatario = f"seu colega de escritório, {nome_destinatario}"
-        nota_chefe = "É um colega, pode ser mais à vontade."
+        rotulo_destinatario = f"seu colega {nome_destinatario}"
+        nota_chefe = "É um colega, fica à vontade."
     prompt = _PROMPT_SOCIAL.format(
         nome_remetente=nome_remetente,
         personalidade=personalidade or "",
         rotulo_destinatario=rotulo_destinatario,
         fato_do_dia=fato_do_dia,
         historico_json=json.dumps(historico_recente, ensure_ascii=False, default=str),
-        evento_bloco=evento_bloco,
+        instrucao_assunto=instrucao_assunto,
         nota_chefe=nota_chefe,
     )
     try:
