@@ -8,6 +8,12 @@ SELECT id, nome, tipo, especialidade, personalidade, avatar_config, estado, mesa
 FROM agentes
 WHERE id = %s;
 
+--QUERY: buscar_por_especialidade
+SELECT id, nome, tipo, especialidade, personalidade, avatar_config, estado, mesa, ativo
+FROM agentes
+WHERE especialidade = %s
+LIMIT 1;
+
 --QUERY: upsert
 INSERT INTO agentes (nome, tipo, especialidade, personalidade, avatar_config, mesa)
 VALUES (%s, %s, %s, %s, %s::jsonb, %s)
@@ -17,3 +23,9 @@ ON CONFLICT (nome) DO UPDATE SET
     avatar_config = EXCLUDED.avatar_config,
     mesa          = EXCLUDED.mesa
 RETURNING id, nome;
+
+--QUERY: atualizar_estado_ativos
+-- Só colaboradores (o chefe não "age" num tick). Etapa 1 do motor de
+-- tick: sempre volta pra 'idle' — vira estado de verdade (pensando/
+-- falando/executando) quando a camada social/proatividade existir.
+UPDATE agentes SET estado = %s WHERE ativo AND tipo = 'colaborador';

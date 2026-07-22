@@ -4,3 +4,10 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# Credenciais do Google Calendar — nunca comitar
+credentials.json
+token.json
+
+# Credencial do GitHub (agente Norte) — nunca comitar
+github_token.json
