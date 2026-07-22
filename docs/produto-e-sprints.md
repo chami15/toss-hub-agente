@@ -215,6 +215,16 @@ não exposto ao chefe.
   o social tocar em trabalho de forma informal (fofoca/opinião, nunca
   relatório formal) — esse continua sendo o papel exclusivo do tipo
   `trabalho`.
+- **Thread de resposta (balãozinho)**: outro achado da validação
+  manual — agentes trocavam mensagem mas nunca se respondiam de
+  verdade, cada um só puxava assunto novo. `mensagens.respondendo_a_id`
+  (auto-referência, migration 009, campo único — remetente/conteúdo da
+  original sempre via JOIN, nunca duplicado) resolve isso: ao decidir
+  falar, o agente primeiro olha se tem mensagem social recebida sem
+  resposta e responde a mais antiga — prioridade garantida, sem
+  fórmula de probabilidade nova (o cooldown que já empurra
+  `chance_falar` garante a resposta eventual sozinho). Rate limit por
+  par continua valendo mesmo pra responder pendência.
 
 **Módulo de interação — Etapa 3 (proatividade de trabalho, Norte primeiro):**
 - `resolvers/interacao.py` ganhou um dispatch de "motivo de trabalho"
