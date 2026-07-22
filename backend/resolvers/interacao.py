@@ -17,10 +17,14 @@ por colaborador ativo:
    extra pra escrever a frase).
 3. Só quem NÃO tem motivo de trabalho (ou já bateu o teto) entra na
    disputa social: sorteia (ponderado por extroversão + tempo parado)
-   se tenta puxar papo, e sorteia (ponderado pela afinidade, nunca
-   100% garantido) com quem fala — o chefe também é candidato a
-   receber papo social, nunca a puxar. Rate limit por par também
-   se aplica aqui.
+   se tenta puxar papo. Se sim, e tiver uma mensagem social recebida
+   sem resposta ainda, responde a mais antiga primeiro — sem sorteio
+   nesse caso, é prioridade garantida (o cooldown que já empurra a
+   chance de falar é o que garante que ele eventualmente vai resolver
+   isso, nenhuma fórmula de probabilidade nova). Sem pendência, sorteia
+   (ponderado pela afinidade, nunca 100% garantido) com quem fala — o
+   chefe também é candidato a receber papo social, nunca a puxar. Rate
+   limit por par também se aplica aqui (inclusive pra responder).
 
 `dry_run=True` calcula tudo (quem trabalharia/falaria, com quem/sobre
 o quê) sem executar ação real nem persistir nada — mesmo espírito do
@@ -102,6 +106,16 @@ def _par_disponivel(agente_a_id: int, agente_b_id: int) -> bool:
         params=(agente_a_id, agente_b_id, agente_b_id, agente_a_id, inicio),
     )
     return rows[0]["total"] < settings.interacao_rate_limit_par_por_dia
+
+
+def _buscar_pendente(agente_id: int) -> dict | None:
+    """Mensagem social mais antiga recebida por esse agente que ainda
+    não teve resposta. Responder pendência tem prioridade sobre
+    sortear um destinatário novo — nenhuma fórmula de probabilidade
+    nova pra isso, o cooldown que já empurra `chance_falar` garante que
+    o agente eventualmente vai querer falar de novo e resolver isso."""
+    rows = executar_query("mensagens:buscar_pendente_mais_antiga_para", params=(agente_id,))
+    return rows[0] if rows else None
 
 
 def _escolher_destinatario(agente_id: int, colaboradores: list[dict]) -> dict | None:
@@ -235,7 +249,7 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
                         executar_query(
                             "mensagens:inserir",
                             returning=True,
-                            params=(agente["id"], chefe["id"], "trabalho", conteudo, numero_tick),
+                            params=(agente["id"], chefe["id"], "trabalho", conteudo, numero_tick, None),
                         )
                         executar_query(
                             "agentes:atualizar_estado", commit=True, params=(_ESTADO_EXECUTANDO, agente["id"])
@@ -260,16 +274,35 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
 
         if quer_falar:
             entrada["tipo"] = "social"
-            destinatario = _escolher_destinatario(agente["id"], candidatos_destinatario)
+
+            # Responder pendência tem prioridade sobre sortear alguém
+            # novo — só vale se o par ainda não bateu o rate-limit do
+            # dia (a pendência não pula essa fila).
+            destinatario = None
+            respondendo_a_id = None
+            pendente = _buscar_pendente(agente["id"])
+            if pendente and _par_disponivel(agente["id"], pendente["remetente_id"]):
+                candidato = next(
+                    (c for c in candidatos_destinatario if c["id"] == pendente["remetente_id"]), None
+                )
+                if candidato:
+                    destinatario = candidato
+                    respondendo_a_id = pendente["id"]
+
+            if destinatario is None:
+                destinatario = _escolher_destinatario(agente["id"], candidatos_destinatario)
+
             if destinatario is None:
                 entrada["aviso"] = "Nenhum destinatário elegível (rate limit do dia atingido em todos os pares)."
             else:
                 entrada["destinatario_id"] = destinatario["id"]
                 entrada["destinatario_nome"] = destinatario["nome"]
+                entrada["respondendo_a_id"] = respondendo_a_id
 
                 if not dry_run:
                     historico = _historico_do_par(agente["id"], destinatario["id"])
                     destinatario_eh_chefe = chefe is not None and destinatario["id"] == chefe["id"]
+                    mensagem_para_responder = pendente["conteudo"] if respondendo_a_id else None
                     resposta = await agente_interacao.gerar_mensagem_social(
                         agente["personalidade"],
                         agente["nome"],
@@ -278,12 +311,13 @@ async def processar_tick_completo(dry_run: bool = False) -> dict:
                         evento["descricao"] if evento else None,
                         fato_do_dia,
                         destinatario_eh_chefe,
+                        mensagem_para_responder,
                     )
                     conteudo = resposta["dado"].conteudo
                     executar_query(
                         "mensagens:inserir",
                         returning=True,
-                        params=(agente["id"], destinatario["id"], "social", conteudo, numero_tick),
+                        params=(agente["id"], destinatario["id"], "social", conteudo, numero_tick, respondendo_a_id),
                     )
                     _atualizar_afinidade(agente["id"], destinatario["id"])
                     _atualizar_afinidade(destinatario["id"], agente["id"])

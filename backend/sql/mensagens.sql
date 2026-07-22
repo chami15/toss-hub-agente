@@ -1,17 +1,22 @@
 --QUERY: listar_todas
 SELECT m.id, m.tipo, m.conteudo, m.tick, m.criado_em,
        m.remetente_id, r.nome AS remetente_nome,
-       m.destinatario_id, d.nome AS destinatario_nome
+       m.destinatario_id, d.nome AS destinatario_nome,
+       m.respondendo_a_id,
+       original.conteudo AS respondendo_a_conteudo,
+       original_remetente.nome AS respondendo_a_remetente_nome
 FROM mensagens m
 JOIN agentes r ON r.id = m.remetente_id
 LEFT JOIN agentes d ON d.id = m.destinatario_id
+LEFT JOIN mensagens original ON original.id = m.respondendo_a_id
+LEFT JOIN agentes original_remetente ON original_remetente.id = original.remetente_id
 ORDER BY m.id DESC
 LIMIT %s;
 
 --QUERY: inserir
-INSERT INTO mensagens (remetente_id, destinatario_id, tipo, conteudo, tick)
-VALUES (%s, %s, %s, %s, %s)
-RETURNING id, remetente_id, destinatario_id, tipo, conteudo, tick, criado_em;
+INSERT INTO mensagens (remetente_id, destinatario_id, tipo, conteudo, tick, respondendo_a_id)
+VALUES (%s, %s, %s, %s, %s, %s)
+RETURNING id, remetente_id, destinatario_id, tipo, conteudo, tick, respondendo_a_id, criado_em;
 
 --QUERY: ultimo_tick_social_do_agente
 SELECT tick FROM mensagens
@@ -37,13 +42,31 @@ WHERE tipo = 'social'
 SELECT COUNT(*) AS total FROM mensagens
 WHERE remetente_id = %s AND tipo = 'trabalho' AND criado_em >= %s;
 
+--QUERY: buscar_pendente_mais_antiga_para
+-- Mensagem social mais antiga direcionada a esse agente que ainda não
+-- recebeu resposta (nenhuma outra mensagem aponta respondendo_a_id pra
+-- ela). Usada ANTES da roleta normal: responder pendência tem
+-- prioridade sobre sortear um destinatário novo.
+SELECT id, remetente_id, destinatario_id, conteudo, tick, criado_em
+FROM mensagens m
+WHERE destinatario_id = %s
+  AND tipo = 'social'
+  AND NOT EXISTS (SELECT 1 FROM mensagens r WHERE r.respondendo_a_id = m.id)
+ORDER BY criado_em ASC
+LIMIT 1;
+
 --QUERY: listar_por_tipo
 SELECT m.id, m.tipo, m.conteudo, m.tick, m.criado_em,
        m.remetente_id, r.nome AS remetente_nome,
-       m.destinatario_id, d.nome AS destinatario_nome
+       m.destinatario_id, d.nome AS destinatario_nome,
+       m.respondendo_a_id,
+       original.conteudo AS respondendo_a_conteudo,
+       original_remetente.nome AS respondendo_a_remetente_nome
 FROM mensagens m
 JOIN agentes r ON r.id = m.remetente_id
 LEFT JOIN agentes d ON d.id = m.destinatario_id
+LEFT JOIN mensagens original ON original.id = m.respondendo_a_id
+LEFT JOIN agentes original_remetente ON original_remetente.id = original.remetente_id
 WHERE m.tipo = %s
 ORDER BY m.id DESC
 LIMIT %s;

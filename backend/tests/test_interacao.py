@@ -167,7 +167,7 @@ class TestGuardrails:
             executar_query(
                 "mensagens:inserir",
                 returning=True,
-                params=(a_id, b_id, "social", "mensagem antiga", numero_tick),
+                params=(a_id, b_id, "social", "mensagem antiga", numero_tick, None),
             )
 
         mocker.patch("resolvers.interacao.random.random", return_value=0.0)
@@ -228,9 +228,10 @@ class TestRodadaReal:
         resultado = await interacao.processar_tick_completo()
 
         assert mock_gerar.call_count == 1
-        fato_do_dia_passado = mock_gerar.call_args.args[-2]
+        fato_do_dia_passado = mock_gerar.call_args.args[-3]
         assert "hoje é" in fato_do_dia_passado
-        assert mock_gerar.call_args.args[-1] is False  # destinatario_eh_chefe
+        assert mock_gerar.call_args.args[-2] is False  # destinatario_eh_chefe
+        assert mock_gerar.call_args.args[-1] is None  # mensagem_para_responder (sem pendência)
 
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         assert len(mensagens) >= 1
@@ -292,7 +293,7 @@ class TestChefeComoDestinatario:
         resultado = await interacao.processar_tick_completo()
 
         assert mock_gerar.call_count == 1
-        assert mock_gerar.call_args.args[-1] is True  # destinatario_eh_chefe
+        assert mock_gerar.call_args.args[-2] is True  # destinatario_eh_chefe
 
         mensagens = executar_query("mensagens:listar_todas", params=(10,))
         assert any(m["destinatario_id"] == chefe_id for m in mensagens)
@@ -427,7 +428,7 @@ class TestProatividadeNorte:
             executar_query(
                 "mensagens:inserir",
                 returning=True,
-                params=(norte_id, chefe_id, "trabalho", "aviso antigo", numero_tick),
+                params=(norte_id, chefe_id, "trabalho", "aviso antigo", numero_tick, None),
             )
 
         _criar_projeto_norte(dias_atras=10)
@@ -455,3 +456,125 @@ class TestProatividadeNorte:
         rows = executar_query("projetos:listar_estagnados", params=(limite,))
 
         assert rows == []
+
+
+class TestRespostaSocial:
+    async def test_responde_pendencia_antes_de_sortear_novo_destinatario(self, mocker):
+        a_id = _criar_agente("A", extroversao=10)
+        b_id = _criar_agente("B", extroversao=0)
+        tick_info = tick.avancar_tick()
+        numero_tick = tick_info["numero"]
+
+        pendente = executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(b_id, a_id, "social", "Oi A, tudo bem?", numero_tick, None),
+        )[0]
+
+        mocker.patch("resolvers.interacao.random.random", return_value=0.0)
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada("Tudo certo, e você?"),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada_a = next(i for i in resultado["interacoes"] if i["agente_id"] == a_id)
+        assert entrada_a["destinatario_id"] == b_id
+        assert entrada_a["respondendo_a_id"] == pendente["id"]
+        assert mock_gerar.call_args.args[-1] == "Oi A, tudo bem?"
+
+        mensagens = executar_query("mensagens:listar_todas", params=(10,))
+        resposta = next(m for m in mensagens if m["id"] != pendente["id"])
+        assert resposta["respondendo_a_id"] == pendente["id"]
+        assert resposta["respondendo_a_conteudo"] == "Oi A, tudo bem?"
+        assert resposta["respondendo_a_remetente_nome"] == "B"
+
+    async def test_responde_a_pendencia_mais_antiga_primeiro(self, mocker):
+        a_id = _criar_agente("A", extroversao=10)
+        b_id = _criar_agente("B", extroversao=0)
+        c_id = _criar_agente("C", extroversao=0)
+        tick_info = tick.avancar_tick()
+        numero_tick = tick_info["numero"]
+
+        pendente_c = executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(c_id, a_id, "social", "Mensagem da C (mais antiga)", numero_tick, None),
+        )[0]
+        executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(b_id, a_id, "social", "Mensagem da B (mais nova)", numero_tick, None),
+        )
+
+        mocker.patch("resolvers.interacao.random.random", return_value=0.0)
+        mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada("Resposta"),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada_a = next(i for i in resultado["interacoes"] if i["agente_id"] == a_id)
+        assert entrada_a["respondendo_a_id"] == pendente_c["id"]
+        assert entrada_a["destinatario_id"] == c_id
+
+    async def test_pendencia_ja_respondida_nao_e_escolhida_de_novo(self, mocker):
+        a_id = _criar_agente("A", extroversao=10)
+        b_id = _criar_agente("B", extroversao=0)
+        tick_info = tick.avancar_tick()
+        numero_tick = tick_info["numero"]
+
+        pendente = executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(b_id, a_id, "social", "Oi A", numero_tick, None),
+        )[0]
+        executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(a_id, b_id, "social", "Já respondi", numero_tick, pendente["id"]),
+        )
+
+        mocker.patch("resolvers.interacao.random.random", return_value=0.0)
+        mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada("Novo assunto"),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada_a = next(i for i in resultado["interacoes"] if i["agente_id"] == a_id)
+        assert entrada_a.get("respondendo_a_id") != pendente["id"]
+
+    async def test_rate_limit_do_par_bloqueia_ate_a_resposta_de_pendencia(self, mocker):
+        a_id = _criar_agente("A", extroversao=10)
+        b_id = _criar_agente("B", extroversao=0)
+        tick_info = tick.avancar_tick()
+        numero_tick = tick_info["numero"]
+
+        for _ in range(settings.interacao_rate_limit_par_por_dia):
+            executar_query(
+                "mensagens:inserir",
+                returning=True,
+                params=(a_id, b_id, "social", "mensagem antiga", numero_tick, None),
+            )
+        pendente = executar_query(
+            "mensagens:inserir",
+            returning=True,
+            params=(b_id, a_id, "social", "Socorro", numero_tick, None),
+        )[0]
+
+        mocker.patch("resolvers.interacao.random.random", return_value=0.0)
+        mock_gerar = mocker.patch(
+            "resolvers.interacao.agente_interacao.gerar_mensagem_social",
+            return_value=_mensagem_gerada(),
+        )
+
+        resultado = await interacao.processar_tick_completo()
+
+        entrada_a = next(i for i in resultado["interacoes"] if i["agente_id"] == a_id)
+        assert entrada_a.get("respondendo_a_id") != pendente["id"]
+        assert entrada_a["destinatario_id"] is None
+        assert mock_gerar.call_count == 0

@@ -93,15 +93,27 @@ async def gerar_mensagem_social(
     evento_mundo: str | None,
     fato_do_dia: str,
     destinatario_eh_chefe: bool = False,
+    mensagem_para_responder: str | None = None,
 ) -> dict:
     """Lança RuntimeError se a chamada ou o parsing falharem — uma
-    tentativa só, sem retry automático."""
+    tentativa só, sem retry automático.
+
+    Quando `mensagem_para_responder` vem preenchida, o bloco de
+    evento/gancho normal é substituído por uma instrução de responder
+    de verdade ao que foi dito — nesse caso já existe assunto (a
+    própria mensagem recebida), não precisa de gancho novo."""
     modelo = _get_model_social()
-    evento_bloco = (
-        f'Evento do mundo disponível como gancho: "{evento_mundo}"'
-        if evento_mundo
-        else "Nenhum evento do mundo disponível — puxe assunto com seu próprio contexto."
-    )
+    if mensagem_para_responder:
+        evento_bloco = (
+            f'Você está RESPONDENDO a esta mensagem que {nome_destinatario} te mandou: '
+            f'"{mensagem_para_responder}" — responda de verdade ao que foi dito, não puxe outro assunto do nada.'
+        )
+    else:
+        evento_bloco = (
+            f'Evento do mundo disponível como gancho: "{evento_mundo}"'
+            if evento_mundo
+            else "Nenhum evento do mundo disponível — puxe assunto com seu próprio contexto."
+        )
     if destinatario_eh_chefe:
         rotulo_destinatario = f"seu chefe, {nome_destinatario}"
         nota_chefe = "Ele é o chefe — mantenha um tom simpático e um pouco mais respeitoso que com um colega."
