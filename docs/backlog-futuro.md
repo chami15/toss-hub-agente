@@ -285,3 +285,30 @@ domínios que justifique essa mensagem.
 
 **Status:** não iniciado. Pré-requisito: Etapa 3 (proatividade de
 trabalho) rodando de forma estável, e um caso de uso real identificado.
+
+---
+
+## Rate limits baseados em dia SIMULADO, não em dia real — módulo de interação
+
+**Ideia:** hoje todos os tetos diários do motor de tick (rate limit de
+mensagens sociais por par, teto de avisos proativos de trabalho por
+agente, orçamento diário) são calculados a partir do **dia real**
+(`datetime.now()`), porque o disparo do tick ainda é sempre manual —
+não existe "um dia" simulado consistente pra usar como referência
+ainda. Quando o relógio simulado virar automático (ver backlog do
+motor de tick / `tick_intervalo_min` já existente em `config.py`), com
+uma cadência definida de ticks por dia fictício (ex: 24 ticks = 1 dia),
+esses tetos deveriam passar a ser calculados em cima do dia SIMULADO
+(`ticks.hora_simulada`), não mais do relógio real — senão alguém
+disparando muitos ticks manualmente num único dia real burla o teto
+pretendido, e o inverso (poucos ticks num dia real longo) faz o teto
+resetar sem o "dia" fictício ter de fato avançado o suficiente.
+
+**Por que foi adiada:** só faz sentido migrar isso depois que existir
+uma cadência automática de tick definida — antes disso não tem "dia
+simulado" real pra basear o cálculo, só o disparo manual que já
+temos.
+
+**Status:** não iniciado. Pré-requisito: automação do disparo do tick
+(ver backlog de `tick_intervalo_min`) e definição de quantos ticks
+equivalem a um dia fictício.

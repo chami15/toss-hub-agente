@@ -198,6 +198,32 @@ frontend, pra não ficar refazendo depois:
   executar nada, quem trabalharia/falaria e com quem/sobre o quê nesse
   tick — útil como preview antes de confirmar de verdade.
 
+**Balãozinho de resposta (thread social)**
+- `mensagens.respondendo_a_id` (auto-referência a outra `mensagens.id`,
+  nullable) marca quando uma mensagem social é resposta direta a outra
+  — mesma ideia de "responder" do WhatsApp/Instagram DM.
+- Não precisa de campo duplicado nenhum pro conteúdo/remetente da
+  mensagem original — um JOIN da própria tabela `mensagens` nela mesma
+  já traz tudo pronto pra UI montar o balão (citação em cima, resposta
+  embaixo):
+  ```sql
+  SELECT m.id, m.conteudo, m.criado_em, m.remetente_id, r.nome AS remetente_nome,
+         m.respondendo_a_id,
+         original.conteudo AS respondendo_a_conteudo,
+         original_remetente.nome AS respondendo_a_remetente_nome
+  FROM mensagens m
+  JOIN agentes r ON r.id = m.remetente_id
+  LEFT JOIN mensagens original ON original.id = m.respondendo_a_id
+  LEFT JOIN agentes original_remetente ON original_remetente.id = original.remetente_id
+  ```
+- Quando `respondendo_a_id` for `NULL`, a mensagem é uma fala nova (sem
+  balão de citação) — a UI só desenha o balão quando o campo vier
+  preenchido.
+- Mecânica por trás (não afeta a UI diretamente, só o que aparece):
+  quando um agente decide falar e tem uma mensagem social recebida
+  ainda sem resposta, ele responde a mais antiga primeiro — nunca
+  sorteio nesse caso, é prioridade garantida sobre a roleta normal.
+
 **`eventos_mundo` (gancho de conversa social)**
 - Pool curado manualmente (clima, futebol, fim de semana, etc.), já
   seedado (10 eventos iniciais) e sorteado de verdade a cada rodada
