@@ -38,38 +38,40 @@ export function Escritorio() {
   const slots = montarSlotsDoBox(0, colaboradores)
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-      {/* A SALA — piso + paredes (borda). Tamanho fixo por enquanto; a
-          gente calibra olhando o resultado. */}
+    // A SALA — o piso ocupa a janela inteira do navegador, sem borda/moldura
+    // (nada de "caixa" — o chão é o próprio fundo da página).
+    <div
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100dvh',
+        background: '#ece7df',
+        overflow: 'hidden',
+      }}
+    >
+      {/* janelas na parede esquerda */}
+      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%' }}>
+        <FaixaDeJanelas />
+      </div>
+      {/* janelas na parede direita */}
+      <div style={{ position: 'absolute', right: 0, top: 0, height: '100%' }}>
+        <FaixaDeJanelas />
+      </div>
+
+      {/* chefe + box de mesas, empilhados e centralizados na sala inteira */}
       <div
         style={{
-          position: 'relative',
-          width: 840,
-          height: 640,
-          background: '#ece7df',
-          border: '8px solid #b8ae9e',
-          borderRadius: 10,
-          overflow: 'hidden',
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 48,
         }}
       >
-        {/* janelas na parede esquerda */}
-        <div style={{ position: 'absolute', left: 2, top: 0, height: '100%' }}>
-          <FaixaDeJanelas />
-        </div>
-        {/* janelas na parede direita */}
-        <div style={{ position: 'absolute', right: 2, top: 0, height: '100%' }}>
-          <FaixaDeJanelas />
-        </div>
-
-        {/* mesa do chefe — topo, centro */}
-        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)' }}>
-          <MesaChefe agente={chefe} />
-        </div>
-
-        {/* box de mesas — centro da sala */}
-        <div style={{ position: 'absolute', top: 210, left: '50%', transform: 'translateX(-50%)' }}>
-          <BoxDeMesas slots={slots} />
-        </div>
+        <MesaChefe agente={chefe} />
+        <BoxDeMesas slots={slots} />
       </div>
     </div>
   )
