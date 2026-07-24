@@ -5,13 +5,14 @@
 // um paralelogramo recortado via clip-path (CSS) de um div do tamanho
 // da sala inteira; não tem forma própria, só a "janela" de recorte.
 //
-// Cor de cima: um azul-acinzentado que conversa com o cinza do piso.
-// Rodapé: off-white creme, como pedido. O lado direito é sempre um tom
-// levemente mais escuro que o esquerdo — sugere a luz vindo da esquerda.
-const TOPO_ESQ = '#6b7d82'
-const TOPO_DIR = '#5f7075'
-const RODAPE_ESQ = '#ece4d3'
-const RODAPE_DIR = '#ddd5c1'
+// Paleta inspirada no lobby clássico do Habbo: parede creme/amanteigada
+// com uma faixa fina bordô perto do chão (rodapé), em vez do azul frio
+// da versão anterior. Lado direito sempre um tom mais escuro — sugere
+// luz vindo da esquerda.
+const TOPO_ESQ = '#e6d6a3'
+const TOPO_DIR = '#dbc890'
+const RODAPE_ESQ = '#6b2020'
+const RODAPE_DIR = '#5c1a1a'
 
 // A parte de cima da parede vai do topo ABSOLUTO da tela (0%) até o
 // rodapé — sem sobrar nenhuma tira de piso por cima. É o "quadro sem
@@ -21,10 +22,12 @@ const RODAPE_DIR = '#ddd5c1'
 // A parede é baixa (bem "pro fundo") — a linha do piso fica bem mais
 // pra cima da tela, deixando a sala bem mais espaçosa/aberta do que a
 // primeira versão (que tomava quase 70% da tela).
-const CLIP_PAREDE_ESQ = 'polygon(0% 0%, 50% 0%, 50% 12%, 0% 52%)'
-const CLIP_PAREDE_DIR = 'polygon(50% 0%, 100% 0%, 100% 52%, 50% 12%)'
-const CLIP_RODAPE_ESQ = 'polygon(0% 46.4%, 50% 6.4%, 50% 12%, 0% 52%)'
-const CLIP_RODAPE_DIR = 'polygon(50% 6.4%, 100% 46.4%, 100% 52%, 50% 12%)'
+// Rodapé bem mais fino agora — uma faixa/trim, não uma banda grande
+// (igual à referência: o bordô é só um risco perto do chão).
+const CLIP_PAREDE_ESQ = 'polygon(0% 0%, 50% 0%, 50% 10%, 0% 50%)'
+const CLIP_PAREDE_DIR = 'polygon(50% 0%, 100% 0%, 100% 50%, 50% 10%)'
+const CLIP_RODAPE_ESQ = 'polygon(0% 50%, 50% 10%, 50% 12%, 0% 52%)'
+const CLIP_RODAPE_DIR = 'polygon(50% 10%, 100% 50%, 100% 52%, 50% 12%)'
 
 export function Parede() {
   return (
