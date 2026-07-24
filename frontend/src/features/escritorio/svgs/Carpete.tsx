@@ -13,17 +13,19 @@ export function Carpete() {
       <defs>
         <pattern
           id="textura-carpete"
-          width="22"
-          height="22"
+          width="18"
+          height="18"
           patternUnits="userSpaceOnUse"
-          patternTransform="rotate(12)"
+          patternTransform="rotate(10)"
         >
-          <rect width="22" height="22" fill="#6e6a62" />
-          <line x1="2" y1="3" x2="4" y2="9" stroke="#5c5952" strokeWidth="1.3" strokeLinecap="round" opacity="0.55" />
-          <line x1="9" y1="1" x2="11" y2="8" stroke="#807c73" strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
-          <line x1="15" y1="10" x2="17" y2="17" stroke="#5c5952" strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
-          <line x1="5" y1="14" x2="7" y2="20" stroke="#807c73" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-          <line x1="18" y1="2" x2="20" y2="7" stroke="#5c5952" strokeWidth="1.1" strokeLinecap="round" opacity="0.5" />
+          <rect width="18" height="18" fill="#57534c" />
+          <line x1="2" y1="2" x2="5" y2="9" stroke="#3d3a35" strokeWidth="1.6" strokeLinecap="round" opacity="0.65" />
+          <line x1="8" y1="1" x2="10" y2="8" stroke="#6b6760" strokeWidth="1.3" strokeLinecap="round" opacity="0.55" />
+          <line x1="13" y1="4" x2="16" y2="11" stroke="#3d3a35" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+          <line x1="4" y1="11" x2="7" y2="17" stroke="#6b6760" strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
+          <line x1="11" y1="12" x2="13" y2="17" stroke="#3d3a35" strokeWidth="1.4" strokeLinecap="round" opacity="0.55" />
+          <line x1="16" y1="13" x2="17" y2="17" stroke="#6b6760" strokeWidth="1.1" strokeLinecap="round" opacity="0.45" />
+          <line x1="1" y1="14" x2="3" y2="17" stroke="#3d3a35" strokeWidth="1.3" strokeLinecap="round" opacity="0.55" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#textura-carpete)" />
