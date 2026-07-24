@@ -17,10 +17,14 @@ const RODAPE_DIR = '#ddd5c1'
 // rodapé — sem sobrar nenhuma tira de piso por cima. É o "quadro sem
 // moldura": a parede encosta direto no acabamento da tela, não tem
 // borda/vão em lugar nenhum.
-const CLIP_PAREDE_ESQ = 'polygon(0% 0%, 50% 0%, 50% 23.3%, 0% 63.3%)'
-const CLIP_PAREDE_DIR = 'polygon(50% 0%, 100% 0%, 100% 63.3%, 50% 23.3%)'
-const CLIP_RODAPE_ESQ = 'polygon(0% 63.3%, 50% 23.3%, 50% 28.9%, 0% 68.9%)'
-const CLIP_RODAPE_DIR = 'polygon(50% 23.3%, 100% 63.3%, 100% 68.9%, 50% 28.9%)'
+//
+// A parede é baixa (bem "pro fundo") — a linha do piso fica bem mais
+// pra cima da tela, deixando a sala bem mais espaçosa/aberta do que a
+// primeira versão (que tomava quase 70% da tela).
+const CLIP_PAREDE_ESQ = 'polygon(0% 0%, 50% 0%, 50% 12%, 0% 52%)'
+const CLIP_PAREDE_DIR = 'polygon(50% 0%, 100% 0%, 100% 52%, 50% 12%)'
+const CLIP_RODAPE_ESQ = 'polygon(0% 46.4%, 50% 6.4%, 50% 12%, 0% 52%)'
+const CLIP_RODAPE_DIR = 'polygon(50% 6.4%, 100% 46.4%, 100% 52%, 50% 12%)'
 
 export function Parede() {
   return (
