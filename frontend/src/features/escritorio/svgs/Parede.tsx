@@ -5,14 +5,15 @@
 // um paralelogramo recortado via clip-path (CSS) de um div do tamanho
 // da sala inteira; não tem forma própria, só a "janela" de recorte.
 //
-// Paleta inspirada no lobby clássico do Habbo: parede creme/amanteigada
-// com uma faixa fina bordô perto do chão (rodapé), em vez do azul frio
-// da versão anterior. Lado direito sempre um tom mais escuro — sugere
-// luz vindo da esquerda.
-const TOPO_ESQ = '#e6d6a3'
-const TOPO_DIR = '#dbc890'
-const RODAPE_ESQ = '#6b2020'
-const RODAPE_DIR = '#5c1a1a'
+// Cor de cima: um azul-acinzentado que conversa com o cinza do piso.
+// Rodapé: off-white creme. O lado direito é sempre um tom levemente
+// mais escuro que o esquerdo — sugere a luz vindo da esquerda. (A
+// referência do Habbo entrou só pra pegar a PROPORÇÃO/profundidade da
+// sala — a paleta de cor continua sendo a nossa, aprovada antes.)
+const TOPO_ESQ = '#6b7d82'
+const TOPO_DIR = '#5f7075'
+const RODAPE_ESQ = '#ece4d3'
+const RODAPE_DIR = '#ddd5c1'
 
 // A parte de cima da parede vai do topo ABSOLUTO da tela (0%) até o
 // rodapé — sem sobrar nenhuma tira de piso por cima. É o "quadro sem

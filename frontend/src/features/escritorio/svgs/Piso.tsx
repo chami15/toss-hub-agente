@@ -3,13 +3,17 @@
 // SVG (um quadrado normal, com um checker 2x2 dentro) girado 45° e
 // achatado no eixo Y pela metade — o mesmo truque de scale+rotate do
 // protótipo, sem precisar desenhar cada losango como elemento separado.
-// Cores: piso bege areia quente (lobby clássico do Habbo), baixo
-// contraste entre os tons — evita o efeito de vibração/ilusão de ótica
-// que um xadrez de alto contraste causa nesse losango pequeno.
-const TAMANHO = 112
-const CLARO = '#c7b48c'
-const ESCURO = '#bfab80'
-const GRUDE = '#9c8760'
+// Cores: carpete tile cinza frio, baixo contraste — evita o efeito de
+// vibração/ilusão de ótica que um xadrez de alto contraste causa nesse
+// losango pequeno (aprovado antes; a referência do Habbo era só pra
+// pegar a PROPORÇÃO/profundidade, não a cor).
+//
+// TAMANHO menor que antes (era 112) — losangos menores dão a impressão
+// de estar mais longe/o chão ser bem maior, sensação de profundidade.
+const TAMANHO = 72
+const CLARO = '#a8a9a6'
+const ESCURO = '#989995'
+const GRUDE = '#8f908c'
 
 export function Piso() {
   return (
