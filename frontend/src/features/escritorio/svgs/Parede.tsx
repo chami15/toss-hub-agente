@@ -13,8 +13,12 @@ const TOPO_DIR = '#5f7075'
 const RODAPE_ESQ = '#ece4d3'
 const RODAPE_DIR = '#ddd5c1'
 
-const CLIP_PAREDE_ESQ = 'polygon(0% 44.4%, 50% 4.4%, 50% 28.9%, 0% 68.9%)'
-const CLIP_PAREDE_DIR = 'polygon(50% 4.4%, 100% 44.4%, 100% 68.9%, 50% 28.9%)'
+// A parte de cima da parede vai do topo ABSOLUTO da tela (0%) até o
+// rodapé — sem sobrar nenhuma tira de piso por cima. É o "quadro sem
+// moldura": a parede encosta direto no acabamento da tela, não tem
+// borda/vão em lugar nenhum.
+const CLIP_PAREDE_ESQ = 'polygon(0% 0%, 50% 0%, 50% 23.3%, 0% 63.3%)'
+const CLIP_PAREDE_DIR = 'polygon(50% 0%, 100% 0%, 100% 63.3%, 50% 23.3%)'
 const CLIP_RODAPE_ESQ = 'polygon(0% 63.3%, 50% 23.3%, 50% 28.9%, 0% 68.9%)'
 const CLIP_RODAPE_DIR = 'polygon(50% 23.3%, 100% 63.3%, 100% 68.9%, 50% 28.9%)'
 
