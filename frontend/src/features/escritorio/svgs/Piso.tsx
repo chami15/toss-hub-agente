@@ -1,42 +1,62 @@
-// Piso do escritório, estilo Habbo: quadriculado em losango, proporção
-// 2:1 (o ângulo isométrico clássico), tela inteira. É um único <pattern>
-// SVG (um quadrado normal, com um checker 2x2 dentro) girado 45° e
-// achatado no eixo Y pela metade — o mesmo truque de scale+rotate do
-// protótipo, sem precisar desenhar cada losango como elemento separado.
-// Cores: carpete tile cinza frio, baixo contraste — evita o efeito de
-// vibração/ilusão de ótica que um xadrez de alto contraste causa nesse
-// losango pequeno (aprovado antes; a referência do Habbo era só pra
-// pegar a PROPORÇÃO/profundidade, não a cor).
-//
-// TAMANHO menor que antes (era 112) — losangos menores dão a impressão
-// de estar mais longe/o chão ser bem maior, sensação de profundidade.
-const TAMANHO = 72
-const CLARO = '#a8a9a6'
-const ESCURO = '#989995'
-const GRUDE = '#8f908c'
+import { paraTela, TILE_W, TILE_H } from '../iso'
+import { MAPA_PISO, type ZonaPiso } from '../mapa'
+
+// Piso do escritório: cada tile é um losango desenhado a partir da
+// planta em mapa.ts (não mais um <pattern> infinito) — permite zonas
+// com cores diferentes (saguão bege/cinza, lounge terracota) e um
+// contorno de verdade (a planta em L), coisa que um pattern não faz.
+const CORES: Record<Exclude<ZonaPiso, null>, { claro: string; escuro: string; grude: string }> = {
+  saguao: { claro: '#a8a9a6', escuro: '#989995', grude: '#8f908c' },
+  lounge: { claro: '#c97a4a', escuro: '#bd6f40', grude: '#8a4d2a' },
+}
+
+// A "fundação": mesma silhueta do piso, repetida um pouco mais abaixo
+// e atrás de cada tile — como as tiles cobrem a maior parte umas das
+// outras, só a borda externa da planta mostra essa cor por baixo,
+// criando o degrau bordô que separa a construção do vazio.
+const COR_FUNDACAO = '#4a2020'
+const ALTURA_FUNDACAO = 16
+
+function pontosLosango(cx: number, cy: number): string {
+  const hw = TILE_W / 2
+  const hh = TILE_H / 2
+  return `${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy + hh} ${cx - hw},${cy}`
+}
 
 export function Piso() {
+  const tiles: { coluna: number; linha: number; zona: Exclude<ZonaPiso, null> }[] = []
+  MAPA_PISO.forEach((linhaZonas, linha) => {
+    linhaZonas.forEach((zona, coluna) => {
+      if (zona) tiles.push({ coluna, linha, zona })
+    })
+  })
+
   return (
-    <svg
-      width="100%"
-      height="100%"
-      style={{ position: 'absolute', inset: 0, display: 'block' }}
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <pattern
-          id="piso-habbo"
-          width={TAMANHO}
-          height={TAMANHO}
-          patternUnits="userSpaceOnUse"
-          patternTransform="scale(1,0.5) rotate(45)"
-        >
-          <rect width={TAMANHO} height={TAMANHO} fill={CLARO} stroke={GRUDE} strokeWidth="3" />
-          <rect x="0" y="0" width={TAMANHO / 2} height={TAMANHO / 2} fill={ESCURO} stroke={GRUDE} strokeWidth="3" />
-          <rect x={TAMANHO / 2} y={TAMANHO / 2} width={TAMANHO / 2} height={TAMANHO / 2} fill={ESCURO} stroke={GRUDE} strokeWidth="3" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#piso-habbo)" />
-    </svg>
+    <>
+      {tiles.map(({ coluna, linha }) => {
+        const { x, y } = paraTela(coluna, linha)
+        return (
+          <polygon
+            key={`fundacao-${coluna}-${linha}`}
+            points={pontosLosango(x, y + ALTURA_FUNDACAO)}
+            fill={COR_FUNDACAO}
+          />
+        )
+      })}
+      {tiles.map(({ coluna, linha, zona }) => {
+        const { x, y } = paraTela(coluna, linha)
+        const cor = CORES[zona]
+        const par = (coluna + linha) % 2 === 0
+        return (
+          <polygon
+            key={`tile-${coluna}-${linha}`}
+            points={pontosLosango(x, y)}
+            fill={par ? cor.claro : cor.escuro}
+            stroke={cor.grude}
+            strokeWidth={2}
+          />
+        )
+      })}
+    </>
   )
 }

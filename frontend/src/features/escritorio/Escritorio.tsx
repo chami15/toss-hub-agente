@@ -1,15 +1,12 @@
 import { Piso } from './svgs/Piso'
 import { Parede } from './svgs/Parede'
-import { Divisoria } from './svgs/Divisoria'
 
-// Fundação do escritório no estilo Habbo (isométrico 2:1). A sala volta
-// a ser um "cartão" centralizado com fundo preto ao redor (como a
-// referência clássica) — decisão revertida a pedido do chefe, que
-// achou que o preto reforça a sensação de profundidade da paisagem.
-//
-// Profundidade em camadas: além da parede de fundo, uma divisória solta
-// no meio do piso sugere um segundo ambiente mais atrás, sem precisar
-// desenhar uma planta em L completa (isso fica pra uma próxima rodada).
+// Fundação do escritório, estilo Habbo: planta em L de verdade (ver
+// mapa.ts), coordenadas calculadas por matemática isométrica (iso.ts),
+// não mais porcentagens chutadas. Fundo preto absoluto — "vitrine
+// flutuando no vazio" — e sem teto (visão de cima aberta).
+const VIEWBOX = '-350 -100 740 470'
+
 export function Escritorio() {
   return (
     <div
@@ -19,23 +16,15 @@ export function Escritorio() {
         height: '100dvh',
         overflow: 'hidden',
         background: '#000',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 'min(92vw, 1300px)',
-          aspectRatio: '1.44',
-          overflow: 'hidden',
-        }}
-      >
-        <Piso />
+      <svg viewBox={VIEWBOX} style={{ width: 'min(94vw, 1400px)', height: 'auto', display: 'block' }}>
         <Parede />
-        <Divisoria />
-      </div>
+        <Piso />
+      </svg>
     </div>
   )
 }
