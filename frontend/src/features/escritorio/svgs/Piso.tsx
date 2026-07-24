@@ -3,12 +3,13 @@
 // SVG (um quadrado normal, com um checker 2x2 dentro) girado 45° e
 // achatado no eixo Y pela metade — o mesmo truque de scale+rotate do
 // protótipo, sem precisar desenhar cada losango como elemento separado.
-// Cores: carpete cinza escuro (no lugar do "verde" clássico do Habbo) e
-// cinza claro (no lugar do "branco"), com linhas de grude mais escuras.
+// Cores: carpete tile cinza frio, baixo contraste — evita o efeito de
+// vibração/ilusão de ótica que um xadrez de alto contraste causa nesse
+// losango pequeno.
 const TAMANHO = 112
-const CLARO = '#7a766e'
-const ESCURO = '#4f4b45'
-const GRUDE = '#332f2a'
+const CLARO = '#a8a9a6'
+const ESCURO = '#989995'
+const GRUDE = '#8f908c'
 
 export function Piso() {
   return (
