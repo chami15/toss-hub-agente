@@ -1,16 +1,15 @@
-import { Carpete } from './svgs/Carpete'
-import { MesaChefe } from './svgs/MesaChefe'
+import { Piso } from './svgs/Piso'
+import { Parede } from './svgs/Parede'
 
-// Reconstrução da planta visual, camada por camada. Camada 2: chão +
-// mesa do chefe, no meio do canto inferior, olhando pra dentro da sala
-// (o resto do escritório vai se estender pra cima, na frente dela).
+// Fundação do escritório no novo estilo (Habbo, isométrico 2:1) — piso
+// quadriculado em losango + as duas paredes de fundo, tela inteira, sem
+// fundo preto. Direção oficial do projeto a partir daqui; substitui a
+// versão anterior em top-down plano.
 export function Escritorio() {
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
-      <Carpete />
-      <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)' }}>
-        <MesaChefe />
-      </div>
+      <Piso />
+      <Parede />
     </div>
   )
 }
