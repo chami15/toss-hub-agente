@@ -6,12 +6,15 @@
 // TILE, nunca em pixel. Assim mudar a escala do mundo inteiro é mexer
 // em duas constantes aqui.
 
-export const TILE_W = 64
-export const TILE_H = 32
+// 208x104: tamanho nativo dos sprites do Kenney Furniture Kit
+// (`floorFull_NE.png`), confirmado testando o encaixe lado a lado.
+// Usar o tamanho nativo em vez de redimensionar mantém os PNGs nítidos.
+export const TILE_W = 208
+export const TILE_H = 104
 
 // Altura (em pixels de tela) que 1 unidade de "andar acima do chão"
 // desloca pra cima. Usado por parede e por móvel empilhado.
-export const TILE_ALTURA = 32
+export const TILE_ALTURA = 104
 
 export interface Ponto {
   x: number
