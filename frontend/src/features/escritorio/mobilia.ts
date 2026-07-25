@@ -46,44 +46,42 @@ export interface Movel {
 // decoração — pra fechar posição e orientação antes de vestir o resto.
 export const TAPETES: Movel[] = []
 
-const CENTRO = 3 // COLUNAS/LINHAS = 7, centro do grid = índice 3
+// --- Coordenada de tabuleiro -------------------------------------
+// A planta é um 7x7, então tratamos como um tabuleiro de xadrez:
+// letra = coluna (A..G), número = linha (1..7). A mesa do chefe, por
+// exemplo, fica em B2. É essa a linguagem que a gente usa pra falar
+// de posição — bem menos ambíguo que "um pouco pra esquerda".
+export function casa(ref: string): { coluna: number; linha: number } {
+  const letra = ref[0].toUpperCase()
+  const numero = Number(ref.slice(1))
+  return {
+    coluna: letra.charCodeAt(0) - 'A'.charCodeAt(0),
+    linha: numero - 1,
+  }
+}
 
-// Desloca o pod inteiro um pouco pra ESQUERDA na tela. Deslocamento
-// puramente horizontal = mexer coluna e linha em direções opostas —
-// (-k,+k) — a mesma matemática de paraTela isolando o eixo de tela.
-const DESVIO_ESQUERDA = 0.5
-const CENTRO_C = CENTRO - DESVIO_ESQUERDA
-const CENTRO_L = CENTRO + DESVIO_ESQUERDA
-
-// As 4 mesas de agente em "caixa": duas duplas viradas uma pra outra.
-//
-// Deslocar só a COLUNA anda na diagonal da tela (é o eixo do losango),
-// não faz duas mesas ficarem "lado a lado" de verdade. Pra um
-// deslocamento puramente HORIZONTAL na tela, precisa mexer coluna e
-// linha em direções opostas ao mesmo tempo — (+e,-e). Pra um
-// deslocamento puramente VERTICAL (o corredor entre as duplas), mexe
-// os dois na MESMA direção — (+d,+d). Isso também garante que a mesa
-// de cima fique EXATAMENTE na frente da de baixo (mesmo coluna-linha,
-// ou seja, mesma posição X de tela).
-const D_CORREDOR = 0.4 // metade do afastamento entre as duas duplas
-const E_DUPLA = 0.4 // metade do afastamento entre as 2 mesas de cada dupla
-
-const MESA_ESQ_CIMA = { coluna: CENTRO_C - D_CORREDOR - E_DUPLA, linha: CENTRO_L - D_CORREDOR + E_DUPLA }
-const MESA_DIR_CIMA = { coluna: CENTRO_C - D_CORREDOR + E_DUPLA, linha: CENTRO_L - D_CORREDOR - E_DUPLA }
-const MESA_ESQ_BAIXO = { coluna: CENTRO_C + D_CORREDOR - E_DUPLA, linha: CENTRO_L + D_CORREDOR + E_DUPLA }
-const MESA_DIR_BAIXO = { coluna: CENTRO_C + D_CORREDOR + E_DUPLA, linha: CENTRO_L + D_CORREDOR - E_DUPLA }
+// Um móvel que fica na DIVISA entre duas casas (ocupa as duas pela
+// metade) — o centro dele é o ponto médio entre elas.
+export function entre(refA: string, refB: string): { coluna: number; linha: number } {
+  const a = casa(refA)
+  const b = casa(refB)
+  return {
+    coluna: (a.coluna + b.coluna) / 2,
+    linha: (a.linha + b.linha) / 2,
+  }
+}
 
 export const MOVEIS: Movel[] = [
-  // mesa do chefe — mesma posição de sempre, virada NE (aprovada)
-  { peca: 'deskCorner', direcao: 'NE', coluna: 1, linha: 1 },
+  // mesa do chefe — B2, virada NE
+  { peca: 'deskCorner', direcao: 'NE', ...casa('B2') },
 
-  // dupla de cima
-  { peca: 'desk', direcao: 'NW', ...MESA_ESQ_CIMA },
-  { peca: 'desk', direcao: 'NW', ...MESA_DIR_CIMA },
+  // dupla de cima (coluna D), cada mesa na divisa de duas casas
+  { peca: 'desk', direcao: 'NW', ...entre('D3', 'D4') },
+  { peca: 'desk', direcao: 'NW', ...entre('D4', 'D5') },
 
-  // dupla de baixo — de frente pra de cima
-  { peca: 'desk', direcao: 'SW', ...MESA_ESQ_BAIXO },
-  { peca: 'desk', direcao: 'SW', ...MESA_DIR_BAIXO },
+  // dupla de baixo (coluna E), de frente pra de cima
+  { peca: 'desk', direcao: 'SW', ...entre('E3', 'E4') },
+  { peca: 'desk', direcao: 'SW', ...entre('E4', 'E5') },
 ]
 
 // Todas as peças usadas — pra pré-carregar as texturas antes de montar.

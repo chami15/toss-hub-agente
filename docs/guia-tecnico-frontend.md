@@ -1,9 +1,9 @@
 # Guia técnico do frontend (documento vivo)
 
 Equivalente ao `guia-criacao-de-agentes.md`, só que pro frontend:
-registra as decisões técnicas de stack, arquitetura e as regras que
-valem pra qualquer módulo novo — atualizado a cada decisão nova desse
-tipo, não só quando a fundação foi criada.
+registra as decisões técnicas de stack, arquitetura, o histórico de
+tentativas (inclusive as que deram errado) e as regras que valem pra
+qualquer coisa nova — atualizado a cada decisão desse tipo.
 
 Processo de trabalho: o chefe cuida do visual/UX (layout, cores,
 estilo, o que a tela deve transmitir); a IA cuida da parte técnica
@@ -13,99 +13,367 @@ módulo de agentes.
 
 ---
 
+# PARTE 1 — O caminho até aqui (e os erros pelo caminho)
+
+Esta seção existe porque o frontend foi reconstruído **cinco vezes**
+antes de chegar num resultado aprovado. Documentar o porquê de cada
+fracasso vale mais que documentar só a solução final — evita repetir.
+
+## A visão do produto (o que deu norte)
+
+O chefe descreveu assim, e é o critério contra o qual tudo é medido:
+
+> "Imagino um espaço onde eu possa observar meus agentes, se
+> comunicando, 'trabalhando', uma sala real, como se os agentes fossem
+> pessoas reais. (...) como se eu tivesse olhando uma **maquete de
+> fora**. (...) não quero um 'site' ou landing page para meus agentes,
+> quero algo **vivo**, com cenário, ambientação, profundidade, capaz de
+> trazer imersão."
+
+Palavras-chave que viraram requisito técnico: **maquete vista de fora**
+(daí a laje com espessura), **vivo** (daí a prioridade em personagens,
+não em mobília), **profundidade**, **vários ambientes no futuro**.
+
+## Tentativas que falharam, e o diagnóstico de cada uma
+
+| # | Tentativa | Técnica | Por que foi rejeitada |
+|---|---|---|---|
+| 1 | Escritório top-down plano | SVG desenhado à mão (mesa/cadeira/janela como `<rect>`/`<ellipse>`) | Visual "cru e chapado". Formas geométricas escritas à mão não têm sombreamento, textura nem proporção convincentes. |
+| 2 | Arte pronta do Recraft (`boxMesas.svg`) | SVG gerado por IA, usado como imagem estática | A **arte** era ótima, mas o SVG tinha milhares de `<path>` anônimos — impossível manipular peça por peça (recolorir uma cadeira, animar um monitor). Só servia como imagem "assada". |
+| 3 | Habbo isométrico, v1 | `<pattern>` SVG (losango infinito) + `clip-path` CSS | Efeito de **vibração/moiré** (ilusão de ótica) por contraste alto num losango pequeno. E as posições eram porcentagens chutadas, sem matemática por trás. |
+| 4 | Habbo isométrico, v2 (planta em L) | Losangos individuais + paredes derivadas da planta | Melhor estruturado, mas ainda era geometria desenhada à mão — mesmo problema de sempre: sem textura, sem acabamento. |
+| 5 | Canvas2D puro ("clean/flat moderno") | `CanvasRenderingContext2D`, arquitetura IsoMath/Room/Entity/Renderer | Trocar SVG por Canvas **não mudou nada visualmente** — porque o problema nunca foi o motor de renderização. |
+
+## As duas causas-raiz (o aprendizado central)
+
+Depois da 5ª rejeição, o diagnóstico honesto foi:
+
+**1. Geometria escrita à mão nunca vai parecer arte.**
+Polígonos, retângulos e gradientes em código não alcançam o
+acabamento de um asset feito por artista. A prova estava no próprio
+projeto: o `boxMesas.svg` do Recraft ficou ótimo, a `Cadeira.tsx`
+escrita à mão ficou ruim — **mesmo projeto, mesma pessoa avaliando**.
+Não é questão de ajustar cor ou proporção; é limite do método.
+
+**2. Toda tentativa era, por definição, uma sala morta.**
+Em cada rodada o escopo foi "só a casca, sem avatar, sem agente, sem
+movimento". Pedia-se um escritório **vivo** e entregava-se cinco vezes
+uma sala vazia. Nenhuma quantidade de sombra ou textura resolve isso.
+
+> **Regra que nasceu daqui:** quando o mesmo tipo de entrega é
+> rejeitado 2-3 vezes seguidas, **parar de iterar e investigar a
+> causa-raiz**. Continuar ajustando cor/proporção era tratar sintoma.
+
+## Beco sem saída que vale registrar
+
+Investigou-se o repositório **Quackster/Havana** (emulador open-source
+de Habbo) buscando como o cliente desenha piso/parede. **Não serve:**
+Havana é só o *servidor* (Java); o cliente original era proprietário
+(Shockwave/Flash da Sulake) e existe no repo apenas como binário
+compilado (`Habbo.swf`, `.cct`). Essa informação nunca foi pública.
+
+Único aproveitamento: o servidor representa a sala como um
+**heightmap** — string tipo `"0000|0000|xxxx"`, um caractere por tile.
+Isso validou a ideia de representar a planta como matriz de caracteres.
+
+## A solução que funcionou
+
+**Assets de arte de verdade + cenário desenhado, combinados.**
+
+- **Móveis:** sprites do **Kenney Furniture Kit** (CC0, domínio
+  público) — 140 peças × 4 rotações = 560 PNGs, em
+  `frontend/public/Isometric/`. Arte de artista, com sombreamento e
+  textura reais.
+- **Piso, laje e paredes:** **desenhados** com `Graphics` do Pixi —
+  porque isso devolve **controle total de cor** (trocar a paleta da
+  sala inteira é uma linha), elimina emendas entre tiles, e permite a
+  laje grossa que dá o efeito de maquete.
+
+O que faz os dois conversarem é a **geometria compartilhada** (ver
+Parte 3). Se o piso fosse desenhado num ângulo diferente do dos
+sprites, móvel e chão pareceriam filmados por câmeras diferentes — e o
+olho percebe isso na hora.
+
+---
+
+# PARTE 2 — Stack e arquitetura
+
 ## Stack escolhida (e por quê)
 
 | Peça | Escolha | Por quê |
 |---|---|---|
-| Linguagem | **TypeScript** | Contratos de dado explícitos (equivalente aos schemas Pydantic do backend) — erro de campo errado aparece no editor, não em produção. |
-| Build/dev server | **Vite** | Hot reload rápido, é o "uvicorn do front". O CORS do backend já está configurado pra porta padrão dele (5173). |
-| UI | **React** | Componentes = funções que descrevem a tela dado um estado. Composição de componentes = composição de funções, mesma lógica que o backend já usa. |
-| Estilo | **Tailwind CSS v4** (plugin do Vite) | Classes utilitárias direto no componente, iteração visual rápida. |
-| Estado do servidor | **TanStack Query** | Cuida de cache/loading/erro/refetch dos dados vindos da API sozinho — evita reinventar isso na mão. |
-| Chamadas HTTP | **axios** | Usado só dentro do `api client`, nunca direto nos componentes. |
-| Posicionamento do escritório 2D | **CSS Grid** (DOM+CSS+SVG, sem engine de jogo) | O escritório é uma matriz (linhas × colunas) com zonas fixas — Grid resolve isso nativamente. Canvas/Phaser foi descartado (ver `avaliacao-mvp.md`): sorvedouro de tempo, sem ganho real pra 5-20 mesas fixas. |
-| Testes | **Vitest** (unitário/componente) + **Playwright** (E2E, já disponível no ambiente) | Testa comportamento, não pixel — front muda de visual demais pra testar aparência. |
+| Linguagem | **TypeScript** | Contratos de dado explícitos (equivalente aos schemas Pydantic do backend). |
+| Build/dev server | **Vite** | Hot reload rápido, é o "uvicorn do front". CORS do backend já configurado pra porta 5173. |
+| UI | **React** | Cuida só do ciclo de vida do canvas e das telas de painel. |
+| Renderização do mundo | **PixiJS v8** | Renderizador 2D acelerado por GPU. **Não é engine de jogo** (não tem física/cena/input como Phaser) — resolve exatamente o que dói: milhares de sprites, ordenação por profundidade, animação, câmera. |
+| Estilo (painéis) | **Tailwind CSS v4** | Iteração visual rápida fora do canvas. |
+| Estado do servidor | **TanStack Query** | Cache/loading/erro/refetch dos dados da API. |
+| Chamadas HTTP | **axios** | Só dentro do `api client`, nunca direto nos componentes. |
+| Testes | **Vitest** + **Playwright** | Playwright também é usado pra *verificação visual* durante o desenvolvimento (screenshot + checagem de erro no console). |
 
-## Estrutura de pastas (camadas, espelhando o backend)
+### Por que PixiJS, se antes o veredito era "sem engine de jogo"
+
+O conselho mudou porque **o escopo mudou**. Enquanto o alvo era "painel
+de status de 5 mesas fixas", DOM+CSS bastava. Quando o chefe descreveu
+*vários ambientes, transitar entre eles, agentes se movendo e
+interagindo, um mundo que cresce*, o problema virou genuinamente de
+jogo. Pixi é o meio-termo certo: renderizador puro, sem o peso de uma
+engine completa.
+
+## Estrutura de pastas
 
 ```
-frontend/src/
-  api/          → porta única pro backend (equivalente a utils/query_executor.py)
-  types/        → contratos TS espelhando os schemas do backend (equivalente ao Pydantic)
-  hooks/        → lógica reutilizável, nunca o componente falando direto com a API (equivalente a resolvers/)
-  components/   → peças de UI GENÉRICAS, usadas em MAIS DE UM módulo (botão, modal, spinner)
-  features/     → cada domínio agrupado (escritorio/, financeiro/, agenda/, saude/, norte/, interacao/)
-    escritorio/
-      components/  → peças específicas do escritório (Mesa, BoxDeMesas, Janela...)
-      assets/      → SVGs/imagens do escritório
-      layout.ts    → mapeamento mesa -> posição na grade (dado só visual, não vem do banco)
-      Escritorio.tsx
+frontend/
+  public/
+    Isometric/              → os 560 PNGs do Kenney (asset estático, servido por caminho direto)
+  src/
+    api/                    → porta única pro backend (= utils/query_executor.py)
+    types/                  → contratos TS espelhando os schemas do backend (= Pydantic)
+    hooks/                  → lógica reutilizável (= resolvers/)
+    components/             → UI genérica, usada em MAIS DE UM módulo
+    features/
+      escritorio/
+        iso.ts              → matemática isométrica (o único lugar que sabe converter tile → pixel)
+        sala.ts             → dimensões, paletas, constantes de parede/janela
+        mobilia.ts          → o que existe no ambiente e onde (só dado) + sistema de coordenada de tabuleiro
+        cena.ts             → o único lugar que desenha
+        Escritorio.tsx      → só o ciclo de vida do canvas Pixi
 ```
 
-Regra: componente nunca fala direto com o backend — sempre componente → hook → api client. Mesma disciplina do router → resolver → query_executor.
+**Regra:** componente nunca fala direto com o backend — sempre
+componente → hook → api client. Mesma disciplina do router → resolver
+→ query_executor.
 
-Regra: `agente.mesa` (campo que já existe no backend, em `GET /agentes`)
-é o DADO de qual mesa cada agente ocupa. A posição daquela mesa NA TELA
-é um mapeamento que só existe no frontend (`layout.ts`) — dado de
-negócio e apresentação visual nunca se misturam.
+**Regra:** dado de negócio e apresentação nunca se misturam.
+`agente.mesa` (que vem de `GET /agentes`) é o DADO de qual mesa o
+agente ocupa; onde essa mesa fica na tela é mapeamento só do frontend.
+
+**Regra:** `mobilia.ts` é só dado, `cena.ts` é só desenho. Mudar o
+ambiente inteiro = editar uma lista; nenhum componente muda.
 
 ---
 
-## Regras de performance (anti-lag, anti-bug — valem desde o primeiro componente)
+# PARTE 3 — A geometria isométrica (medida, não teórica)
 
-O escritório 2D parece uma cena de jogo, mas tecnicamente continua
-sendo uma página web comum: sem loop de física, sem redesenho
-constante. As regras abaixo garantem que continue assim conforme o
-número de agentes/mesas crescer:
+Esta é a parte mais importante do documento, e a fonte da maioria dos
+bugs até aqui.
+
+## O losango do Kenney NÃO é 2:1
+
+O "pixel art isométrico clássico" usa proporção 2:1 (largura = 2 ×
+altura). **O pack do Kenney não usa isso.** Escaneando os pixels
+opacos do `floorFull_NE.png` por script:
+
+```
+floorFull_NE.png = 208 × 153 px
+  → o losango do topo mede 208 × 146
+  → os ~7px restantes são a espessura da laje, desenhada abaixo
+  → proporção real ≈ 1,42:1  (meia-altura/meia-largura = 73/104 ≈ 0,70)
+```
+
+Constantes que saíram daí (em `iso.ts`):
+
+```ts
+export const TILE_W = 208
+export const TILE_H = 146
+export const TILE_ALTURA = 137   // altura da face da parede do pack
+```
+
+> **Lição:** nunca assumir a geometria de um asset por convenção.
+> **Medir.** Um script de 10 linhas escaneando pixels opacos economizou
+> horas de "por que isso não encaixa?".
+
+## Conversão tile → tela
+
+```ts
+export function paraTela(coluna: number, linha: number, altura = 0) {
+  return {
+    x: (coluna - linha) * (TILE_W / 2),
+    y: (coluna + linha) * (TILE_H / 2) - altura * TILE_ALTURA,
+  }
+}
+```
+
+- `+coluna` move na tela para **baixo-direita**
+- `+linha` move na tela para **baixo-esquerda**
+- `altura` sobe (empilhamento: monitor em cima da mesa, etc.)
+
+## A armadilha nº 1: eixo do grid ≠ eixo da tela
+
+**Este erro foi cometido e custou uma rodada inteira.** Ao tentar pôr
+duas mesas "lado a lado", deslocou-se apenas a coluna — e elas saíram
+na **diagonal**, porque `+coluna` anda na diagonal da tela.
+
+Para deslocamento **puramente horizontal** na tela, mexer coluna e
+linha em **direções opostas**:
+
+```ts
+{ coluna: c + e, linha: l - e }   // anda pra direita na tela
+```
+
+Para deslocamento **puramente vertical**, mexer os dois na **mesma
+direção**:
+
+```ts
+{ coluna: c + d, linha: l + d }   // anda pra baixo na tela
+```
+
+**Corolário importante:** um bloco 2×2 de casas *adjacentes* no
+tabuleiro aparece como um **losango** na tela, não como um retângulo.
+Para que quatro móveis formem um **retângulo na tela**, eles precisam
+estar em casas **diagonais** entre si no tabuleiro.
+
+## Coordenada de tabuleiro (a linguagem de comunicação)
+
+Como a planta é 7×7, o chefe propôs tratá-la como tabuleiro de xadrez:
+**letra = coluna (A..G), número = linha (1..7)**. A mesa do chefe fica
+em **B2**. Direção do móvel vai junto: `B2-NE`.
+
+```ts
+casa('B2')            // → { coluna: 1, linha: 1 }
+entre('D3', 'D4')     // → { coluna: 3, linha: 2.5 }  (móvel na divisa de 2 casas)
+```
+
+Isso eliminou a ambiguidade de "move um pouco pra esquerda" — que era
+fonte constante de retrabalho.
+
+## Rotações dos sprites
+
+Cada peça vem em 4 rotações: `_NE`, `_NW`, `_SE`, `_SW`.
+Ex.: `desk_NE.png`, `chairDesk_SW.png`.
+
+> **Lição prática:** a rotação certa **não** é dedutível pelo nome —
+> depende de como a peça se relaciona com a cena. Duas vezes a direção
+> da mesa do chefe foi corrigida errado por dedução. A solução que
+> funciona: **renderizar as 4 rotações no lugar real e comparar lado a
+> lado**, deixando o chefe escolher pelo número.
+
+## Âncoras dos sprites
+
+Cada PNG é cortado justo (sem padding transparente), então cada peça
+tem um ponto de apoio diferente. As âncoras em `mobilia.ts` saíram de
+um script que acha o pixel opaco mais baixo (o "pé" da peça) e sobe
+meia altura de losango — depois ajustadas visualmente.
+
+## Paredes
+
+- Uma peça de parede do pack cobre **exatamente uma aresta de tile**
+  (não um tile inteiro) — foi por isso que os primeiros testes davam
+  frestas.
+- Hoje as paredes são **desenhadas**, com três partes: face, faixa de
+  espessura no topo, e espessura na ponta lateral (a quina externa).
+  Sem essas duas espessuras, a parede parece uma folha de papel.
+- A espessura lateral é **normalizada** para o mesmo comprimento da
+  faixa de cima, garantindo proporção consistente.
+
+## Coordenadas dentro da parede
+
+Para posicionar janela/quadro/porta sem repetir trigonometria:
+
+```ts
+naParede(de, ate, t, h)   // t = 0..1 ao longo do comprimento
+                          // h = 0..1 na altura (0 = chão, 1 = topo)
+```
+
+---
+
+# PARTE 4 — Camadas e ordenação (z-order)
+
+**Bug clássico do isométrico, já cometido aqui:** um tile de piso
+desenhado *depois* passava por cima de um móvel que estava *atrás*
+dele (o tapete sumia). A causa era piso e móvel disputando o mesmo
+espaço de `zIndex`.
+
+**Solução: camadas separadas, na ordem de trás pra frente:**
+
+```
+1. paredes do fundo   (sempre atrás de tudo)
+2. laje               (a espessura sob o piso)
+3. piso
+4. tapetes            (no chão, acima do piso, abaixo de qualquer móvel)
+5. móveis             ← SÓ esta camada ordena por profundidade internamente
+```
+
+Dentro da camada de móveis:
+
+```ts
+sprite.zIndex = profundidade(coluna, linha) * 10 + (desempate ?? 0)
+// profundidade = coluna + linha (quanto maior, mais à frente)
+// desempate    = pra peças no mesmo tile (monitor em cima da mesa)
+```
+
+O `* 10` deixa espaço pro desempate sem colidir com o tile vizinho.
+
+---
+
+# PARTE 5 — Regras de performance (anti-lag, anti-bug)
+
+Valem desde o primeiro componente:
 
 1. **Nunca animar `top`/`left`/`width`/`height`.** Só `transform` e
-   `opacity` — são acelerados pela GPU; as outras propriedades forçam
-   o navegador a recalcular o layout da página inteira a cada frame.
-2. **Isolamento de re-render por componente.** Quando o estado de 1
-   agente muda, só a `Mesa` daquele agente redesenha — as outras não
-   percebem. Nunca um estado global que force a árvore inteira a
-   re-renderizar por causa de 1 mudança pontual.
-3. **Zero polling/loop escondido.** Toda atualização de tela nasce de
-   uma ação explícita do chefe (via TanStack Query) — nada rodando
-   sozinho em segundo plano, nada de `setInterval` disfarçado.
+   `opacity` — acelerados por GPU; as outras forçam recálculo de
+   layout da página inteira a cada frame.
+2. **Isolamento de re-render.** Quando o estado de 1 agente muda, só
+   aquele elemento redesenha. Nunca um estado global que force a
+   árvore inteira.
+3. **Zero polling/loop escondido.** Toda atualização nasce de ação
+   explícita (via TanStack Query) — nada de `setInterval` disfarçado.
 4. **Sempre testar no navegador de verdade antes de considerar
-   pronto** (Playwright + olhar console de erro) — nunca "compilou,
-   deve estar ok", mesma disciplina de teste real do backend.
-5. **Assets otimizados** — imagem/SVG com tamanho de arquivo razoável,
-   importados pelo pipeline do Vite (não redimensionados na marra pelo
-   navegador).
+   pronto** (Playwright + olhar o console) — nunca "compilou, deve
+   estar ok".
+5. **Assets otimizados** — o pack inteiro tem 2,7 MB; PNGs servidos
+   direto de `public/`, sem passar pelo bundler.
+6. **Usar o tamanho nativo do sprite.** Redimensionar em runtime borra
+   a arte. `TILE_W/TILE_H` foram escolhidos pra bater com o asset.
 
-## Estratégia de assets visuais (escritório 2D)
+---
 
-Decisão: **SVG (vetor) em vez de CSS puro** pra desenhar mesa, cadeira,
-monitor, janela — CSS puro (divs com borda/sombra) não chega perto do
-nível de detalhe desejado sem parecer "quadradinho".
+# PARTE 6 — Estratégia de assets (decidida)
 
-Ponto de atenção real: geradores de imagem por IA (Gemini, etc.)
-majoritariamente produzem **raster** (PNG), não SVG de verdade — ou
-seja, pixels, não vetor editável. Isso importa porque:
-- Não dá pra recolorir dinamicamente por código (a cor de identidade
-  de cada agente teria que vir por CIMA, via CSS — um anel/brilho
-  colorido atrás do elemento — nunca dentro da imagem em si).
-- Vetor de verdade escala sem perder nitidez; raster pode pixelar se
-  ampliado além do tamanho gerado.
+**Regra principal: a IA não desenha mais mobília.** Foi a causa-raiz de
+cinco reconstruções.
 
-Caminhos possíveis pra conseguir SVG de verdade (não só raster),
-do mais direto ao mais trabalhoso:
-1. **A IA (Claude) escreve o SVG diretamente em código** — geometria
-   simples (retângulos, formas), controle total de cor via prop,
-   iteração rápida com feedback visual do chefe. Menos "bonito" de
-   cara, mas zero gambiarra técnica.
-2. **Ferramenta de geração de imagem com saída vetorial de verdade**
-   (ex: Recraft.ai, que tem modo explícito de ilustração/ícone em
-   SVG) — mais fiel ao estilo desejado, ainda assim vetor real.
-3. **Bancos de ícones SVG prontos e licenciados** (ex: downloads SVG
-   do Flaticon/Freepik, respeitando a licença de atribuição ou paga).
-4. **Vetorizar depois** — gerar o raster no Gemini (bom controle de
-   estilo) e passar por um vetorizador (ex: vectorizer.ai) pra virar
-   SVG de verdade, com limpeza manual do código gerado.
+| O que | Como | Por quê |
+|---|---|---|
+| Móveis, objetos, decoração | **Sprites** do Kenney Furniture Kit (CC0) | Arte de artista; impossível de replicar em código. |
+| Piso, laje, paredes, janelas | **Desenhados** (`Graphics` do Pixi) | Controle total de cor (paleta trocável), sem emendas, e a laje grossa da maquete. Formas simples e planas — onde código *funciona* bem. |
+| Personagens | **pendente** — o Kenney Furniture Kit não tem | É o que falta pro "vivo". Vai precisar de pack próprio. |
 
-**Status:** em decisão — ver conversa em andamento pra escolha final.
+Paletas ficam em `sala.ts` (`neutra`, `madeira`, `corporativa`,
+`oliva`). Trocar o ambiente inteiro = mudar `PALETA`.
+
+Sobre geradores de imagem por IA: majoritariamente produzem **raster**,
+não vetor editável. Mesmo quando produzem SVG (Recraft), tende a vir
+como milhares de `<path>` anônimos — bom como imagem, ruim como peça
+manipulável. Bancos CC0 (Kenney, OpenGameArt) resolvem melhor.
+
+> **Nota de ambiente:** o sandbox bloqueia `kenney.nl`, `itch.io` e
+> `opengameart.org`, mas alcança GitHub e npm. Assets novos precisam
+> ser baixados pelo chefe e commitados, ou vir de mirror no GitHub.
+
+---
+
+# PARTE 7 — Pontos de atenção (checklist)
+
+Antes de dar qualquer coisa por pronta:
+
+- [ ] Rodou no navegador de verdade e o console está limpo?
+- [ ] `npm run build` passa (tsc + vite)?
+- [ ] Se mexeu em posição: conferiu que o eixo do grid ≠ eixo da tela?
+- [ ] Se mexeu em rotação de sprite: comparou as 4 opções em vez de deduzir?
+- [ ] Se adicionou peça nova: a âncora foi medida, não chutada?
+- [ ] Se mexeu em z-order: a peça está na camada certa?
+- [ ] Se adicionou dependência: avisou que o chefe precisa de `npm install` após o `git pull`?
+
+## Erros recorrentes a evitar
+
+1. **Iterar cegamente após rejeições repetidas.** Parar e investigar
+   causa-raiz.
+2. **Assumir geometria de asset por convenção.** Medir.
+3. **Deduzir rotação de sprite.** Comparar visualmente.
+4. **Confundir eixo de grid com eixo de tela.**
+5. **Misturar piso e móvel no mesmo espaço de z-index.**
+6. **Entregar "só a casca" quando o pedido é algo vivo.**
 
 ---
 
