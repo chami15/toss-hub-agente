@@ -38,63 +38,47 @@ export interface Movel {
   direcao: Direcao
   coluna: number
   linha: number
-  // empilhamento em "andares": 0 = no chão. Um monitor em cima da mesa
-  // usa uma fração (a altura do tampo).
   altura?: number
-  // empurra a peça na ordem de desenho sem mudar a posição — usado
-  // quando duas peças dividem o mesmo tile (monitor em cima da mesa).
   desempate?: number
 }
 
-// Tapetes ficam numa camada própria: no chão, acima do piso, abaixo de
-// qualquer móvel. Assim nunca disputam z-order com a mobília.
-export const TAPETES: Movel[] = [
-  { peca: 'rugSquare', direcao: 'NE', coluna: 3, linha: 3 },
-]
+// Passo 1 de reorganização: só as mesas, nada de cadeira/monitor/
+// decoração — pra fechar posição e orientação antes de vestir o resto.
+export const TAPETES: Movel[] = []
 
-// Um posto de trabalho = mesa + cadeira + monitor, sempre com o mesmo
-// arranjo relativo. Evita repetir (e errar) as 3 posições em cada mesa.
-function postoDeTrabalho(
-  coluna: number,
-  linha: number,
-  mesa = 'desk',
-  alturaMonitor = 0.16,
-): Movel[] {
-  return [
-    { peca: mesa, direcao: 'SE', coluna, linha },
-    { peca: 'computerScreen', direcao: 'SE', coluna, linha, altura: alturaMonitor, desempate: 2 },
-    { peca: 'chairDesk', direcao: 'NW', coluna, linha: linha + 0.62, desempate: 4 },
-  ]
-}
+const CENTRO = 3 // COLUNAS/LINHAS = 7, centro do grid = índice 3
 
-// A mobília da sala. Editar aqui = mudar o ambiente; nenhum componente
-// precisa mudar.
+// As 4 mesas de agente em "caixa": duas duplas viradas uma pra outra.
+//
+// Deslocar só a COLUNA anda na diagonal da tela (é o eixo do losango),
+// não faz duas mesas ficarem "lado a lado" de verdade. Pra um
+// deslocamento puramente HORIZONTAL na tela, precisa mexer coluna e
+// linha em direções opostas ao mesmo tempo — (+e,-e). Pra um
+// deslocamento puramente VERTICAL (o corredor entre as duplas), mexe
+// os dois na MESMA direção — (+d,+d). É a mesma matemática de
+// paraTela, só isolando os dois eixos de tela.
+const D_CORREDOR = 1.05 // metade do afastamento entre as duas duplas
+const E_DUPLA = 0.62 // metade do afastamento entre as 2 mesas de cada dupla
+
+// dupla de cima (linha menor): olha pra baixo, pro corredor (SE)
+// dupla de baixo (linha maior): olha pra cima, pro corredor (NW)
+const MESA_ESQ_CIMA = { coluna: CENTRO - D_CORREDOR - E_DUPLA, linha: CENTRO - D_CORREDOR + E_DUPLA }
+const MESA_DIR_CIMA = { coluna: CENTRO - D_CORREDOR + E_DUPLA, linha: CENTRO - D_CORREDOR - E_DUPLA }
+const MESA_ESQ_BAIXO = { coluna: CENTRO + D_CORREDOR - E_DUPLA, linha: CENTRO + D_CORREDOR + E_DUPLA }
+const MESA_DIR_BAIXO = { coluna: CENTRO + D_CORREDOR + E_DUPLA, linha: CENTRO + D_CORREDOR - E_DUPLA }
+
 export const MOVEIS: Movel[] = [
-  // mesa do chefe, no fundo, de canto (o tampo da mesa de canto fica
-  // mais baixo na imagem que o da mesa comum, daí o monitor mais baixo)
-  ...postoDeTrabalho(1, 1, 'deskCorner', -0.02),
+  // mesa do chefe — mesma posição de sempre, agora virada pra fora
+  // (era 'SE', o espelho é 'NW')
+  { peca: 'deskCorner', direcao: 'NW', coluna: 1, linha: 1 },
 
-  // as 4 mesas de agente, em dois pares
-  ...postoDeTrabalho(4, 1.5),
-  ...postoDeTrabalho(5.5, 3),
-  ...postoDeTrabalho(1.5, 4),
-  ...postoDeTrabalho(3, 5.5),
+  // dupla de cima, olhando pra baixo (pro corredor)
+  { peca: 'desk', direcao: 'SE', ...MESA_ESQ_CIMA },
+  { peca: 'desk', direcao: 'SE', ...MESA_DIR_CIMA },
 
-  // canto de descompressão, recuado da borda pra não ficar pendurado
-  { peca: 'loungeSofa', direcao: 'NW', coluna: 5.2, linha: 5.2 },
-  { peca: 'tableCoffee', direcao: 'SE', coluna: 6.1, linha: 5.5 },
-
-  // estantes encostadas nas paredes do fundo
-  { peca: 'bookcaseOpen', direcao: 'SE', coluna: 0, linha: 0 },
-  { peca: 'bookcaseOpen', direcao: 'SE', coluna: 2.5, linha: 0 },
-  { peca: 'bookcaseOpen', direcao: 'SW', coluna: 0, linha: 2.5 },
-
-  // decoração
-  { peca: 'pottedPlant', direcao: 'NE', coluna: 6, linha: 0.2 },
-  { peca: 'pottedPlant', direcao: 'NE', coluna: 0.2, linha: 6 },
-  { peca: 'pottedPlant', direcao: 'NE', coluna: 6.3, linha: 3.6 },
-  { peca: 'lampSquareFloor', direcao: 'NE', coluna: 0.3, linha: 3.2 },
-  { peca: 'trashcan', direcao: 'NE', coluna: 3.6, linha: 0.4 },
+  // dupla de baixo, olhando pra cima (pro corredor) — espelhada
+  { peca: 'desk', direcao: 'NW', ...MESA_ESQ_BAIXO },
+  { peca: 'desk', direcao: 'NW', ...MESA_DIR_BAIXO },
 ]
 
 // Todas as peças usadas — pra pré-carregar as texturas antes de montar.

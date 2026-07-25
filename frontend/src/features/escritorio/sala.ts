@@ -22,6 +22,7 @@ export interface Paleta {
   rodape: number
   janelaMoldura: number
   janelaVidro: number
+  janelaVidroBase: number
   janelaBrilho: number
 }
 
@@ -41,6 +42,7 @@ export const PALETAS: Record<string, Paleta> = {
     rodape: 0x8f887a,
     janelaMoldura: 0xf0ece4,
     janelaVidro: 0x9fc4d6,
+    janelaVidroBase: 0x6f9fb8,
     janelaBrilho: 0xd6eaf3,
   },
   // madeira clara + parede clara, ar de escritório moderno
@@ -58,6 +60,7 @@ export const PALETAS: Record<string, Paleta> = {
     rodape: 0xa89f92,
     janelaMoldura: 0xf4f0e9,
     janelaVidro: 0x9fc4d6,
+    janelaVidroBase: 0x6f9fb8,
     janelaBrilho: 0xd9ecf5,
   },
   // carpete cinza-azulado corporativo
@@ -75,6 +78,7 @@ export const PALETAS: Record<string, Paleta> = {
     rodape: 0x8b9299,
     janelaMoldura: 0xeef1f4,
     janelaVidro: 0x9cc3d8,
+    janelaVidroBase: 0x6c9db3,
     janelaBrilho: 0xd5eaf5,
   },
   // verde-oliva quente, ar mais acolhedor
@@ -92,6 +96,7 @@ export const PALETAS: Record<string, Paleta> = {
     rodape: 0x8d8a76,
     janelaMoldura: 0xf3efe3,
     janelaVidro: 0xa3c6d4,
+    janelaVidroBase: 0x729fb0,
     janelaBrilho: 0xdaecf2,
   },
 }

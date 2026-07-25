@@ -1,4 +1,4 @@
-import { Assets, Container, Graphics, Sprite, type Texture } from 'pixi.js'
+import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js'
 import { paraTela, profundidade, TILE_W, TILE_H } from './iso'
 import {
   COLUNAS,
@@ -126,6 +126,42 @@ function quadNaParede(
   g.fill(cor)
 }
 
+// Vidro com gradiente (céu) + um brilho diagonal, em vez de cor
+// chapada — é a "textura" possível sem sair de Graphics: gradiente de
+// verdade (FillGradient do Pixi) simulando profundidade/céu, mais uma
+// faixa translúcida na diagonal simulando reflexo de vidro.
+function desenharVidro(g: Graphics, de: Ponto2, ate: Ponto2, t0: number, t1: number, h0: number, h1: number) {
+  const a = naParede(de, ate, t0, h1)
+  const b = naParede(de, ate, t1, h1)
+  const c = naParede(de, ate, t1, h0)
+  const d = naParede(de, ate, t0, h0)
+
+  const ceu = new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: 0 },
+    end: { x: 0, y: 1 },
+    textureSpace: 'local',
+    colorStops: [
+      { offset: 0, color: PALETA.janelaBrilho },
+      { offset: 0.55, color: PALETA.janelaVidro },
+      { offset: 1, color: PALETA.janelaVidroBase },
+    ],
+  })
+
+  g.poly([a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y])
+  g.fill(ceu)
+
+  // reflexo: uma faixa clara e translúcida cruzando na diagonal
+  const rt0 = t0 + (t1 - t0) * 0.08
+  const rt1 = t0 + (t1 - t0) * 0.32
+  const p1 = naParede(de, ate, rt0, h1)
+  const p2 = naParede(de, ate, rt1, h1)
+  const p3 = naParede(de, ate, rt1 - (t1 - t0) * 0.16, h0)
+  const p4 = naParede(de, ate, rt0 - (t1 - t0) * 0.16, h0)
+  g.poly([p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y])
+  g.fill({ color: 0xffffff, alpha: 0.22 })
+}
+
 function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela) {
   const { inicio, fim, base, topo } = janela
   // moldura por fora, vidro por dentro
@@ -138,9 +174,8 @@ function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela) {
   const vh0 = base + margemH
   const vh1 = topo - margemH
 
-  quadNaParede(g, de, ate, vt0, vt1, vh0, vh1, PALETA.janelaVidro)
-  // brilho: a metade de cima do vidro mais clara, sugerindo luz entrando
-  quadNaParede(g, de, ate, vt0, vt1, (vh0 + vh1) / 2, vh1, PALETA.janelaBrilho)
+  desenharVidro(g, de, ate, vt0, vt1, vh0, vh1)
+
   // caixilho central, dividindo em duas folhas
   const meio = (vt0 + vt1) / 2
   const larguraCaixilho = (fim - inicio) * 0.035
@@ -149,7 +184,33 @@ function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela) {
   quadNaParede(g, de, ate, inicio - margemT, fim + margemT, base - 0.035, base, PALETA.paredeTopo)
 }
 
-function desenharParede(de: Ponto2, ate: Ponto2, cor: number, janelas: Janela[]): Graphics {
+// Espessura lateral, vista na ponta externa da parede (a quina da
+// sala). É o mesmo espírito da faixa de cima, só que na ponta: sem
+// isso a parede parece uma folha de papel, sem volume nenhum na quina.
+const ESPESSURA_LATERAL_FRAC = 0.05
+
+function desenharPontaLateral(g: Graphics, ponta: Ponto2, fora: Ponto2, cor: number) {
+  const p2 = { x: ponta.x + fora.x, y: ponta.y + fora.y }
+
+  g.poly([ponta.x, ponta.y, p2.x, p2.y, p2.x, p2.y - ALTURA_PAREDE, ponta.x, ponta.y - ALTURA_PAREDE])
+  g.fill(cor)
+
+  g.poly([
+    ponta.x, ponta.y - ALTURA_PAREDE,
+    p2.x, p2.y - ALTURA_PAREDE,
+    p2.x, p2.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
+    ponta.x, ponta.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
+  ])
+  g.fill(PALETA.paredeTopo)
+}
+
+function desenharParede(
+  de: Ponto2,
+  ate: Ponto2,
+  cor: number,
+  janelas: Janela[],
+  foraNaPonta: Ponto2,
+): Graphics {
   const g = new Graphics()
   const alturaRodape = 12
 
@@ -170,6 +231,10 @@ function desenharParede(de: Ponto2, ate: Ponto2, cor: number, janelas: Janela[])
     de.x, de.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
   ])
   g.fill(PALETA.paredeTopo)
+
+  // espessura lateral, só na ponta externa (a ponta interna encosta na
+  // outra parede e fica escondida)
+  desenharPontaLateral(g, ate, foraNaPonta, cor)
 
   return g
 }
@@ -194,9 +259,17 @@ export async function criarCena(): Promise<Container> {
     { inicio: 0.36, fim: 0.6, base: JANELA_BASE, topo: JANELA_TOPO },
   ]
 
+  // vetores "pra fora" da sala, perpendiculares a cada parede — pra
+  // fora é o oposto do eixo que a OUTRA parede percorre
+  const foraEsquerda = { x: -TILE_W / 2, y: -TILE_H / 2 }
+  const foraDireita = { x: TILE_W / 2, y: -TILE_H / 2 }
+  const escalaFora = ESPESSURA_LATERAL_FRAC
+  const foraEsquerdaEsc = { x: foraEsquerda.x * escalaFora, y: foraEsquerda.y * escalaFora }
+  const foraDireitaEsc = { x: foraDireita.x * escalaFora, y: foraDireita.y * escalaFora }
+
   cena.addChild(
-    desenharParede(norte, oeste, PALETA.paredeEsquerda, janelaExemplo),
-    desenharParede(norte, leste, PALETA.paredeDireita, []),
+    desenharParede(norte, oeste, PALETA.paredeEsquerda, janelaExemplo, foraEsquerdaEsc),
+    desenharParede(norte, leste, PALETA.paredeDireita, [], foraDireitaEsc),
     desenharLaje(),
     desenharPiso(),
   )
