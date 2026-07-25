@@ -48,6 +48,13 @@ export const TAPETES: Movel[] = []
 
 const CENTRO = 3 // COLUNAS/LINHAS = 7, centro do grid = índice 3
 
+// Desloca o pod inteiro um pouco pra ESQUERDA na tela. Deslocamento
+// puramente horizontal = mexer coluna e linha em direções opostas —
+// (-k,+k) — a mesma matemática de paraTela isolando o eixo de tela.
+const DESVIO_ESQUERDA = 0.5
+const CENTRO_C = CENTRO - DESVIO_ESQUERDA
+const CENTRO_L = CENTRO + DESVIO_ESQUERDA
+
 // As 4 mesas de agente em "caixa": duas duplas viradas uma pra outra.
 //
 // Deslocar só a COLUNA anda na diagonal da tela (é o eixo do losango),
@@ -55,30 +62,28 @@ const CENTRO = 3 // COLUNAS/LINHAS = 7, centro do grid = índice 3
 // deslocamento puramente HORIZONTAL na tela, precisa mexer coluna e
 // linha em direções opostas ao mesmo tempo — (+e,-e). Pra um
 // deslocamento puramente VERTICAL (o corredor entre as duplas), mexe
-// os dois na MESMA direção — (+d,+d). É a mesma matemática de
-// paraTela, só isolando os dois eixos de tela.
+// os dois na MESMA direção — (+d,+d). Isso também garante que a mesa
+// de cima fique EXATAMENTE na frente da de baixo (mesmo coluna-linha,
+// ou seja, mesma posição X de tela).
 const D_CORREDOR = 0.4 // metade do afastamento entre as duas duplas
 const E_DUPLA = 0.4 // metade do afastamento entre as 2 mesas de cada dupla
 
-// dupla de cima (linha menor): olha pra baixo, pro corredor (SE)
-// dupla de baixo (linha maior): olha pra cima, pro corredor (NW)
-const MESA_ESQ_CIMA = { coluna: CENTRO - D_CORREDOR - E_DUPLA, linha: CENTRO - D_CORREDOR + E_DUPLA }
-const MESA_DIR_CIMA = { coluna: CENTRO - D_CORREDOR + E_DUPLA, linha: CENTRO - D_CORREDOR - E_DUPLA }
-const MESA_ESQ_BAIXO = { coluna: CENTRO + D_CORREDOR - E_DUPLA, linha: CENTRO + D_CORREDOR + E_DUPLA }
-const MESA_DIR_BAIXO = { coluna: CENTRO + D_CORREDOR + E_DUPLA, linha: CENTRO + D_CORREDOR - E_DUPLA }
+const MESA_ESQ_CIMA = { coluna: CENTRO_C - D_CORREDOR - E_DUPLA, linha: CENTRO_L - D_CORREDOR + E_DUPLA }
+const MESA_DIR_CIMA = { coluna: CENTRO_C - D_CORREDOR + E_DUPLA, linha: CENTRO_L - D_CORREDOR - E_DUPLA }
+const MESA_ESQ_BAIXO = { coluna: CENTRO_C + D_CORREDOR - E_DUPLA, linha: CENTRO_L + D_CORREDOR + E_DUPLA }
+const MESA_DIR_BAIXO = { coluna: CENTRO_C + D_CORREDOR + E_DUPLA, linha: CENTRO_L + D_CORREDOR - E_DUPLA }
 
 export const MOVEIS: Movel[] = [
-  // mesa do chefe — mesma posição de sempre, agora virada pra fora
-  // (era 'SE', o espelho é 'NW')
-  { peca: 'deskCorner', direcao: 'NW', coluna: 1, linha: 1 },
+  // mesa do chefe — mesma posição de sempre, virada NE (aprovada)
+  { peca: 'deskCorner', direcao: 'NE', coluna: 1, linha: 1 },
 
-  // dupla de cima, olhando pra baixo (pro corredor)
-  { peca: 'desk', direcao: 'SE', ...MESA_ESQ_CIMA },
-  { peca: 'desk', direcao: 'SE', ...MESA_DIR_CIMA },
+  // dupla de cima
+  { peca: 'desk', direcao: 'NW', ...MESA_ESQ_CIMA },
+  { peca: 'desk', direcao: 'NW', ...MESA_DIR_CIMA },
 
-  // dupla de baixo, olhando pra cima (pro corredor) — espelhada
-  { peca: 'desk', direcao: 'NW', ...MESA_ESQ_BAIXO },
-  { peca: 'desk', direcao: 'NW', ...MESA_DIR_BAIXO },
+  // dupla de baixo — de frente pra de cima
+  { peca: 'desk', direcao: 'SW', ...MESA_ESQ_BAIXO },
+  { peca: 'desk', direcao: 'SW', ...MESA_DIR_BAIXO },
 ]
 
 // Todas as peças usadas — pra pré-carregar as texturas antes de montar.
