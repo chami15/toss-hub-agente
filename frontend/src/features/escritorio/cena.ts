@@ -187,7 +187,13 @@ function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela) {
 // Espessura lateral, vista na ponta externa da parede (a quina da
 // sala). É o mesmo espírito da faixa de cima, só que na ponta: sem
 // isso a parede parece uma folha de papel, sem volume nenhum na quina.
-const ESPESSURA_LATERAL_FRAC = 0.05
+// Mesma proporção da faixa de cima — o vetor "fora" é normalizado pro
+// comprimento de ESPESSURA_PAREDE, não uma fração arbitrária de tile.
+function normalizarParaEspessura(v: Ponto2): Ponto2 {
+  const comprimento = Math.hypot(v.x, v.y)
+  const escala = ESPESSURA_PAREDE / comprimento
+  return { x: v.x * escala, y: v.y * escala }
+}
 
 function desenharPontaLateral(g: Graphics, ponta: Ponto2, fora: Ponto2, cor: number) {
   const p2 = { x: ponta.x + fora.x, y: ponta.y + fora.y }
@@ -253,23 +259,22 @@ export async function criarCena(): Promise<Container> {
 
   const { norte, leste, oeste } = cantos()
 
-  // UMA janela só por enquanto — exemplar pra aprovação antes de
-  // espalhar pelas duas paredes.
-  const janelaExemplo: Janela[] = [
+  // aprovada — a mesma janela nas duas paredes, mesma posição relativa
+  const janelaEsquerda: Janela[] = [
+    { inicio: 0.36, fim: 0.6, base: JANELA_BASE, topo: JANELA_TOPO },
+  ]
+  const janelaDireita: Janela[] = [
     { inicio: 0.36, fim: 0.6, base: JANELA_BASE, topo: JANELA_TOPO },
   ]
 
   // vetores "pra fora" da sala, perpendiculares a cada parede — pra
   // fora é o oposto do eixo que a OUTRA parede percorre
-  const foraEsquerda = { x: -TILE_W / 2, y: -TILE_H / 2 }
-  const foraDireita = { x: TILE_W / 2, y: -TILE_H / 2 }
-  const escalaFora = ESPESSURA_LATERAL_FRAC
-  const foraEsquerdaEsc = { x: foraEsquerda.x * escalaFora, y: foraEsquerda.y * escalaFora }
-  const foraDireitaEsc = { x: foraDireita.x * escalaFora, y: foraDireita.y * escalaFora }
+  const foraEsquerda = normalizarParaEspessura({ x: -TILE_W / 2, y: -TILE_H / 2 })
+  const foraDireita = normalizarParaEspessura({ x: TILE_W / 2, y: -TILE_H / 2 })
 
   cena.addChild(
-    desenharParede(norte, oeste, PALETA.paredeEsquerda, janelaExemplo, foraEsquerdaEsc),
-    desenharParede(norte, leste, PALETA.paredeDireita, [], foraDireitaEsc),
+    desenharParede(norte, oeste, PALETA.paredeEsquerda, janelaEsquerda, foraEsquerda),
+    desenharParede(norte, leste, PALETA.paredeDireita, janelaDireita, foraDireita),
     desenharLaje(),
     desenharPiso(),
   )

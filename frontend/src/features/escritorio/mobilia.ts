@@ -57,8 +57,8 @@ const CENTRO = 3 // COLUNAS/LINHAS = 7, centro do grid = índice 3
 // deslocamento puramente VERTICAL (o corredor entre as duplas), mexe
 // os dois na MESMA direção — (+d,+d). É a mesma matemática de
 // paraTela, só isolando os dois eixos de tela.
-const D_CORREDOR = 1.05 // metade do afastamento entre as duas duplas
-const E_DUPLA = 0.62 // metade do afastamento entre as 2 mesas de cada dupla
+const D_CORREDOR = 0.4 // metade do afastamento entre as duas duplas
+const E_DUPLA = 0.4 // metade do afastamento entre as 2 mesas de cada dupla
 
 // dupla de cima (linha menor): olha pra baixo, pro corredor (SE)
 // dupla de baixo (linha maior): olha pra cima, pro corredor (NW)
