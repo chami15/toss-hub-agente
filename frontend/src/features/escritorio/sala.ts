@@ -20,6 +20,9 @@ export interface Paleta {
   paredeDireita: number
   paredeTopo: number
   rodape: number
+  janelaMoldura: number
+  janelaVidro: number
+  janelaBrilho: number
 }
 
 export const PALETAS: Record<string, Paleta> = {
@@ -36,6 +39,9 @@ export const PALETAS: Record<string, Paleta> = {
     paredeDireita: 0xb9b2a4,
     paredeTopo: 0xdad4c8,
     rodape: 0x8f887a,
+    janelaMoldura: 0xf0ece4,
+    janelaVidro: 0x9fc4d6,
+    janelaBrilho: 0xd6eaf3,
   },
   // madeira clara + parede clara, ar de escritório moderno
   madeira: {
@@ -50,6 +56,9 @@ export const PALETAS: Record<string, Paleta> = {
     paredeDireita: 0xdad4c9,
     paredeTopo: 0xf2eee7,
     rodape: 0xa89f92,
+    janelaMoldura: 0xf4f0e9,
+    janelaVidro: 0x9fc4d6,
+    janelaBrilho: 0xd9ecf5,
   },
   // carpete cinza-azulado corporativo
   corporativa: {
@@ -64,6 +73,9 @@ export const PALETAS: Record<string, Paleta> = {
     paredeDireita: 0xc7ccd2,
     paredeTopo: 0xe6e9ed,
     rodape: 0x8b9299,
+    janelaMoldura: 0xeef1f4,
+    janelaVidro: 0x9cc3d8,
+    janelaBrilho: 0xd5eaf5,
   },
   // verde-oliva quente, ar mais acolhedor
   oliva: {
@@ -78,6 +90,9 @@ export const PALETAS: Record<string, Paleta> = {
     paredeDireita: 0xd8d3c3,
     paredeTopo: 0xf1ede1,
     rodape: 0x8d8a76,
+    janelaMoldura: 0xf3efe3,
+    janelaVidro: 0xa3c6d4,
+    janelaBrilho: 0xdaecf2,
   },
 }
 
@@ -91,6 +106,24 @@ export const ESPESSURA_LAJE = 22
 // pack (`wall_NE.png` tem 137px de face), pra ficar coerente com a
 // escala dos móveis.
 export const ALTURA_PAREDE = 150
+
+// Espessura da parede (a faixa clara vista de cima, no topo dela) — o
+// mesmo truque da laje, só que na vertical: é o que tira o ar de
+// "papelão recortado" e dá volume de maquete.
+export const ESPESSURA_PAREDE = 24
+
+// Onde ficam as janelas em cada parede, como fração do comprimento
+// (0 = quina do fundo, 1 = ponta da parede) e altura como fração da
+// altura da parede.
+export interface Janela {
+  inicio: number
+  fim: number
+  base: number
+  topo: number
+}
+
+export const JANELA_BASE = 0.34
+export const JANELA_TOPO = 0.78
 
 // ---------------------------------------------------------------
 
