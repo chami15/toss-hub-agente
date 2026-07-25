@@ -75,13 +75,16 @@ export const MOVEIS: Movel[] = [
   // mesa do chefe — B2, virada NE
   { peca: 'deskCorner', direcao: 'NE', ...casa('B2') },
 
-  // dupla de cima (coluna D), cada mesa na divisa de duas casas
-  { peca: 'desk', direcao: 'NW', ...entre('D3', 'D4') },
-  { peca: 'desk', direcao: 'NW', ...entre('D4', 'D5') },
+  // dupla de cima — corre no eixo das LETRAS (D→E→F), na linha 4
+  { peca: 'desk', direcao: 'NW', ...entre('D4', 'E4') },
+  { peca: 'desk', direcao: 'NW', ...entre('E4', 'F4') },
 
-  // dupla de baixo (coluna E), de frente pra de cima
-  { peca: 'desk', direcao: 'SW', ...entre('E3', 'E4') },
-  { peca: 'desk', direcao: 'SW', ...entre('E4', 'E5') },
+  // dupla de baixo — mesmas letras, uma linha à frente, pra ficarem
+  // frente a frente. (O chefe especificou linha 4 nas duas duplas, o
+  // que faria elas se sobreporem exatamente; linha 5 é o mínimo pra
+  // separar — confirmar se era essa a intenção.)
+  { peca: 'desk', direcao: 'SW', ...entre('D5', 'E5') },
+  { peca: 'desk', direcao: 'SW', ...entre('E5', 'F5') },
 ]
 
 // Todas as peças usadas — pra pré-carregar as texturas antes de montar.
