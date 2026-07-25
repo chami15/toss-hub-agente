@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container } from 'pixi.js'
 import { criarCena } from './cena'
-import { PALETA } from './sala'
+import { COR_FUNDO } from './sala'
 
 // Hospeda o mundo isométrico. React cuida só do ciclo de vida do
 // canvas; tudo que é desenho mora em cena.ts. O `mundo` é o container
@@ -20,7 +20,7 @@ export function Escritorio() {
     async function montar() {
       const aplicacao = new Application()
       await aplicacao.init({
-        background: PALETA.fundo,
+        background: COR_FUNDO,
         resizeTo: hospedeiro!,
         antialias: true,
         resolution: window.devicePixelRatio || 1,
@@ -37,8 +37,11 @@ export function Escritorio() {
       hospedeiro!.appendChild(aplicacao.canvas)
 
       const mundo = new Container()
-      mundo.addChild(criarCena())
       aplicacao.stage.addChild(mundo)
+
+      // as texturas do pack são carregadas antes da cena existir
+      mundo.addChild(await criarCena())
+      if (desmontado) return
 
       // Encaixa a maquete inteira na tela, com uma margem, e centraliza.
       // Quando a câmera com pan/zoom entrar, isso vira só o estado inicial.

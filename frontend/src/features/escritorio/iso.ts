@@ -1,28 +1,26 @@
 // Matemática isométrica — o único lugar do projeto que sabe converter
-// coordenada de grade (tile) em coordenada de tela. Proporção 2:1
-// (largura do losango = 2x a altura), a mesma do Habbo.
+// coordenada de grade (tile) em pixel de tela.
 //
-// Tudo mais (piso, paredes, móveis, agentes) posiciona as coisas em
-// TILE, nunca em pixel. Assim mudar a escala do mundo inteiro é mexer
-// em duas constantes aqui.
+// As constantes vêm da MEDIÇÃO dos sprites do Kenney Furniture Kit, não
+// de teoria: escaneando os pixels opacos de `floorFull_NE.png` (208x153)
+// o losango do topo mede 208 de largura por 146 de altura. Ou seja, o
+// pack NÃO usa a proporção 2:1 do pixel art clássico — usa ~1.42:1.
+// Usar o valor real é o que faz os tiles encaixarem sem fresta.
 
-// 208x104: tamanho nativo dos sprites do Kenney Furniture Kit
-// (`floorFull_NE.png`), confirmado testando o encaixe lado a lado.
-// Usar o tamanho nativo em vez de redimensionar mantém os PNGs nítidos.
 export const TILE_W = 208
-export const TILE_H = 104
+export const TILE_H = 146
 
-// Altura (em pixels de tela) que 1 unidade de "andar acima do chão"
-// desloca pra cima. Usado por parede e por móvel empilhado.
-export const TILE_ALTURA = 104
+// Quanto 1 "andar" desloca pra cima, em pixels. Medido pela altura da
+// face da parede (`wall_NE.png`).
+export const TILE_ALTURA = 137
 
 export interface Ponto {
   x: number
   y: number
 }
 
-// Converte tile (coluna, linha) -> pixel de tela. Aceita valores
-// fracionários, o que permite posicionar um móvel entre tiles.
+// tile (coluna, linha) -> pixel. Aceita fração, o que permite encostar
+// um móvel entre dois tiles.
 export function paraTela(coluna: number, linha: number, altura = 0): Ponto {
   return {
     x: (coluna - linha) * (TILE_W / 2),
@@ -30,22 +28,8 @@ export function paraTela(coluna: number, linha: number, altura = 0): Ponto {
   }
 }
 
-// Chave de profundidade pra ordenar o que desenha primeiro. Quanto
-// maior, mais "na frente" da cena o objeto está e mais tarde deve ser
-// desenhado (sobrepondo quem está atrás). É o z-ordering isométrico.
+// Chave de z-ordering isométrico: quanto maior, mais à frente na cena e
+// portanto mais tarde deve ser desenhado (sobrepondo quem está atrás).
 export function profundidade(coluna: number, linha: number): number {
   return coluna + linha
-}
-
-// Os 4 vértices do losango de um tile, em pixel, relativos ao centro
-// do tile. Ordem: topo, direita, base, esquerda.
-export function verticesDoLosango(): Ponto[] {
-  const hw = TILE_W / 2
-  const hh = TILE_H / 2
-  return [
-    { x: 0, y: -hh },
-    { x: hw, y: 0 },
-    { x: 0, y: hh },
-    { x: -hw, y: 0 },
-  ]
 }

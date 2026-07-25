@@ -1,120 +1,122 @@
-import { Container, Graphics } from 'pixi.js'
-import { paraTela, TILE_W, TILE_H, TILE_ALTURA } from './iso'
-import {
-  tilesDaPlanta,
-  TOTAL_COLUNAS,
-  TOTAL_LINHAS,
-  PALETA,
-  ESPESSURA_LAJE,
-  ALTURA_PAREDE,
-} from './sala'
+import { Assets, Container, Sprite, type Texture } from 'pixi.js'
+import { paraTela, profundidade, TILE_W, TILE_H } from './iso'
+import { COLUNAS, LINHAS, caminhoSprite, type Direcao } from './sala'
+import { MOVEIS, TAPETES, ancoraDe, pecasUsadas } from './mobilia'
 
-// Monta o cenário da sala: laje + piso + paredes. Só a "casca" do
-// ambiente — os móveis (sprites do Kenney) e os agentes entram depois,
-// em containers próprios por cima deste.
+// Monta o cenário com os sprites do pack.
+//
+// A cena é dividida em CAMADAS, e isso é o que evita o bug clássico do
+// isométrico: se piso e móvel disputassem o mesmo zIndex, um tile
+// desenhado depois passaria por cima de um móvel que está atrás dele.
+// Camadas resolvem isso de vez —
+//   1. paredes do fundo  (sempre atrás de tudo)
+//   2. piso
+//   3. tapetes           (no chão, mas acima do piso)
+//   4. móveis            (aqui sim ordenado por profundidade)
 
-// Os 4 cantos externos da planta, em pixel. paraTela(c - 0.5, l - 0.5)
-// devolve o vértice superior do tile (c, l), então deslocando meio tile
-// em cada eixo chegamos nas quinas do retângulo inteiro.
-function cantosDaPlanta() {
-  return {
-    norte: paraTela(-0.5, -0.5),
-    leste: paraTela(TOTAL_COLUNAS - 0.5, -0.5),
-    sul: paraTela(TOTAL_COLUNAS - 0.5, TOTAL_LINHAS - 0.5),
-    oeste: paraTela(-0.5, TOTAL_LINHAS - 0.5),
-  }
+async function carregarTexturas(): Promise<Map<string, Texture>> {
+  const alvos: { peca: string; direcao: Direcao }[] = [
+    { peca: 'floorFull', direcao: 'NE' },
+    { peca: 'wall', direcao: 'NE' },
+    { peca: 'wall', direcao: 'NW' },
+    { peca: 'wallWindow', direcao: 'NE' },
+    { peca: 'wallWindow', direcao: 'NW' },
+    ...pecasUsadas(),
+  ]
+
+  const mapa = new Map<string, Texture>()
+  await Promise.all(
+    alvos.map(async ({ peca, direcao }) => {
+      const chave = `${peca}_${direcao}`
+      if (mapa.has(chave)) return
+      mapa.set(chave, await Assets.load(caminhoSprite(peca, direcao)))
+    }),
+  )
+  return mapa
 }
 
-// A espessura da laje: as duas faces da frente (oeste->sul e sul->leste)
-// extrudadas pra baixo. É o que dá o ar de maquete vista de fora.
-function criarLaje(): Graphics {
-  const { leste, sul, oeste } = cantosDaPlanta()
-  const g = new Graphics()
-
-  g.poly([
-    oeste.x, oeste.y,
-    sul.x, sul.y,
-    sul.x, sul.y + ESPESSURA_LAJE,
-    oeste.x, oeste.y + ESPESSURA_LAJE,
-  ])
-  g.fill(PALETA.lajeFrente)
-
-  g.poly([
-    sul.x, sul.y,
-    leste.x, leste.y,
-    leste.x, leste.y + ESPESSURA_LAJE,
-    sul.x, sul.y + ESPESSURA_LAJE,
-  ])
-  g.fill(PALETA.lajeLateral)
-
-  return g
+function novoSprite(textura: Texture, peca: string): Sprite {
+  const sprite = new Sprite(textura)
+  const ancora = ancoraDe(peca)
+  sprite.anchor.set(ancora.x, ancora.y)
+  return sprite
 }
 
-function criarPiso(): Graphics {
-  const g = new Graphics()
-  const hw = TILE_W / 2
-  const hh = TILE_H / 2
-
-  for (const { coluna, linha } of tilesDaPlanta()) {
-    const { x, y } = paraTela(coluna, linha)
-    g.poly([x, y - hh, x + hw, y, x, y + hh, x - hw, y])
-    g.fill((coluna + linha) % 2 === 0 ? PALETA.pisoClaro : PALETA.pisoEscuro)
-    g.stroke({ width: 1, color: PALETA.pisoLinha, alignment: 0.5 })
+export async function criarCena(): Promise<Container> {
+  const texturas = await carregarTexturas()
+  const pegar = (chave: string) => {
+    const t = texturas.get(chave)
+    if (!t) throw new Error(`textura não carregada: ${chave}`)
+    return t
   }
 
-  return g
-}
-
-// Uma parede: corre da quina `de` até a quina `ate` (ambas na linha do
-// piso) e sobe ALTURA_PAREDE. Ganha uma faixa mais clara no topo (a
-// espessura da parede vista de cima) e um rodapé mais escuro embaixo.
-function criarParede(
-  de: { x: number; y: number },
-  ate: { x: number; y: number },
-  corFace: number,
-): Graphics {
-  const g = new Graphics()
-  const altura = ALTURA_PAREDE * TILE_ALTURA
-  const espessuraTopo = 8
-  const alturaRodape = 10
-
-  g.poly([
-    de.x, de.y,
-    ate.x, ate.y,
-    ate.x, ate.y - altura,
-    de.x, de.y - altura,
-  ])
-  g.fill(corFace)
-
-  g.poly([
-    de.x, de.y - altura,
-    ate.x, ate.y - altura,
-    ate.x, ate.y - altura - espessuraTopo,
-    de.x, de.y - altura - espessuraTopo,
-  ])
-  g.fill(PALETA.paredeTopo)
-
-  g.poly([
-    de.x, de.y,
-    ate.x, ate.y,
-    ate.x, ate.y - alturaRodape,
-    de.x, de.y - alturaRodape,
-  ])
-  g.fill(PALETA.rodape)
-
-  return g
-}
-
-export function criarCena(): Container {
   const cena = new Container()
-  const { norte, leste, oeste } = cantosDaPlanta()
+  const camadaParedes = new Container()
+  const camadaPiso = new Container()
+  const camadaTapetes = new Container()
+  const camadaMoveis = new Container()
+  camadaMoveis.sortableChildren = true
+  cena.addChild(camadaParedes, camadaPiso, camadaTapetes, camadaMoveis)
 
-  // ordem importa: parede de trás primeiro, piso por cima (assim o
-  // rodapé encosta no chão sem vão), laje por baixo de tudo.
-  cena.addChild(criarLaje())
-  cena.addChild(criarParede(norte, oeste, PALETA.paredeEsquerda))
-  cena.addChild(criarParede(norte, leste, PALETA.paredeFundo))
-  cena.addChild(criarPiso())
+  // --- paredes do fundo ---
+  // A face da parede cobre exatamente uma aresta de tile. A aresta do
+  // limite coluna=0 sobe pra direita (sprite _NE); a do limite linha=0
+  // desce pra direita (sprite _NW). Cada peça é ancorada no meio da
+  // própria base e posta no meio da aresta correspondente.
+  const meia = { x: TILE_W / 4, y: TILE_H / 4 }
+
+  for (let linha = 0; linha < LINHAS; linha++) {
+    const centro = paraTela(0, linha)
+    const peca = linha % 3 === 1 ? 'wallWindow' : 'wall'
+    const sprite = novoSprite(pegar(`${peca}_NE`), peca)
+    sprite.x = centro.x - meia.x
+    sprite.y = centro.y - meia.y
+    camadaParedes.addChild(sprite)
+  }
+
+  for (let coluna = 0; coluna < COLUNAS; coluna++) {
+    const centro = paraTela(coluna, 0)
+    const peca = coluna % 3 === 1 ? 'wallWindow' : 'wall'
+    const sprite = novoSprite(pegar(`${peca}_NW`), peca)
+    sprite.x = centro.x + meia.x
+    sprite.y = centro.y - meia.y
+    camadaParedes.addChild(sprite)
+  }
+
+  // --- piso ---
+  // Ordem de pintura: do fundo pra frente, pra que a espessura da laje
+  // de um tile fique escondida pelo tile da frente.
+  const tiles: { coluna: number; linha: number }[] = []
+  for (let linha = 0; linha < LINHAS; linha++) {
+    for (let coluna = 0; coluna < COLUNAS; coluna++) tiles.push({ coluna, linha })
+  }
+  tiles.sort((a, b) => profundidade(a.coluna, a.linha) - profundidade(b.coluna, b.linha))
+  for (const { coluna, linha } of tiles) {
+    const sprite = novoSprite(pegar('floorFull_NE'), 'floorFull')
+    const { x, y } = paraTela(coluna, linha)
+    sprite.x = x
+    sprite.y = y
+    camadaPiso.addChild(sprite)
+  }
+
+  // --- tapetes ---
+  for (const tapete of TAPETES) {
+    const sprite = novoSprite(pegar(`${tapete.peca}_${tapete.direcao}`), tapete.peca)
+    const { x, y } = paraTela(tapete.coluna, tapete.linha)
+    sprite.x = x
+    sprite.y = y
+    camadaTapetes.addChild(sprite)
+  }
+
+  // --- móveis ---
+  for (const movel of MOVEIS) {
+    const sprite = novoSprite(pegar(`${movel.peca}_${movel.direcao}`), movel.peca)
+    const { x, y } = paraTela(movel.coluna, movel.linha, movel.altura ?? 0)
+    sprite.x = x
+    sprite.y = y
+    sprite.zIndex = profundidade(movel.coluna, movel.linha) * 10 + (movel.desempate ?? 0)
+    camadaMoveis.addChild(sprite)
+  }
 
   return cena
 }
