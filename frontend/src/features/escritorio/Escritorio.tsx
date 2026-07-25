@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Application, Container } from 'pixi.js'
 import { criarCena } from './cena'
-import { COR_FUNDO } from './sala'
+import { PALETA } from './sala'
 
 // Hospeda o mundo isométrico. React cuida só do ciclo de vida do
 // canvas; tudo que é desenho mora em cena.ts. O `mundo` é o container
@@ -20,7 +20,7 @@ export function Escritorio() {
     async function montar() {
       const aplicacao = new Application()
       await aplicacao.init({
-        background: COR_FUNDO,
+        background: PALETA.vazio,
         resizeTo: hospedeiro!,
         antialias: true,
         resolution: window.devicePixelRatio || 1,

@@ -1,32 +1,33 @@
-import { Assets, Container, Sprite, type Texture } from 'pixi.js'
+import { Assets, Container, Graphics, Sprite, type Texture } from 'pixi.js'
 import { paraTela, profundidade, TILE_W, TILE_H } from './iso'
-import { COLUNAS, LINHAS, caminhoSprite, type Direcao } from './sala'
+import {
+  COLUNAS,
+  LINHAS,
+  PALETA,
+  ESPESSURA_LAJE,
+  ALTURA_PAREDE,
+  caminhoSprite,
+  type Direcao,
+} from './sala'
 import { MOVEIS, TAPETES, ancoraDe, pecasUsadas } from './mobilia'
 
-// Monta o cenário com os sprites do pack.
+// Abordagem combinada:
+//   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
+//     nenhuma emenda entre tiles, e a laje grossa que dá o ar de maquete
+//   - móveis são SPRITES do pack → arte de verdade
 //
-// A cena é dividida em CAMADAS, e isso é o que evita o bug clássico do
-// isométrico: se piso e móvel disputassem o mesmo zIndex, um tile
-// desenhado depois passaria por cima de um móvel que está atrás dele.
-// Camadas resolvem isso de vez —
-//   1. paredes do fundo  (sempre atrás de tudo)
-//   2. piso
-//   3. tapetes           (no chão, mas acima do piso)
-//   4. móveis            (aqui sim ordenado por profundidade)
+// O que faz os dois conversarem é a geometria: o piso é desenhado no
+// mesmo ângulo dos sprites do Kenney (208x146, medido nos PNGs), então
+// móvel e chão parecem estar sob a mesma câmera.
+//
+// Camadas, de trás pra frente:
+//   paredes → laje → piso → tapetes → móveis (estes ordenados por
+//   profundidade entre si).
 
 async function carregarTexturas(): Promise<Map<string, Texture>> {
-  const alvos: { peca: string; direcao: Direcao }[] = [
-    { peca: 'floorFull', direcao: 'NE' },
-    { peca: 'wall', direcao: 'NE' },
-    { peca: 'wall', direcao: 'NW' },
-    { peca: 'wallWindow', direcao: 'NE' },
-    { peca: 'wallWindow', direcao: 'NW' },
-    ...pecasUsadas(),
-  ]
-
   const mapa = new Map<string, Texture>()
   await Promise.all(
-    alvos.map(async ({ peca, direcao }) => {
+    pecasUsadas().map(async ({ peca, direcao }: { peca: string; direcao: Direcao }) => {
       const chave = `${peca}_${direcao}`
       if (mapa.has(chave)) return
       mapa.set(chave, await Assets.load(caminhoSprite(peca, direcao)))
@@ -35,11 +36,85 @@ async function carregarTexturas(): Promise<Map<string, Texture>> {
   return mapa
 }
 
-function novoSprite(textura: Texture, peca: string): Sprite {
-  const sprite = new Sprite(textura)
-  const ancora = ancoraDe(peca)
-  sprite.anchor.set(ancora.x, ancora.y)
-  return sprite
+// Os 4 cantos externos da planta. paraTela(c - 0.5, l - 0.5) devolve o
+// vértice de cima do tile (c, l), então meio tile em cada eixo chega
+// nas quinas do retângulo inteiro.
+function cantos() {
+  return {
+    norte: paraTela(-0.5, -0.5),
+    leste: paraTela(COLUNAS - 0.5, -0.5),
+    sul: paraTela(COLUNAS - 0.5, LINHAS - 0.5),
+    oeste: paraTela(-0.5, LINHAS - 0.5),
+  }
+}
+
+function desenharLaje(): Graphics {
+  const { leste, sul, oeste } = cantos()
+  const g = new Graphics()
+
+  g.poly([
+    oeste.x, oeste.y,
+    sul.x, sul.y,
+    sul.x, sul.y + ESPESSURA_LAJE,
+    oeste.x, oeste.y + ESPESSURA_LAJE,
+  ])
+  g.fill(PALETA.lajeFrente)
+
+  g.poly([
+    sul.x, sul.y,
+    leste.x, leste.y,
+    leste.x, leste.y + ESPESSURA_LAJE,
+    sul.x, sul.y + ESPESSURA_LAJE,
+  ])
+  g.fill(PALETA.lajeLado)
+
+  return g
+}
+
+function desenharPiso(): Graphics {
+  const g = new Graphics()
+  const hw = TILE_W / 2
+  const hh = TILE_H / 2
+
+  for (let linha = 0; linha < LINHAS; linha++) {
+    for (let coluna = 0; coluna < COLUNAS; coluna++) {
+      const { x, y } = paraTela(coluna, linha)
+      g.poly([x, y - hh, x + hw, y, x, y + hh, x - hw, y])
+      g.fill((coluna + linha) % 2 === 0 ? PALETA.pisoClaro : PALETA.pisoEscuro)
+      g.stroke({ width: 1, color: PALETA.pisoJunta, alignment: 0.5 })
+    }
+  }
+
+  return g
+}
+
+// Uma parede: corre da quina `de` até a quina `ate` (as duas na linha do
+// piso) e sobe. Ganha uma faixa clara no topo (a espessura da parede
+// vista de cima) e um rodapé mais escuro embaixo.
+function desenharParede(
+  de: { x: number; y: number },
+  ate: { x: number; y: number },
+  cor: number,
+): Graphics {
+  const g = new Graphics()
+  const espessuraTopo = 10
+  const alturaRodape = 12
+
+  g.poly([de.x, de.y, ate.x, ate.y, ate.x, ate.y - ALTURA_PAREDE, de.x, de.y - ALTURA_PAREDE])
+  g.fill(cor)
+
+  g.poly([
+    de.x, de.y - ALTURA_PAREDE,
+    ate.x, ate.y - ALTURA_PAREDE,
+    ate.x, ate.y - ALTURA_PAREDE - espessuraTopo,
+    de.x, de.y - ALTURA_PAREDE - espessuraTopo,
+  ])
+  g.fill(PALETA.paredeTopo)
+
+  g.poly([de.x, de.y, ate.x, ate.y, ate.x, ate.y - alturaRodape, de.x, de.y - alturaRodape])
+  g.fill(PALETA.rodape)
+
+  return g
 }
 
 export async function criarCena(): Promise<Container> {
@@ -51,70 +126,38 @@ export async function criarCena(): Promise<Container> {
   }
 
   const cena = new Container()
-  const camadaParedes = new Container()
-  const camadaPiso = new Container()
-  const camadaTapetes = new Container()
   const camadaMoveis = new Container()
   camadaMoveis.sortableChildren = true
-  cena.addChild(camadaParedes, camadaPiso, camadaTapetes, camadaMoveis)
 
-  // --- paredes do fundo ---
-  // A face da parede cobre exatamente uma aresta de tile. A aresta do
-  // limite coluna=0 sobe pra direita (sprite _NE); a do limite linha=0
-  // desce pra direita (sprite _NW). Cada peça é ancorada no meio da
-  // própria base e posta no meio da aresta correspondente.
-  const meia = { x: TILE_W / 4, y: TILE_H / 4 }
+  const { norte, leste, oeste } = cantos()
+  cena.addChild(
+    desenharParede(norte, oeste, PALETA.paredeEsquerda),
+    desenharParede(norte, leste, PALETA.paredeDireita),
+    desenharLaje(),
+    desenharPiso(),
+  )
 
-  for (let linha = 0; linha < LINHAS; linha++) {
-    const centro = paraTela(0, linha)
-    const peca = linha % 3 === 1 ? 'wallWindow' : 'wall'
-    const sprite = novoSprite(pegar(`${peca}_NE`), peca)
-    sprite.x = centro.x - meia.x
-    sprite.y = centro.y - meia.y
-    camadaParedes.addChild(sprite)
-  }
-
-  for (let coluna = 0; coluna < COLUNAS; coluna++) {
-    const centro = paraTela(coluna, 0)
-    const peca = coluna % 3 === 1 ? 'wallWindow' : 'wall'
-    const sprite = novoSprite(pegar(`${peca}_NW`), peca)
-    sprite.x = centro.x + meia.x
-    sprite.y = centro.y - meia.y
-    camadaParedes.addChild(sprite)
-  }
-
-  // --- piso ---
-  // Ordem de pintura: do fundo pra frente, pra que a espessura da laje
-  // de um tile fique escondida pelo tile da frente.
-  const tiles: { coluna: number; linha: number }[] = []
-  for (let linha = 0; linha < LINHAS; linha++) {
-    for (let coluna = 0; coluna < COLUNAS; coluna++) tiles.push({ coluna, linha })
-  }
-  tiles.sort((a, b) => profundidade(a.coluna, a.linha) - profundidade(b.coluna, b.linha))
-  for (const { coluna, linha } of tiles) {
-    const sprite = novoSprite(pegar('floorFull_NE'), 'floorFull')
-    const { x, y } = paraTela(coluna, linha)
+  // tapetes: no chão, acima do piso, abaixo de qualquer móvel
+  for (const t of TAPETES) {
+    const sprite = new Sprite(pegar(`${t.peca}_${t.direcao}`))
+    const a = ancoraDe(t.peca)
+    sprite.anchor.set(a.x, a.y)
+    const { x, y } = paraTela(t.coluna, t.linha)
     sprite.x = x
     sprite.y = y
-    camadaPiso.addChild(sprite)
+    cena.addChild(sprite)
   }
 
-  // --- tapetes ---
-  for (const tapete of TAPETES) {
-    const sprite = novoSprite(pegar(`${tapete.peca}_${tapete.direcao}`), tapete.peca)
-    const { x, y } = paraTela(tapete.coluna, tapete.linha)
-    sprite.x = x
-    sprite.y = y
-    camadaTapetes.addChild(sprite)
-  }
+  cena.addChild(camadaMoveis)
 
-  // --- móveis ---
-  for (const movel of MOVEIS) {
-    const sprite = novoSprite(pegar(`${movel.peca}_${movel.direcao}`), movel.peca)
-    const { x, y } = paraTela(movel.coluna, movel.linha, movel.altura ?? 0)
+  for (const m of MOVEIS) {
+    const sprite = new Sprite(pegar(`${m.peca}_${m.direcao}`))
+    const a = ancoraDe(m.peca)
+    sprite.anchor.set(a.x, a.y)
+    const { x, y } = paraTela(m.coluna, m.linha, m.altura ?? 0)
     sprite.x = x
     sprite.y = y
-    sprite.zIndex = profundidade(movel.coluna, movel.linha) * 10 + (movel.desempate ?? 0)
+    sprite.zIndex = profundidade(m.coluna, m.linha) * 10 + (m.desempate ?? 0)
     camadaMoveis.addChild(sprite)
   }
 
