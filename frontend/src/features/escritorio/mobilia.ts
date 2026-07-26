@@ -123,6 +123,9 @@ export interface Posto {
   coluna: number
   linha: number
   deltaMonitor: Delta
+  // âncora do teclado — o mouse sempre gruda do lado dele (ver
+  // OFFSET_MOUSE), os dois viajam juntos como um par.
+  deltaPerifericos: Delta
   cadeiraDirecao: Direcao
   deltaCadeira: Delta
 }
@@ -141,10 +144,19 @@ function escala(d: Delta, k: number): Delta {
   return { coluna: d.coluna * k, linha: d.linha * k }
 }
 
-// Monitor: primeiro centralizado NA MESA (0,0), depois puxado um
-// pouco pro fundo da sala — sobra espaço na frente dele (lado de cá,
-// mais perto de quem senta) pro mouse e teclado.
-const RECUO_MONITOR = escala(PARA_TRAS, 0.13)
+// Monitor: primeiro centralizado NA MESA (0,0), depois puxado pro
+// fundo da sala. No Cifra/Agenda o recuo é maior E o teclado/mouse
+// avança em direção ao agente — precisa de mais separação porque
+// senão o par teclado+mouse fica "em cima" do monitor. No Vita/Norte
+// o monitor só precisa recuar mais um pouco (estava perto demais);
+// teclado/mouse ficam no centro da mesa mesmo, sem avançar.
+const RECUO_MONITOR = escala(PARA_TRAS, 0.22)
+const AVANCO_PERIFERICOS = escala(PARA_FRENTE, 0.16)
+const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
+
+// Deslocamento do mouse em relação à âncora do teclado — os dois
+// sempre viajam juntos como um par, grudados um do lado do outro.
+const OFFSET_MOUSE = escala(PARA_DIREITA, 0.13)
 
 export const POSTOS: Posto[] = [
   {
@@ -153,6 +165,7 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
     deltaMonitor: RECUO_MONITOR,
+    deltaPerifericos: AVANCO_PERIFERICOS,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -162,6 +175,7 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
     deltaMonitor: RECUO_MONITOR,
+    deltaPerifericos: AVANCO_PERIFERICOS,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -171,8 +185,9 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
     deltaMonitor: RECUO_MONITOR,
+    deltaPerifericos: CENTRO_MESA,
     cadeiraDirecao: 'NW',
-    deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.22)),
+    deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.32)),
   },
   {
     agenteId: 'norte',
@@ -180,8 +195,9 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'SW',
     ...entre('E5', 'F5'),
     deltaMonitor: RECUO_MONITOR,
+    deltaPerifericos: CENTRO_MESA,
     cadeiraDirecao: 'NW',
-    deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.22)),
+    deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.32)),
   },
 ]
 
@@ -203,13 +219,13 @@ export const MOVEIS: Movel[] = [
       zColuna: p.coluna,
       zLinha: p.linha,
     },
-    // teclado e mouse, na mesma direção da tela, no centro da mesa
-    // (onde o monitor estava antes de recuar) — ficam "na frente" dele
+    // teclado e mouse: sempre juntos como um par (mouse gruda do lado
+    // do teclado), os dois na âncora deltaPerifericos do posto
     {
       peca: 'computerKeyboard',
       direcao: p.mesaDirecao,
-      coluna: p.coluna,
-      linha: p.linha,
+      coluna: p.coluna + p.deltaPerifericos.coluna,
+      linha: p.linha + p.deltaPerifericos.linha,
       altura: 0.16,
       desempate: 3,
       zColuna: p.coluna,
@@ -218,8 +234,8 @@ export const MOVEIS: Movel[] = [
     {
       peca: 'computerMouse',
       direcao: p.mesaDirecao,
-      coluna: p.coluna + escala(PARA_DIREITA, 0.13).coluna,
-      linha: p.linha + escala(PARA_DIREITA, 0.13).linha,
+      coluna: p.coluna + p.deltaPerifericos.coluna + OFFSET_MOUSE.coluna,
+      linha: p.linha + p.deltaPerifericos.linha + OFFSET_MOUSE.linha,
       altura: 0.16,
       desempate: 3,
       zColuna: p.coluna,
