@@ -15,6 +15,7 @@ import {
 } from './sala'
 import { MOVEIS, POSTOS, TAPETES, ancoraDe, pecasUsadas, RECORTES } from './mobilia'
 import { AGENTES, PASTA_AGENTES } from './agentes'
+import type { ItemEditavel } from './edicao'
 
 // Abordagem combinada:
 //   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
@@ -59,7 +60,11 @@ async function carregarRetratos(): Promise<Map<string, Texture>> {
 const DIAMETRO_CRACHA = 84
 const ESPESSURA_ANEL = 5
 
-function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: number }, cor: number, x: number, y: number): Container {
+// Desenha tudo na ORIGEM do container — quem posiciona é o chamador,
+// via container.x/y. Assim o crachá pode acompanhar a cadeira quando
+// ela é arrastada no modo de edição (se as formas fossem desenhadas
+// já nas coordenadas finais, mover o container somaria duas vezes).
+function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: number }, cor: number): Container {
   const container = new Container()
   const raioTela = DIAMETRO_CRACHA / 2
 
@@ -67,19 +72,17 @@ function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: 
   sprite.anchor.set(recorte.cx, recorte.cy)
   const escala = raioTela / (recorte.raio * retrato.width)
   sprite.scale.set(escala)
-  sprite.x = x
-  sprite.y = y
 
   const mascara = new Graphics()
-  mascara.circle(x, y, raioTela).fill(0xffffff)
+  mascara.circle(0, 0, raioTela).fill(0xffffff)
   sprite.mask = mascara
 
   const anel = new Graphics()
-  anel.circle(x, y, raioTela + ESPESSURA_ANEL / 2)
+  anel.circle(0, 0, raioTela + ESPESSURA_ANEL / 2)
   anel.stroke({ width: ESPESSURA_ANEL, color: cor })
 
   const sombra = new Graphics()
-  sombra.circle(x, y + raioTela * 0.15, raioTela * 0.9)
+  sombra.circle(0, raioTela * 0.15, raioTela * 0.9)
   sombra.fill({ color: 0x000000, alpha: 0.18 })
 
   // a mask PRECISA estar na árvore de cena (senão a transform dela não
@@ -295,7 +298,14 @@ function desenharParede(
   return g
 }
 
-export async function criarCena(): Promise<Container> {
+export interface Cena {
+  raiz: Container
+  // os sprites que o modo de edição pode mexer, já casados com a
+  // metadata que diz de onde o delta deles é medido
+  editaveis: ItemEditavel[]
+}
+
+export async function criarCena(): Promise<Cena> {
   const [texturas, retratos] = await Promise.all([carregarTexturas(), carregarRetratos()])
   const pegar = (chave: string) => {
     const t = texturas.get(chave)
@@ -342,6 +352,8 @@ export async function criarCena(): Promise<Container> {
 
   cena.addChild(camadaMoveis)
 
+  const editaveis: ItemEditavel[] = []
+
   for (const m of MOVEIS) {
     const sprite = new Sprite(pegar(`${m.peca}_${m.direcao}`))
     const a = ancoraDe(m.peca)
@@ -351,6 +363,23 @@ export async function criarCena(): Promise<Container> {
     sprite.y = y
     sprite.zIndex = profundidade(m.zColuna ?? m.coluna, m.zLinha ?? m.linha) * 10 + (m.desempate ?? 0)
     camadaMoveis.addChild(sprite)
+
+    if (m.edicao) {
+      // o delta é o que sobra depois de tirar a origem — pras peças de
+      // cima da mesa isso devolve exatamente o deltaMonitor/deltaTeclado/
+      // ... que gerou a posição; pras mesas, a posição absoluta
+      const delta = {
+        coluna: m.coluna - m.edicao.origem.coluna,
+        linha: m.linha - m.edicao.origem.linha,
+      }
+      editaveis.push({
+        info: m.edicao,
+        sprite,
+        altura: m.altura ?? 0,
+        delta,
+        deltaOriginal: { ...delta },
+      })
+    }
   }
 
   // crachá do agente: na posição da cadeira, "levantado" (altura) pra
@@ -365,10 +394,19 @@ export async function criarCena(): Promise<Container> {
     const colunaCadeira = posto.coluna + posto.deltaCadeira.coluna
     const linhaCadeira = posto.linha + posto.deltaCadeira.linha
     const { x, y } = paraTela(colunaCadeira, linhaCadeira, ALTURA_CRACHA)
-    const avatar = criarAvatar(retrato, recorte, agente.cor, x, y)
+    const avatar = criarAvatar(retrato, recorte, agente.cor)
+    avatar.x = x
+    avatar.y = y
     avatar.zIndex = profundidade(colunaCadeira, linhaCadeira) * 10 + 5
     camadaMoveis.addChild(avatar)
+
+    // amarra o crachá à cadeira: arrastar a cadeira leva o rosto junto
+    const cadeira = editaveis.find((i) => i.info.id === `${posto.agenteId}:cadeira`)
+    if (cadeira) {
+      cadeira.seguidores ??= []
+      cadeira.seguidores.push({ objeto: avatar, altura: ALTURA_CRACHA })
+    }
   }
 
-  return cena
+  return { raiz: cena, editaveis }
 }
