@@ -126,6 +126,10 @@ export interface Posto {
   // âncora do teclado — o mouse sempre gruda do lado dele (ver
   // OFFSET_MOUSE), os dois viajam juntos como um par.
   deltaPerifericos: Delta
+  // ajuste extra só do mouse, além do par com o teclado — usado
+  // quando só o mouse precisa de um empurrão a mais (o teclado fica
+  // onde estava).
+  mouseExtra?: Delta
   cadeiraDirecao: Direcao
   deltaCadeira: Delta
 }
@@ -164,14 +168,33 @@ const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
 // sempre viajam juntos como um par, grudados um do lado do outro.
 const OFFSET_MOUSE = escala(PARA_DIREITA, 0.13)
 
+// Cifra/Agenda — pedido: monitor um pouco na diagonal (recuo + lado,
+// pra cada mesa abrir espaço da vizinha) e teclado/mouse um pouco mais
+// pra frente (afasta um pouco do lado extremo da cadeira, sem cruzar
+// o monitor) e um pouco mais pra direita.
+const MONITOR_CIFRA = somar(RECUO_MONITOR, escala(PARA_ESQUERDA, 0.14))
+const MONITOR_AGENDA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.14))
+const PERIFERICOS_CIFRA_AGENDA = somar(
+  PERIFERICOS_LADO_TRAS,
+  escala(PARA_FRENTE, 0.06),
+  escala(PARA_DIREITA, 0.1),
+)
+
+// Vita/Norte — pedido: monitor um pouco na horizontal (mesma direção
+// pras duas, em direção à letra vizinha: E5/F5). Teclado fica como
+// está; só o mouse ganha um empurrão extra pra frente, pra ficar
+// exatamente do lado do teclado.
+const MONITOR_VITA_NORTE = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12))
+const MOUSE_EXTRA_VITA_NORTE = escala(PARA_FRENTE, 0.1)
+
 export const POSTOS: Posto[] = [
   {
     agenteId: 'cifra',
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
-    deltaMonitor: RECUO_MONITOR,
-    deltaPerifericos: PERIFERICOS_LADO_TRAS,
+    deltaMonitor: MONITOR_CIFRA,
+    deltaPerifericos: PERIFERICOS_CIFRA_AGENDA,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -180,8 +203,8 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
-    deltaMonitor: RECUO_MONITOR,
-    deltaPerifericos: PERIFERICOS_LADO_TRAS,
+    deltaMonitor: MONITOR_AGENDA,
+    deltaPerifericos: PERIFERICOS_CIFRA_AGENDA,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -190,8 +213,9 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
-    deltaMonitor: RECUO_MONITOR,
+    deltaMonitor: MONITOR_VITA_NORTE,
     deltaPerifericos: CENTRO_MESA,
+    mouseExtra: MOUSE_EXTRA_VITA_NORTE,
     cadeiraDirecao: 'NW',
     deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.32)),
   },
@@ -200,8 +224,9 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('E5', 'F5'),
-    deltaMonitor: RECUO_MONITOR,
+    deltaMonitor: MONITOR_VITA_NORTE,
     deltaPerifericos: CENTRO_MESA,
+    mouseExtra: MOUSE_EXTRA_VITA_NORTE,
     cadeiraDirecao: 'NW',
     deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.32)),
   },
@@ -240,8 +265,9 @@ export const MOVEIS: Movel[] = [
     {
       peca: 'computerMouse',
       direcao: p.mesaDirecao,
-      coluna: p.coluna + p.deltaPerifericos.coluna + OFFSET_MOUSE.coluna,
-      linha: p.linha + p.deltaPerifericos.linha + OFFSET_MOUSE.linha,
+      coluna:
+        p.coluna + p.deltaPerifericos.coluna + OFFSET_MOUSE.coluna + (p.mouseExtra?.coluna ?? 0),
+      linha: p.linha + p.deltaPerifericos.linha + OFFSET_MOUSE.linha + (p.mouseExtra?.linha ?? 0),
       altura: 0.16,
       desempate: 3,
       zColuna: p.coluna,
