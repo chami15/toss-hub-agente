@@ -44,10 +44,13 @@ export interface RecorteRetrato {
 }
 
 export const RECORTES: Record<string, RecorteRetrato> = {
-  cifra: { cx: 0.49, cy: 0.36, raio: 0.34 },
+  // cy MAIOR sobe o rosto dentro do círculo (ancora um ponto mais pra
+  // baixo da imagem original no centro do crachá, empurrando o rosto,
+  // que fica acima desse ponto, pra cima)
+  cifra: { cx: 0.49, cy: 0.4, raio: 0.34 },
   agenda: { cx: 0.48, cy: 0.35, raio: 0.36 },
   vita: { cx: 0.5, cy: 0.37, raio: 0.38 },
-  norte: { cx: 0.5, cy: 0.32, raio: 0.34 },
+  norte: { cx: 0.5, cy: 0.36, raio: 0.34 },
 }
 
 export interface Movel {
@@ -138,18 +141,19 @@ function escala(d: Delta, k: number): Delta {
   return { coluna: d.coluna * k, linha: d.linha * k }
 }
 
+// Monitor: primeiro centralizado NA MESA (0,0), depois puxado um
+// pouco pro fundo da sala — sobra espaço na frente dele (lado de cá,
+// mais perto de quem senta) pro mouse e teclado.
+const RECUO_MONITOR = escala(PARA_TRAS, 0.13)
+
 export const POSTOS: Posto[] = [
   {
     agenteId: 'cifra',
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
-    // monitor um pouco mais "pra frente" (direção C, olhando o desk de
-    // cima: decresce coluna) — estava longe demais do agente
-    deltaMonitor: { coluna: -0.25, linha: 0 },
-    cadeiraDirecao: 'NW',
-    // cadeira mais perto da mesa (vertical reduzida) + puxada um
-    // pouco pra DIREITA
+    deltaMonitor: RECUO_MONITOR,
+    cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
   {
@@ -157,8 +161,8 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
-    deltaMonitor: { coluna: -0.25, linha: 0 },
-    cadeiraDirecao: 'NW',
+    deltaMonitor: RECUO_MONITOR,
+    cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
   {
@@ -166,10 +170,8 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
-    // monitor um pouco mais "pra trás" — só uns pixels
-    deltaMonitor: escala(PARA_TRAS, 0.08),
-    cadeiraDirecao: 'SE',
-    // cadeira mais perto da mesa + puxada um pouco pra ESQUERDA
+    deltaMonitor: RECUO_MONITOR,
+    cadeiraDirecao: 'NW',
     deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.22)),
   },
   {
@@ -177,8 +179,8 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('E5', 'F5'),
-    deltaMonitor: escala(PARA_TRAS, 0.08),
-    cadeiraDirecao: 'SE',
+    deltaMonitor: RECUO_MONITOR,
+    cadeiraDirecao: 'NW',
     deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.22)),
   },
 ]
@@ -198,6 +200,28 @@ export const MOVEIS: Movel[] = [
       desempate: 2,
       // profundidade fixada na mesa — o ajuste fino de posição não
       // pode fazer o monitor "recuar" pra trás da própria mesa
+      zColuna: p.coluna,
+      zLinha: p.linha,
+    },
+    // teclado e mouse, na mesma direção da tela, no centro da mesa
+    // (onde o monitor estava antes de recuar) — ficam "na frente" dele
+    {
+      peca: 'computerKeyboard',
+      direcao: p.mesaDirecao,
+      coluna: p.coluna,
+      linha: p.linha,
+      altura: 0.16,
+      desempate: 3,
+      zColuna: p.coluna,
+      zLinha: p.linha,
+    },
+    {
+      peca: 'computerMouse',
+      direcao: p.mesaDirecao,
+      coluna: p.coluna + escala(PARA_DIREITA, 0.13).coluna,
+      linha: p.linha + escala(PARA_DIREITA, 0.13).linha,
+      altura: 0.16,
+      desempate: 3,
       zColuna: p.coluna,
       zLinha: p.linha,
     },
