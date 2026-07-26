@@ -169,46 +169,21 @@ function escala(d: Delta, k: number): Delta {
 
 export const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
 
-// Deslocamento do mouse em relação à âncora do teclado — os dois
-// sempre viajam juntos como um par, grudados um do lado do outro.
-const OFFSET_MOUSE = escala(PARA_DIREITA, 0.13)
-
-// Cifra/Agenda — reset: em vez de compor direções na mão (o que deu
-// bug redondo passado), aponta direto pro ponto que o chefe indicou —
-// "vai em direção a E5" — a partir do centro de CADA mesa. Como as
-// mesas partem de lugares diferentes (D4-E4 vs E4-F4), o mesmo alvo
-// E5 dá uma composição de direção diferente pra cada uma, e é assim
-// mesmo que tem que ser (apontar o alvo, não o vetor).
-const ORIGEM_CIFRA = entre('D4', 'E4')
-const ORIGEM_AGENDA = entre('E4', 'F4')
-const MONITOR_CIFRA = rumoA(ORIGEM_CIFRA, 'E5', 0.4)
-const MONITOR_AGENDA = rumoA(ORIGEM_AGENDA, 'E5', 0.4)
-// teclado/mouse: "bem na frente do monitor" — mais um empurrão pra
-// frente a partir da posição do monitor, não do centro da mesa.
-const PERIFERICOS_CIFRA = somar(MONITOR_CIFRA, escala(PARA_FRENTE, 0.15))
-const PERIFERICOS_AGENDA = somar(MONITOR_AGENDA, escala(PARA_FRENTE, 0.15))
-
-// Vita/Norte — só o monitor muda: continua onde estava (recuo +
-// direita, já validado), só que agora também "indo em direção a"
-// D6-E6 (Vita) / E6-F6 (Norte) — a casa de baixo da própria mesa.
-// Teclado e mouse ficam exatamente como estavam.
-const ORIGEM_VITA = entre('D5', 'E5')
-const ORIGEM_NORTE = entre('E5', 'F5')
-const AJUSTE_VITA = rumoAPonto(ORIGEM_VITA, entre('D6', 'E6'), 0.35)
-const AJUSTE_NORTE = rumoAPonto(ORIGEM_NORTE, entre('E6', 'F6'), 0.35)
-const MONITOR_VITA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_VITA)
-const MONITOR_NORTE = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_NORTE)
-const MOUSE_EXTRA_VITA_NORTE = escala(PARA_FRENTE, 0.1)
-
+// Todos os deltas abaixo saem do MODO DE EDIÇÃO (tecla E no app):
+// arrasta a peça na tela, aperta C, cola aqui. Por isso estão todos no
+// mesmo formato — somar(escala(DIREÇÃO, quanto), ...) — que é o que o
+// editor escreve. Dá pra editar na mão também: a direção é uma das 4
+// (PARA_FRENTE / PARA_TRAS / PARA_DIREITA / PARA_ESQUERDA) e o número
+// é a distância em fração de casa do tabuleiro.
 export const POSTOS: Posto[] = [
   {
     agenteId: 'cifra',
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
-    deltaMonitor: somar(escala(PARA_FRENTE, 0.3), escala(PARA_ESQUERDA, 0.1)),
-    deltaTeclado: somar(escala(PARA_FRENTE, 0.45), escala(PARA_ESQUERDA, 0.1)),
-    deltaMouse: somar(escala(PARA_FRENTE, 0.45), escala(PARA_DIREITA, 0.03)),
+    deltaMonitor: somar(escala(PARA_TRAS, 0.0975), escala(PARA_ESQUERDA, 0.0075)),
+    deltaTeclado: somar(escala(PARA_TRAS, 0.0975), escala(PARA_DIREITA, 0.0025)),
+    deltaMouse: somar(escala(PARA_TRAS, 0.0975), escala(PARA_DIREITA, 0.1325)),
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -217,9 +192,9 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
-    deltaMonitor: somar(escala(PARA_FRENTE, 0.1), escala(PARA_ESQUERDA, 0.3)),
-    deltaTeclado: somar(escala(PARA_FRENTE, 0.25), escala(PARA_ESQUERDA, 0.3)),
-    deltaMouse: somar(escala(PARA_FRENTE, 0.25), escala(PARA_ESQUERDA, 0.17)),
+    deltaMonitor: escala(PARA_ESQUERDA, 0.3),
+    deltaTeclado: somar(escala(PARA_FRENTE, 0.15), escala(PARA_ESQUERDA, 0.3)),
+    deltaMouse: somar(escala(PARA_FRENTE, 0.15), escala(PARA_ESQUERDA, 0.17)),
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -228,7 +203,7 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
-    deltaMonitor: somar(escala(PARA_TRAS, 0.045), escala(PARA_ESQUERDA, 0.055)),
+    deltaMonitor: somar(escala(PARA_TRAS, 0.17), escala(PARA_DIREITA, 0.05)),
     deltaTeclado: CENTRO_MESA,
     deltaMouse: somar(escala(PARA_FRENTE, 0.1), escala(PARA_DIREITA, 0.13)),
     cadeiraDirecao: 'NW',
