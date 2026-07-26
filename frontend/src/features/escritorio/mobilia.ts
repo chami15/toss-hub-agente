@@ -145,13 +145,19 @@ function escala(d: Delta, k: number): Delta {
 }
 
 // Monitor: primeiro centralizado NA MESA (0,0), depois puxado pro
-// fundo da sala. No Cifra/Agenda o recuo é maior E o teclado/mouse
-// avança em direção ao agente — precisa de mais separação porque
-// senão o par teclado+mouse fica "em cima" do monitor. No Vita/Norte
-// o monitor só precisa recuar mais um pouco (estava perto demais);
-// teclado/mouse ficam no centro da mesa mesmo, sem avançar.
+// fundo da sala — sempre em direção a PARA_TRAS, que é uma direção
+// FIXA da câmera (não muda com a mesa). Importante: "mais perto do
+// agente" não é sempre a mesma direção — depende de que lado a
+// cadeira daquele posto está. No Cifra/Agenda a cadeira está do lado
+// de PARA_TRAS (deltaCadeira usa PARA_TRAS), então o teclado/mouse
+//("mais perto do agente") também tem que ir pra PARA_TRAS — só que
+// menos que a cadeira, pra ficar ENTRE ela e o monitor. Usar
+// PARA_FRENTE aqui (erro anterior) jogava o teclado pro lado ERRADO
+// da mesa, oposto de onde a cadeira está. No Vita/Norte a cadeira já
+// está do lado de PARA_FRENTE, então o centro da mesa (0,0) já cai
+// naturalmente entre ela e o monitor — não precisa de ajuste extra.
 const RECUO_MONITOR = escala(PARA_TRAS, 0.22)
-const AVANCO_PERIFERICOS = escala(PARA_FRENTE, 0.16)
+const PERIFERICOS_LADO_TRAS = escala(PARA_TRAS, 0.32)
 const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
 
 // Deslocamento do mouse em relação à âncora do teclado — os dois
@@ -165,7 +171,7 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
     deltaMonitor: RECUO_MONITOR,
-    deltaPerifericos: AVANCO_PERIFERICOS,
+    deltaPerifericos: PERIFERICOS_LADO_TRAS,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -175,7 +181,7 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
     deltaMonitor: RECUO_MONITOR,
-    deltaPerifericos: AVANCO_PERIFERICOS,
+    deltaPerifericos: PERIFERICOS_LADO_TRAS,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
