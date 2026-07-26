@@ -135,9 +135,17 @@ frontend/
       escritorio/
         iso.ts              → matemática isométrica (o único lugar que sabe converter tile → pixel)
         sala.ts             → dimensões, paletas, constantes de parede/janela
-        mobilia.ts          → o que existe no ambiente e onde (só dado) + sistema de coordenada de tabuleiro
-        cena.ts             → o único lugar que desenha
-        Escritorio.tsx      → só o ciclo de vida do canvas Pixi
+        ancoras.ts          → GERADO por scripts/medir-ancoras.py: as 560 âncoras (peça × direção)
+        salas/*.json        → o conteúdo de cada ambiente. Sala nova = arquivo novo.
+        sala-dados.ts       → o formato da sala + os índices (por id, por agente)
+        maquete.ts          → dona dos dados E dos sprites, mantendo os dois em sincronia
+        catalogo.ts         → as 140 peças agrupadas por categoria
+        persistencia.ts     → as três camadas: fonte / rascunho / sessão
+        edicao.ts           → o modo de edição (tecla E)
+        cena.ts             → desenha o que NÃO é mobília (piso, laje, paredes, crachás)
+        Escritorio.tsx      → ciclo de vida do canvas Pixi + painéis
+  scripts/
+    medir-ancoras.py        → mede o "pé" de cada sprite e regera ancoras.ts
 ```
 
 **Regra:** componente nunca fala direto com o backend — sempre
@@ -148,8 +156,20 @@ componente → hook → api client. Mesma disciplina do router → resolver
 `agente.mesa` (que vem de `GET /agentes`) é o DADO de qual mesa o
 agente ocupa; onde essa mesa fica na tela é mapeamento só do frontend.
 
-**Regra:** `mobilia.ts` é só dado, `cena.ts` é só desenho. Mudar o
-ambiente inteiro = editar uma lista; nenhum componente muda.
+**Regra:** a sala é DADO (`salas/*.json`), nunca código. Quem mexe nela
+é o modo de edição, não o editor de texto. Gerar TypeScript de volta a
+partir do editor foi descartado por ser frágil: some comentário,
+formatação quebra, e um erro de sintaxe derruba o app inteiro.
+Serializar JSON nunca quebra o build.
+
+**Regra:** ninguém mexe em sprite direto — fala com a `Maquete`, que é
+dona dos dados e dos sprites ao mesmo tempo e mantém os dois casados.
+
+**Regra:** a identidade do agente NÃO mora na posição, mora no campo
+`agente` do móvel. Quem pergunta "onde está a Cifra?" consulta o índice
+por id; quem clica num sprite lê o campo. Por isso o agente pode ocupar
+qualquer móvel, em qualquer sala, sem nada no código mudar — e o
+backend continua sem saber de posição nenhuma.
 
 ---
 
@@ -251,9 +271,21 @@ Ex.: `desk_NE.png`, `chairDesk_SW.png`.
 ## Âncoras dos sprites
 
 Cada PNG é cortado justo (sem padding transparente), então cada peça
-tem um ponto de apoio diferente. As âncoras em `mobilia.ts` saíram de
-um script que acha o pixel opaco mais baixo (o "pé" da peça) e sobe
-meia altura de losango — depois ajustadas visualmente.
+tem um ponto de apoio diferente. `scripts/medir-ancoras.py` acha o
+pixel opaco mais baixo (o "pé" da peça) e sobe meia altura de losango.
+
+Dois detalhes que custaram tempo:
+
+1. **O `getbbox()` do Pillow devolve o limite de baixo EXCLUSIVO.** Sem
+   o `−1` o erro médio ficava 8× maior. Com ele, a fórmula reproduz as
+   15 âncoras que tinham sido calibradas a olho com 0.0–0.1px de erro —
+   foi essa validação que deu confiança pra gerar as outras 125.
+
+2. **A âncora é por peça × DIREÇÃO, não por peça.** O mesmo móvel tem
+   alturas diferentes em cada rotação (`chairDesk` tem 78px em NE e
+   97px em SE). Uma âncora só por peça faz o móvel pular do chão ao
+   girar — e, antes disso ser descoberto, as cadeiras SW já estavam
+   desenhadas flutuando ~5px com a âncora do NE.
 
 ## Paredes
 
@@ -294,15 +326,22 @@ espaço de `zIndex`.
 5. móveis             ← SÓ esta camada ordena por profundidade internamente
 ```
 
-Dentro da camada de móveis:
+Dentro da camada de móveis, a profundidade sai do campo `sobre`:
 
 ```ts
-sprite.zIndex = profundidade(coluna, linha) * 10 + (desempate ?? 0)
-// profundidade = coluna + linha (quanto maior, mais à frente)
-// desempate    = pra peças no mesmo tile (monitor em cima da mesa)
+const base  = baseNoChao(movel, porId)   // segue a cadeia de `sobre`
+const nivel = nivelDe(movel, porId)      // quantos degraus acima do chão
+sprite.zIndex = profundidade(base.coluna, base.linha) * 1000
+              + nivel * 100
+              + ordemNoArray
 ```
 
-O `* 10` deixa espaço pro desempate sem colidir com o tile vizinho.
+**Por que herdar do suporte, e não usar a posição própria:** um monitor
+levemente deslocado da mesa tem profundidade MENOR que ela e desenha
+ATRÁS — sumindo. Esse bug apareceu duas vezes e foi remendado à mão
+(`zColuna`/`zLinha`) antes de virar o campo `sobre`, que resolve a
+classe inteira: a peça herda a profundidade de quem a sustenta, desenha
+sempre na frente, e acompanha o suporte quando ele se move.
 
 ---
 
@@ -353,7 +392,63 @@ manipulável. Bancos CC0 (Kenney, OpenGameArt) resolvem melhor.
 
 ---
 
-# PARTE 7 — Pontos de atenção (checklist)
+# PARTE 7 — O modo de edição (tecla E)
+
+## Por que existe
+
+Nasceu do gargalo real do projeto: descrever posição em palavras não
+funciona numa cena isométrica. "Um pouco mais pra trás" vira um vetor
+diferente dependendo da peça e de que lado o agente senta — e cada
+rodada de *descreve → agente chuta o delta → renderiza → tá errado*
+custava caro. Chegamos a gastar 5 rodadas seguidas num único monitor.
+
+O editor tira essa tradução do caminho: o chefe arrasta, vê na hora, e
+salva. Ninguém precisa acertar pixel por descrição.
+
+## As três camadas
+
+| Camada | Onde vive | Some quando |
+|---|---|---|
+| **fonte** | `salas/*.json`, no git | nunca (é o oficial) |
+| **rascunho** | `localStorage` | só se descartar |
+| **sessão** | memória da `Maquete` | ao recarregar |
+
+**O código nunca adivinha qual é qual.** Quem decide é o chefe,
+apertando um botão. Errar pra "permanente" é caro demais pra deixar por
+conta de heurística — por isso são duas ações explícitas, e o HUD sempre
+mostra em qual camada a tela está.
+
+## Comandos
+
+| | |
+|---|---|
+| arrastar | mover livre |
+| setas | mover pelo passo (nas 4 direções nomeadas) |
+| `Q` / `W` | girar (só troca a textura + âncora da direção) |
+| `PgUp` / `PgDn` | altura |
+| `Tab` | próxima peça · `[` `]` passo · `Del` excluir |
+| `E` | entra e sai |
+
+## Como adicionar mobília nova
+
+O catálogo lista as 140 peças, agrupadas por categoria. As categorias
+saem do prefixo do próprio nome do arquivo (`kitchen*`, `lounge*`,
+`table*`), que é como o pack já vem organizado — derivado, e não uma
+lista na mão que sairia do ar assim que o pack mudasse. A miniatura é o
+próprio PNG (a maior peça tem ~140px, não vale gerar spritesheet).
+
+Peça nova nasce no centro da sala já selecionada, pronta pra arrastar.
+
+## Objeto em cima de objeto
+
+O botão **apoiar** liga a peça selecionada ao móvel mais próximo abaixo
+dela (meia casa de tolerância). Isso preenche o campo `sobre`, que faz
+duas coisas: fixa a profundidade na do suporte (a peça nunca some atrás
+dele) e faz ela acompanhar o suporte quando ele se move.
+
+---
+
+# PARTE 8 — Pontos de atenção (checklist)
 
 Antes de dar qualquer coisa por pronta:
 
@@ -363,6 +458,8 @@ Antes de dar qualquer coisa por pronta:
 - [ ] Se mexeu em rotação de sprite: comparou as 4 opções em vez de deduzir?
 - [ ] Se adicionou peça nova: a âncora foi medida, não chutada?
 - [ ] Se mexeu em z-order: a peça está na camada certa?
+- [ ] Se mudou o pack de sprites: rodou `scripts/medir-ancoras.py` de novo?
+- [ ] Se mudou posição de móvel: fez no modo de edição, e não na mão?
 - [ ] Se adicionou dependência: avisou que o chefe precisa de `npm install` após o `git pull`?
 
 ## Erros recorrentes a evitar
@@ -374,6 +471,17 @@ Antes de dar qualquer coisa por pronta:
 4. **Confundir eixo de grid com eixo de tela.**
 5. **Misturar piso e móvel no mesmo espaço de z-index.**
 6. **Entregar "só a casca" quando o pedido é algo vivo.**
+7. **Chutar posição a partir de descrição em palavras.** É ambíguo por
+   natureza: "mais perto do agente" muda de direção conforme o lado em
+   que ele senta. Existe modo de edição justamente pra isso.
+8. **Derivar a posição de uma peça da posição de outra.** Já foi feito
+   (o teclado saía do monitor, o mouse saía do teclado) e virou fonte de
+   bug: mexer numa arrastava as outras e ninguém previa o resultado.
+   Cada peça guarda a própria posição.
+9. **Mexer nos mesmos arquivos que o chefe ao mesmo tempo.** Rendeu um
+   merge conflito resolvido pela metade, que só não virou perda de
+   trabalho porque os dois lados estavam commitados. Combinar antes quem
+   mexe no quê.
 
 ---
 
