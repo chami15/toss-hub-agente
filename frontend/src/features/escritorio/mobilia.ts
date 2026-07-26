@@ -184,11 +184,11 @@ const OFFSET_MOUSE = escala(PARA_DIREITA, 0.13)
 // mesmo que tem que ser (apontar o alvo, não o vetor).
 const ORIGEM_CIFRA = entre('D4', 'E4')
 const ORIGEM_AGENDA = entre('E4', 'F4')
-const MONITOR_CIFRA = rumoA(ORIGEM_CIFRA, 'E5', 0.4)
-const MONITOR_AGENDA = rumoA(ORIGEM_AGENDA, 'E5', 0.4)
+const MONITOR_CIFRA = somar(rumoA(ORIGEM_CIFRA, 'D5', 0.01), escala(PARA_TRAS, 0.1))
+const MONITOR_AGENDA = somar(rumoA(ORIGEM_AGENDA, 'E5', 0.4), escala(PARA_TRAS, 0.1))
 // teclado/mouse: "bem na frente do monitor" — mais um empurrão pra
 // frente a partir da posição do monitor, não do centro da mesa.
-const PERIFERICOS_CIFRA = somar(MONITOR_CIFRA, escala(PARA_FRENTE, 0.15))
+const PERIFERICOS_CIFRA = somar(MONITOR_CIFRA, escala(PARA_DIREITA, 0.01))
 const PERIFERICOS_AGENDA = somar(MONITOR_AGENDA, escala(PARA_FRENTE, 0.15))
 
 // Vita/Norte — só o monitor muda: continua onde estava (recuo +
@@ -197,9 +197,9 @@ const PERIFERICOS_AGENDA = somar(MONITOR_AGENDA, escala(PARA_FRENTE, 0.15))
 // Teclado e mouse ficam exatamente como estavam.
 const ORIGEM_VITA = entre('D5', 'E5')
 const ORIGEM_NORTE = entre('E5', 'F5')
-const AJUSTE_VITA = rumoAPonto(ORIGEM_VITA, entre('D6', 'E6'), 0.35)
+const AJUSTE_VITA = rumoAPonto(ORIGEM_VITA, entre('D6', 'E6'), 0.1)
 const AJUSTE_NORTE = rumoAPonto(ORIGEM_NORTE, entre('E6', 'F6'), 0.35)
-const MONITOR_VITA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_VITA)
+const MONITOR_VITA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.1), AJUSTE_VITA)
 const MONITOR_NORTE = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_NORTE)
 const MOUSE_EXTRA_VITA_NORTE = escala(PARA_FRENTE, 0.1)
 
