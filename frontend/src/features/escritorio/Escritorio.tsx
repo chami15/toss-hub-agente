@@ -1,14 +1,18 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Application, Container } from 'pixi.js'
 import { criarCena } from './cena'
+import { criarEditor, descrever, type Editor, type EstadoEditor } from './edicao'
 import { PALETA } from './sala'
+import { PainelEdicao } from './PainelEdicao'
 
 // Hospeda o mundo isométrico. React cuida só do ciclo de vida do
-// canvas; tudo que é desenho mora em cena.ts. O `mundo` é o container
-// que vai levar câmera (pan/zoom) quando a gente chegar lá — por isso
-// a cena entra dentro dele, e não direto no palco.
+// canvas e do painel de edição; tudo que é desenho mora em cena.ts. O
+// `mundo` é o container que vai levar câmera (pan/zoom) quando a gente
+// chegar lá — por isso a cena entra dentro dele, e não direto no palco.
 export function Escritorio() {
   const hospedeiroRef = useRef<HTMLDivElement>(null)
+  const editorRef = useRef<Editor | null>(null)
+  const [estado, setEstado] = useState<EstadoEditor | null>(null)
 
   useEffect(() => {
     const hospedeiro = hospedeiroRef.current
@@ -40,8 +44,15 @@ export function Escritorio() {
       aplicacao.stage.addChild(mundo)
 
       // as texturas do pack são carregadas antes da cena existir
-      mundo.addChild(await criarCena())
+      const cena = await criarCena()
       if (desmontado) return
+      mundo.addChild(cena.raiz)
+
+      const editor = criarEditor(cena.editaveis, mundo, aplicacao.stage, () =>
+        setEstado(editorRef.current?.estado() ?? null),
+      )
+      editorRef.current = editor
+      setEstado(editor.estado())
 
       // Encaixa a maquete inteira na tela, com uma margem, e centraliza.
       // Quando a câmera com pan/zoom entrar, isso vira só o estado inicial.
@@ -66,9 +77,79 @@ export function Escritorio() {
 
     return () => {
       desmontado = true
+      editorRef.current?.destruir()
+      editorRef.current = null
       app?.destroy(true, { children: true })
     }
   }, [])
 
-  return <div ref={hospedeiroRef} style={{ width: '100vw', height: '100dvh', overflow: 'hidden' }} />
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      const editor = editorRef.current
+      if (!editor) return
+      // não sequestrar o teclado enquanto o chefe digita em algum campo
+      const alvo = e.target as HTMLElement | null
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA')) return
+
+      if (e.key === 'e' || e.key === 'E') {
+        editor.alternar()
+        return
+      }
+      if (!editor.estado().ativo) return
+
+      // as setas andam nas 4 direções nomeadas: a tela sobe = fundo da
+      // sala = PARA_TRAS (−1,−1); desce = PARA_FRENTE (1,1); direita =
+      // PARA_DIREITA (1,−1); esquerda = PARA_ESQUERDA (−1,1)
+      const setas: Record<string, [number, number]> = {
+        ArrowUp: [-1, -1],
+        ArrowDown: [1, 1],
+        ArrowRight: [1, -1],
+        ArrowLeft: [-1, 1],
+      }
+      const seta = setas[e.key]
+      if (seta) {
+        e.preventDefault()
+        editor.mover(seta[0], seta[1])
+        return
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        editor.ciclar(e.shiftKey ? -1 : 1)
+      } else if (e.key === '[') {
+        editor.mudarPasso(-1)
+      } else if (e.key === ']') {
+        editor.mudarPasso(1)
+      } else if (e.key === 'r' || e.key === 'R') {
+        if (e.shiftKey) editor.restaurarTudo()
+        else editor.restaurar()
+      } else if (e.key === 'c' || e.key === 'C') {
+        void navigator.clipboard?.writeText(editor.codigo())
+      }
+    }
+
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [])
+
+  const aoCopiar = useCallback(() => {
+    const editor = editorRef.current
+    if (editor) void navigator.clipboard?.writeText(editor.codigo())
+  }, [])
+
+  return (
+    <div style={{ width: '100vw', height: '100dvh', overflow: 'hidden', position: 'relative' }}>
+      <div ref={hospedeiroRef} style={{ width: '100%', height: '100%' }} />
+      {estado && (
+        <PainelEdicao
+          estado={estado}
+          descricao={estado.selecionado ? descrever(estado.selecionado.delta) : ''}
+          codigo={editorRef.current?.codigo() ?? ''}
+          aoCopiar={aoCopiar}
+          aoCiclar={(p) => editorRef.current?.ciclar(p)}
+          aoRestaurar={() => editorRef.current?.restaurar()}
+        />
+      )}
+    </div>
+  )
 }

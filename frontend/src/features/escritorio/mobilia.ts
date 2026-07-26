@@ -53,6 +53,22 @@ export const RECORTES: Record<string, RecorteRetrato> = {
   norte: { cx: 0.5, cy: 0.36, raio: 0.34 },
 }
 
+// O que o modo de edição precisa saber sobre uma peça pra conseguir
+// mexer nela e depois escrever o valor de volta no código:
+//   origem — de onde o delta é medido (o centro da mesa do posto). Pras
+//            mesas em si é (0,0), então o "delta" delas é a posição
+//            absoluta no tabuleiro.
+//   campo  — o nome do campo em Posto onde o valor vai ser colado
+//            (deltaMonitor, deltaTeclado, ...). Sem campo = a peça não
+//            mora num Posto (as mesas), e o editor emite coluna/linha.
+export interface Edicao {
+  id: string
+  rotulo: string
+  grupo: string
+  origem: { coluna: number; linha: number }
+  campo?: keyof Posto
+}
+
 export interface Movel {
   peca: string
   direcao: Direcao
@@ -60,6 +76,7 @@ export interface Movel {
   linha: number
   altura?: number
   desempate?: number
+  edicao?: Edicao
   // Posição usada só pro CÁLCULO de profundidade (z-order), quando
   // difere de onde o sprite é desenhado. Necessário pro monitor: se ele
   // se desloca um pouco da mesa (ajuste fino), a profundidade dele pode
@@ -99,25 +116,6 @@ export function entre(refA: string, refB: string): { coluna: number; linha: numb
   }
 }
 
-// Delta "em direção a um ponto do tabuleiro" — às vezes é mais fácil
-// apontar uma casa de referência (ex: "vai indo pra E5") do que compor
-// as 4 direções na mão. fracao=1 chegaria exatamente no ponto; usamos
-// frações menores porque é um empurrão, não um teleporte. O ponto de
-// chegada pode ser uma casa isolada ou o meio de duas (entre()).
-function rumoAPonto(
-  origem: { coluna: number; linha: number },
-  alvo: { coluna: number; linha: number },
-  fracao: number,
-): Delta {
-  return {
-    coluna: (alvo.coluna - origem.coluna) * fracao,
-    linha: (alvo.linha - origem.linha) * fracao,
-  }
-}
-function rumoA(origem: { coluna: number; linha: number }, destino: string, fracao: number): Delta {
-  return rumoAPonto(origem, casa(destino), fracao)
-}
-
 // Um posto de trabalho: mesa (com sua posição/direção) + monitor
 // (com ajuste fino próprio) + a cadeira do lado de FORA do pod (pra a
 // pessoa olhar pra dentro, em direção ao corredor entre as duas
@@ -135,6 +133,13 @@ export interface Delta {
   linha: number
 }
 
+// Cada peça do posto tem seu delta PRÓPRIO e explícito, medido do
+// centro da mesa. Antes eram derivados uns dos outros (o teclado saía
+// do monitor, o mouse saía do teclado, o monitor saía de um "rumo a
+// tal casa") — o que era esperto no papel e virou fonte de bug: mexer
+// numa peça arrastava as outras junto, e ninguém conseguia prever o
+// resultado. Agora cada uma é independente, e é isso que deixa o modo
+// de edição (tecla E) escrever de volta valor por valor.
 export interface Posto {
   agenteId: string
   mesaPeca: string
@@ -142,13 +147,8 @@ export interface Posto {
   coluna: number
   linha: number
   deltaMonitor: Delta
-  // âncora do teclado — o mouse sempre gruda do lado dele (ver
-  // OFFSET_MOUSE), os dois viajam juntos como um par.
-  deltaPerifericos: Delta
-  // ajuste extra só do mouse, além do par com o teclado — usado
-  // quando só o mouse precisa de um empurrão a mais (o teclado fica
-  // onde estava).
-  mouseExtra?: Delta
+  deltaTeclado: Delta
+  deltaMouse: Delta
   cadeiraDirecao: Direcao
   deltaCadeira: Delta
 }
@@ -167,10 +167,7 @@ function escala(d: Delta, k: number): Delta {
   return { coluna: d.coluna * k, linha: d.linha * k }
 }
 
-// Recuo do monitor do Vita/Norte: centralizado na mesa (0,0), puxado
-// um pouco pro fundo da sala (PARA_TRAS) — validado, não muda mais.
-const RECUO_MONITOR = escala(PARA_TRAS, 0.22)
-const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
+export const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
 
 // Deslocamento do mouse em relação à âncora do teclado — os dois
 // sempre viajam juntos como um par, grudados um do lado do outro.
@@ -184,11 +181,11 @@ const OFFSET_MOUSE = escala(PARA_DIREITA, 0.13)
 // mesmo que tem que ser (apontar o alvo, não o vetor).
 const ORIGEM_CIFRA = entre('D4', 'E4')
 const ORIGEM_AGENDA = entre('E4', 'F4')
-const MONITOR_CIFRA = somar(rumoA(ORIGEM_CIFRA, 'D5', 0.01), escala(PARA_TRAS, 0.1))
-const MONITOR_AGENDA = somar(rumoA(ORIGEM_AGENDA, 'E5', 0.4), escala(PARA_TRAS, 0.1))
+const MONITOR_CIFRA = rumoA(ORIGEM_CIFRA, 'E5', 0.4)
+const MONITOR_AGENDA = rumoA(ORIGEM_AGENDA, 'E5', 0.4)
 // teclado/mouse: "bem na frente do monitor" — mais um empurrão pra
 // frente a partir da posição do monitor, não do centro da mesa.
-const PERIFERICOS_CIFRA = somar(MONITOR_CIFRA, escala(PARA_DIREITA, 0.01))
+const PERIFERICOS_CIFRA = somar(MONITOR_CIFRA, escala(PARA_FRENTE, 0.15))
 const PERIFERICOS_AGENDA = somar(MONITOR_AGENDA, escala(PARA_FRENTE, 0.15))
 
 // Vita/Norte — só o monitor muda: continua onde estava (recuo +
@@ -197,9 +194,9 @@ const PERIFERICOS_AGENDA = somar(MONITOR_AGENDA, escala(PARA_FRENTE, 0.15))
 // Teclado e mouse ficam exatamente como estavam.
 const ORIGEM_VITA = entre('D5', 'E5')
 const ORIGEM_NORTE = entre('E5', 'F5')
-const AJUSTE_VITA = rumoAPonto(ORIGEM_VITA, entre('D6', 'E6'), 0.1)
+const AJUSTE_VITA = rumoAPonto(ORIGEM_VITA, entre('D6', 'E6'), 0.35)
 const AJUSTE_NORTE = rumoAPonto(ORIGEM_NORTE, entre('E6', 'F6'), 0.35)
-const MONITOR_VITA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.1), AJUSTE_VITA)
+const MONITOR_VITA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_VITA)
 const MONITOR_NORTE = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_NORTE)
 const MOUSE_EXTRA_VITA_NORTE = escala(PARA_FRENTE, 0.1)
 
@@ -209,8 +206,9 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
-    deltaMonitor: MONITOR_CIFRA,
-    deltaPerifericos: PERIFERICOS_CIFRA,
+    deltaMonitor: somar(escala(PARA_FRENTE, 0.3), escala(PARA_ESQUERDA, 0.1)),
+    deltaTeclado: somar(escala(PARA_FRENTE, 0.45), escala(PARA_ESQUERDA, 0.1)),
+    deltaMouse: somar(escala(PARA_FRENTE, 0.45), escala(PARA_DIREITA, 0.03)),
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -219,8 +217,9 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
-    deltaMonitor: MONITOR_AGENDA,
-    deltaPerifericos: PERIFERICOS_AGENDA,
+    deltaMonitor: somar(escala(PARA_FRENTE, 0.1), escala(PARA_ESQUERDA, 0.3)),
+    deltaTeclado: somar(escala(PARA_FRENTE, 0.25), escala(PARA_ESQUERDA, 0.3)),
+    deltaMouse: somar(escala(PARA_FRENTE, 0.25), escala(PARA_ESQUERDA, 0.17)),
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -229,9 +228,9 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
-    deltaMonitor: MONITOR_VITA,
-    deltaPerifericos: CENTRO_MESA,
-    mouseExtra: MOUSE_EXTRA_VITA_NORTE,
+    deltaMonitor: somar(escala(PARA_TRAS, 0.045), escala(PARA_ESQUERDA, 0.055)),
+    deltaTeclado: CENTRO_MESA,
+    deltaMouse: somar(escala(PARA_FRENTE, 0.1), escala(PARA_DIREITA, 0.13)),
     cadeiraDirecao: 'NW',
     deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.32)),
   },
@@ -240,63 +239,115 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('E5', 'F5'),
-    deltaMonitor: MONITOR_NORTE,
-    deltaPerifericos: CENTRO_MESA,
-    mouseExtra: MOUSE_EXTRA_VITA_NORTE,
+    deltaMonitor: somar(escala(PARA_TRAS, 0.045), escala(PARA_ESQUERDA, 0.055)),
+    deltaTeclado: CENTRO_MESA,
+    deltaMouse: somar(escala(PARA_FRENTE, 0.1), escala(PARA_DIREITA, 0.13)),
     cadeiraDirecao: 'NW',
     deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.32)),
   },
 ]
 
+const SEM_ORIGEM = { coluna: 0, linha: 0 }
+
+function nomeDe(agenteId: string): string {
+  return agenteId.charAt(0).toUpperCase() + agenteId.slice(1)
+}
+
 export const MOVEIS: Movel[] = [
   // mesa do chefe — B2, virada NE (sem avatar por enquanto)
-  { peca: 'deskCorner', direcao: 'NE', ...casa('B2') },
+  {
+    peca: 'deskCorner',
+    direcao: 'NE',
+    ...casa('B2'),
+    edicao: { id: 'chefe:mesa', rotulo: 'Mesa · Chefe', grupo: 'chefe', origem: SEM_ORIGEM },
+  },
 
-  ...POSTOS.flatMap((p): Movel[] => [
-    { peca: p.mesaPeca, direcao: p.mesaDirecao, coluna: p.coluna, linha: p.linha },
-    {
-      peca: 'computerScreen',
-      direcao: p.mesaDirecao,
-      coluna: p.coluna + p.deltaMonitor.coluna,
-      linha: p.linha + p.deltaMonitor.linha,
-      altura: 0.16,
-      desempate: 2,
-      // profundidade fixada na mesa — o ajuste fino de posição não
-      // pode fazer o monitor "recuar" pra trás da própria mesa
-      zColuna: p.coluna,
-      zLinha: p.linha,
-    },
-    // teclado e mouse: sempre juntos como um par (mouse gruda do lado
-    // do teclado), os dois na âncora deltaPerifericos do posto
-    {
-      peca: 'computerKeyboard',
-      direcao: p.mesaDirecao,
-      coluna: p.coluna + p.deltaPerifericos.coluna,
-      linha: p.linha + p.deltaPerifericos.linha,
-      altura: 0.16,
-      desempate: 3,
-      zColuna: p.coluna,
-      zLinha: p.linha,
-    },
-    {
-      peca: 'computerMouse',
-      direcao: p.mesaDirecao,
-      coluna:
-        p.coluna + p.deltaPerifericos.coluna + OFFSET_MOUSE.coluna + (p.mouseExtra?.coluna ?? 0),
-      linha: p.linha + p.deltaPerifericos.linha + OFFSET_MOUSE.linha + (p.mouseExtra?.linha ?? 0),
-      altura: 0.16,
-      desempate: 3,
-      zColuna: p.coluna,
-      zLinha: p.linha,
-    },
-    {
-      peca: 'chairDesk',
-      direcao: p.cadeiraDirecao,
-      coluna: p.coluna + p.deltaCadeira.coluna,
-      linha: p.linha + p.deltaCadeira.linha,
-      desempate: 4,
-    },
-  ]),
+  ...POSTOS.flatMap((p): Movel[] => {
+    const nome = nomeDe(p.agenteId)
+    // as peças de cima da mesa medem o delta a partir do centro dela
+    const origem = { coluna: p.coluna, linha: p.linha }
+    // profundidade fixada na mesa — o ajuste fino de posição (ou um
+    // arrasto no modo de edição) não pode fazer a peça "recuar" pra
+    // trás da própria mesa e sumir
+    const zDaMesa = { zColuna: p.coluna, zLinha: p.linha }
+
+    return [
+      {
+        peca: p.mesaPeca,
+        direcao: p.mesaDirecao,
+        coluna: p.coluna,
+        linha: p.linha,
+        edicao: {
+          id: `${p.agenteId}:mesa`,
+          rotulo: `Mesa · ${nome}`,
+          grupo: p.agenteId,
+          origem: SEM_ORIGEM,
+        },
+      },
+      {
+        peca: 'computerScreen',
+        direcao: p.mesaDirecao,
+        coluna: p.coluna + p.deltaMonitor.coluna,
+        linha: p.linha + p.deltaMonitor.linha,
+        altura: 0.16,
+        desempate: 2,
+        ...zDaMesa,
+        edicao: {
+          id: `${p.agenteId}:monitor`,
+          rotulo: `Monitor · ${nome}`,
+          grupo: p.agenteId,
+          origem,
+          campo: 'deltaMonitor',
+        },
+      },
+      {
+        peca: 'computerKeyboard',
+        direcao: p.mesaDirecao,
+        coluna: p.coluna + p.deltaTeclado.coluna,
+        linha: p.linha + p.deltaTeclado.linha,
+        altura: 0.16,
+        desempate: 3,
+        ...zDaMesa,
+        edicao: {
+          id: `${p.agenteId}:teclado`,
+          rotulo: `Teclado · ${nome}`,
+          grupo: p.agenteId,
+          origem,
+          campo: 'deltaTeclado',
+        },
+      },
+      {
+        peca: 'computerMouse',
+        direcao: p.mesaDirecao,
+        coluna: p.coluna + p.deltaMouse.coluna,
+        linha: p.linha + p.deltaMouse.linha,
+        altura: 0.16,
+        desempate: 3,
+        ...zDaMesa,
+        edicao: {
+          id: `${p.agenteId}:mouse`,
+          rotulo: `Mouse · ${nome}`,
+          grupo: p.agenteId,
+          origem,
+          campo: 'deltaMouse',
+        },
+      },
+      {
+        peca: 'chairDesk',
+        direcao: p.cadeiraDirecao,
+        coluna: p.coluna + p.deltaCadeira.coluna,
+        linha: p.linha + p.deltaCadeira.linha,
+        desempate: 4,
+        edicao: {
+          id: `${p.agenteId}:cadeira`,
+          rotulo: `Cadeira · ${nome}`,
+          grupo: p.agenteId,
+          origem,
+          campo: 'deltaCadeira',
+        },
+      },
+    ]
+  }),
 ]
 
 // Todas as peças usadas — pra pré-carregar as texturas antes de montar.
