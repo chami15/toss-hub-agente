@@ -33,6 +33,23 @@ export function ancoraDe(peca: string): Ancora {
   return ANCORAS[peca] ?? ANCORA_PADRAO
 }
 
+// Recorte circular do retrato de cada agente: centro (fração da
+// imagem original) + raio (fração da LARGURA da imagem). Calibrado
+// olhando cada retrato — os 4 têm enquadramento levemente diferente,
+// então não dá pra usar um valor único pra todos.
+export interface RecorteRetrato {
+  cx: number
+  cy: number
+  raio: number
+}
+
+export const RECORTES: Record<string, RecorteRetrato> = {
+  cifra: { cx: 0.46, cy: 0.37, raio: 0.36 },
+  agenda: { cx: 0.48, cy: 0.35, raio: 0.36 },
+  vita: { cx: 0.5, cy: 0.37, raio: 0.38 },
+  norte: { cx: 0.45, cy: 0.3, raio: 0.32 },
+}
+
 export interface Movel {
   peca: string
   direcao: Direcao
@@ -71,20 +88,81 @@ export function entre(refA: string, refB: string): { coluna: number; linha: numb
   }
 }
 
+// Um posto de trabalho: mesa (com sua posição/direção) + a cadeira do
+// lado de FORA do pod (pra a pessoa olhar pra dentro, em direção ao
+// corredor entre as duas duplas) + o agente que senta ali (usado por
+// cena.ts pra colocar o retrato).
+export interface Posto {
+  agenteId: string
+  mesaPeca: string
+  mesaDirecao: Direcao
+  coluna: number
+  linha: number
+  cadeiraDirecao: Direcao
+  // deslocamento puramente VERTICAL na tela (mesma direção em coluna e
+  // linha) pra empurrar a cadeira pro lado de fora do pod
+  deltaCadeira: number
+}
+
+const D_CADEIRA = 0.62
+
+export const POSTOS: Posto[] = [
+  {
+    agenteId: 'cifra',
+    mesaPeca: 'desk',
+    mesaDirecao: 'NW',
+    ...entre('D4', 'E4'),
+    cadeiraDirecao: 'SE',
+    deltaCadeira: -D_CADEIRA,
+  },
+  {
+    agenteId: 'agenda',
+    mesaPeca: 'desk',
+    mesaDirecao: 'NW',
+    ...entre('E4', 'F4'),
+    cadeiraDirecao: 'SE',
+    deltaCadeira: -D_CADEIRA,
+  },
+  {
+    agenteId: 'vita',
+    mesaPeca: 'desk',
+    mesaDirecao: 'SW',
+    ...entre('D5', 'E5'),
+    cadeiraDirecao: 'NE',
+    deltaCadeira: D_CADEIRA,
+  },
+  {
+    agenteId: 'norte',
+    mesaPeca: 'desk',
+    mesaDirecao: 'SW',
+    ...entre('E5', 'F5'),
+    cadeiraDirecao: 'NE',
+    deltaCadeira: D_CADEIRA,
+  },
+]
+
 export const MOVEIS: Movel[] = [
-  // mesa do chefe — B2, virada NE
+  // mesa do chefe — B2, virada NE (sem avatar por enquanto)
   { peca: 'deskCorner', direcao: 'NE', ...casa('B2') },
 
-  // dupla de cima — corre no eixo das LETRAS (D→E→F), na linha 4
-  { peca: 'desk', direcao: 'NW', ...entre('D4', 'E4') },
-  { peca: 'desk', direcao: 'NW', ...entre('E4', 'F4') },
-
-  // dupla de baixo — mesmas letras, uma linha à frente, pra ficarem
-  // frente a frente. (O chefe especificou linha 4 nas duas duplas, o
-  // que faria elas se sobreporem exatamente; linha 5 é o mínimo pra
-  // separar — confirmar se era essa a intenção.)
-  { peca: 'desk', direcao: 'SW', ...entre('D5', 'E5') },
-  { peca: 'desk', direcao: 'SW', ...entre('E5', 'F5') },
+  ...POSTOS.flatMap((p): Movel[] => [
+    { peca: p.mesaPeca, direcao: p.mesaDirecao, coluna: p.coluna, linha: p.linha },
+    {
+      peca: 'computerScreen',
+      direcao: p.mesaDirecao,
+      coluna: p.coluna,
+      linha: p.linha,
+      altura: 0.16,
+      desempate: 2,
+    },
+    {
+      peca: 'chairDesk',
+      direcao: p.cadeiraDirecao,
+      coluna: p.coluna + p.deltaCadeira,
+      linha: p.linha + p.deltaCadeira,
+      desempate: 4,
+    },
+  ]),
 ]
 
 // Todas as peças usadas — pra pré-carregar as texturas antes de montar.

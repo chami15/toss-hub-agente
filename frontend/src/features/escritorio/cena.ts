@@ -13,7 +13,8 @@ import {
   type Direcao,
   type Janela,
 } from './sala'
-import { MOVEIS, TAPETES, ancoraDe, pecasUsadas } from './mobilia'
+import { MOVEIS, POSTOS, TAPETES, ancoraDe, pecasUsadas, RECORTES } from './mobilia'
+import { AGENTES, PASTA_AGENTES } from './agentes'
 
 // Abordagem combinada:
 //   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
@@ -38,6 +39,55 @@ async function carregarTexturas(): Promise<Map<string, Texture>> {
     }),
   )
   return mapa
+}
+
+async function carregarRetratos(): Promise<Map<string, Texture>> {
+  const mapa = new Map<string, Texture>()
+  await Promise.all(
+    AGENTES.map(async (a) => {
+      mapa.set(a.id, await Assets.load(`${PASTA_AGENTES}/${a.arquivo}`))
+    }),
+  )
+  return mapa
+}
+
+// O "crachá" do agente: o retrato recortado em círculo (via mask do
+// Pixi) + um anel na cor de identidade dele. O recorte usa o CENTRO do
+// retrato calibrado em RECORTES como âncora do sprite — assim a
+// escala coloca exatamente aquele ponto na posição pedida, e a mask
+// (mesmo centro/raio, já em pixel de tela) recorta o círculo certo.
+const DIAMETRO_CRACHA = 84
+const ESPESSURA_ANEL = 5
+
+function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: number }, cor: number, x: number, y: number): Container {
+  const container = new Container()
+  const raioTela = DIAMETRO_CRACHA / 2
+
+  const sprite = new Sprite(retrato)
+  sprite.anchor.set(recorte.cx, recorte.cy)
+  const escala = raioTela / (recorte.raio * retrato.width)
+  sprite.scale.set(escala)
+  sprite.x = x
+  sprite.y = y
+
+  const mascara = new Graphics()
+  mascara.circle(x, y, raioTela).fill(0xffffff)
+  sprite.mask = mascara
+
+  const anel = new Graphics()
+  anel.circle(x, y, raioTela + ESPESSURA_ANEL / 2)
+  anel.stroke({ width: ESPESSURA_ANEL, color: cor })
+
+  const sombra = new Graphics()
+  sombra.circle(x, y + raioTela * 0.15, raioTela * 0.9)
+  sombra.fill({ color: 0x000000, alpha: 0.18 })
+
+  // a mask PRECISA estar na árvore de cena (senão a transform dela não
+  // acompanha a câmera/zoom do container pai e o recorte desalinha) —
+  // mas o Pixi não desenha normalmente um objeto que está sendo usado
+  // como .mask de outro, então ela não aparece como um círculo branco.
+  container.addChild(sombra, sprite, mascara, anel)
+  return container
 }
 
 // Os 4 cantos externos da planta. paraTela(c - 0.5, l - 0.5) devolve o
@@ -246,7 +296,7 @@ function desenharParede(
 }
 
 export async function criarCena(): Promise<Container> {
-  const texturas = await carregarTexturas()
+  const [texturas, retratos] = await Promise.all([carregarTexturas(), carregarRetratos()])
   const pegar = (chave: string) => {
     const t = texturas.get(chave)
     if (!t) throw new Error(`textura não carregada: ${chave}`)
@@ -301,6 +351,23 @@ export async function criarCena(): Promise<Container> {
     sprite.y = y
     sprite.zIndex = profundidade(m.coluna, m.linha) * 10 + (m.desempate ?? 0)
     camadaMoveis.addChild(sprite)
+  }
+
+  // crachá do agente: na posição da cadeira, "levantado" (altura) pra
+  // ficar por cima do encosto, como se fosse a cabeça de quem senta ali
+  const ALTURA_CRACHA = 0.62
+  for (const posto of POSTOS) {
+    const agente = AGENTES.find((a) => a.id === posto.agenteId)
+    const retrato = retratos.get(posto.agenteId)
+    const recorte = RECORTES[posto.agenteId]
+    if (!agente || !retrato || !recorte) continue
+
+    const colunaCadeira = posto.coluna + posto.deltaCadeira
+    const linhaCadeira = posto.linha + posto.deltaCadeira
+    const { x, y } = paraTela(colunaCadeira, linhaCadeira, ALTURA_CRACHA)
+    const avatar = criarAvatar(retrato, recorte, agente.cor, x, y)
+    avatar.zIndex = profundidade(colunaCadeira, linhaCadeira) * 10 + 5
+    camadaMoveis.addChild(avatar)
   }
 
   return cena
