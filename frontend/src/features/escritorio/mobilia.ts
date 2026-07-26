@@ -1,37 +1,9 @@
 import type { Direcao } from './sala'
 
-// Onde ancorar cada sprite dentro do próprio PNG, em fração (0..1).
-// Os valores saíram de um script que escaneia os pixels opacos e acha
-// o ponto mais baixo de cada peça — o "pé" dela — e sobe meia altura
-// de losango. Ajuste fino é feito olhando o resultado na tela.
-export interface Ancora {
-  x: number
-  y: number
-}
-
-export const ANCORAS: Record<string, Ancora> = {
-  floorFull: { x: 0.5, y: 0.477 },
-  wall: { x: 0.491, y: 0.823 },
-  wallWindow: { x: 0.491, y: 0.823 },
-  desk: { x: 0.5, y: 0.658 },
-  deskCorner: { x: 0.5, y: 0.487 },
-  chairDesk: { x: 0.5, y: 0.717 },
-  computerScreen: { x: 0.5, y: 0.688 },
-  laptop: { x: 0.5, y: 0.455 },
-  loungeSofa: { x: 0.5, y: 0.626 },
-  tableCoffee: { x: 0.5, y: 0.616 },
-  pottedPlant: { x: 0.5, y: 0.873 },
-  bookcaseOpen: { x: 0.5, y: 0.822 },
-  rugSquare: { x: 0.5, y: 0.505 },
-  trashcan: { x: 0.5, y: 0.797 },
-  lampSquareFloor: { x: 0.5, y: 0.912 },
-}
-
-export const ANCORA_PADRAO: Ancora = { x: 0.5, y: 0.7 }
-
-export function ancoraDe(peca: string): Ancora {
-  return ANCORAS[peca] ?? ANCORA_PADRAO
-}
+// As âncoras (onde cada sprite encosta no chão) agora vivem em
+// ancoras.ts, geradas por scripts/medir-ancoras.py pras 560
+// combinações de peça × direção. Antes eram 15 valores na mão aqui —
+// o que travava usar o resto do pack e fazia peça pular ao girar.
 
 // Recorte circular do retrato de cada agente: centro (fração da
 // imagem original) + raio (fração da LARGURA da imagem). Calibrado

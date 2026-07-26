@@ -13,7 +13,8 @@ import {
   type Direcao,
   type Janela,
 } from './sala'
-import { MOVEIS, POSTOS, TAPETES, ancoraDe, pecasUsadas, RECORTES } from './mobilia'
+import { MOVEIS, POSTOS, TAPETES, pecasUsadas, RECORTES } from './mobilia'
+import { ancoraDe } from './ancoras'
 import { AGENTES, PASTA_AGENTES } from './agentes'
 import type { ItemEditavel } from './edicao'
 
@@ -342,7 +343,7 @@ export async function criarCena(): Promise<Cena> {
   // tapetes: no chão, acima do piso, abaixo de qualquer móvel
   for (const t of TAPETES) {
     const sprite = new Sprite(pegar(`${t.peca}_${t.direcao}`))
-    const a = ancoraDe(t.peca)
+    const a = ancoraDe(t.peca, t.direcao)
     sprite.anchor.set(a.x, a.y)
     const { x, y } = paraTela(t.coluna, t.linha)
     sprite.x = x
@@ -356,7 +357,7 @@ export async function criarCena(): Promise<Cena> {
 
   for (const m of MOVEIS) {
     const sprite = new Sprite(pegar(`${m.peca}_${m.direcao}`))
-    const a = ancoraDe(m.peca)
+    const a = ancoraDe(m.peca, m.direcao)
     sprite.anchor.set(a.x, a.y)
     const { x, y } = paraTela(m.coluna, m.linha, m.altura ?? 0)
     sprite.x = x
