@@ -99,6 +99,25 @@ export function entre(refA: string, refB: string): { coluna: number; linha: numb
   }
 }
 
+// Delta "em direção a um ponto do tabuleiro" — às vezes é mais fácil
+// apontar uma casa de referência (ex: "vai indo pra E5") do que compor
+// as 4 direções na mão. fracao=1 chegaria exatamente no ponto; usamos
+// frações menores porque é um empurrão, não um teleporte. O ponto de
+// chegada pode ser uma casa isolada ou o meio de duas (entre()).
+function rumoAPonto(
+  origem: { coluna: number; linha: number },
+  alvo: { coluna: number; linha: number },
+  fracao: number,
+): Delta {
+  return {
+    coluna: (alvo.coluna - origem.coluna) * fracao,
+    linha: (alvo.linha - origem.linha) * fracao,
+  }
+}
+function rumoA(origem: { coluna: number; linha: number }, destino: string, fracao: number): Delta {
+  return rumoAPonto(origem, casa(destino), fracao)
+}
+
 // Um posto de trabalho: mesa (com sua posição/direção) + monitor
 // (com ajuste fino próprio) + a cadeira do lado de FORA do pod (pra a
 // pessoa olhar pra dentro, em direção ao corredor entre as duas
@@ -148,43 +167,40 @@ function escala(d: Delta, k: number): Delta {
   return { coluna: d.coluna * k, linha: d.linha * k }
 }
 
-// Monitor: primeiro centralizado NA MESA (0,0), depois puxado pro
-// fundo da sala — sempre em direção a PARA_TRAS, que é uma direção
-// FIXA da câmera (não muda com a mesa). Importante: "mais perto do
-// agente" não é sempre a mesma direção — depende de que lado a
-// cadeira daquele posto está. No Cifra/Agenda a cadeira está do lado
-// de PARA_TRAS (deltaCadeira usa PARA_TRAS), então o teclado/mouse
-//("mais perto do agente") também tem que ir pra PARA_TRAS — só que
-// menos que a cadeira, pra ficar ENTRE ela e o monitor. Usar
-// PARA_FRENTE aqui (erro anterior) jogava o teclado pro lado ERRADO
-// da mesa, oposto de onde a cadeira está. No Vita/Norte a cadeira já
-// está do lado de PARA_FRENTE, então o centro da mesa (0,0) já cai
-// naturalmente entre ela e o monitor — não precisa de ajuste extra.
+// Recuo do monitor do Vita/Norte: centralizado na mesa (0,0), puxado
+// um pouco pro fundo da sala (PARA_TRAS) — validado, não muda mais.
 const RECUO_MONITOR = escala(PARA_TRAS, 0.22)
-const PERIFERICOS_LADO_TRAS = escala(PARA_TRAS, 0.32)
 const CENTRO_MESA: Delta = { coluna: 0, linha: 0 }
 
 // Deslocamento do mouse em relação à âncora do teclado — os dois
 // sempre viajam juntos como um par, grudados um do lado do outro.
 const OFFSET_MOUSE = escala(PARA_DIREITA, 0.13)
 
-// Cifra/Agenda — pedido: monitor um pouco na diagonal (recuo + lado,
-// pra cada mesa abrir espaço da vizinha) e teclado/mouse um pouco mais
-// pra frente (afasta um pouco do lado extremo da cadeira, sem cruzar
-// o monitor) e um pouco mais pra direita.
-const MONITOR_CIFRA = somar(RECUO_MONITOR, escala(PARA_ESQUERDA, 0.14))
-const MONITOR_AGENDA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.14))
-const PERIFERICOS_CIFRA_AGENDA = somar(
-  PERIFERICOS_LADO_TRAS,
-  escala(PARA_FRENTE, 0.06),
-  escala(PARA_DIREITA, 0.1),
-)
+// Cifra/Agenda — reset: em vez de compor direções na mão (o que deu
+// bug redondo passado), aponta direto pro ponto que o chefe indicou —
+// "vai em direção a E5" — a partir do centro de CADA mesa. Como as
+// mesas partem de lugares diferentes (D4-E4 vs E4-F4), o mesmo alvo
+// E5 dá uma composição de direção diferente pra cada uma, e é assim
+// mesmo que tem que ser (apontar o alvo, não o vetor).
+const ORIGEM_CIFRA = entre('D4', 'E4')
+const ORIGEM_AGENDA = entre('E4', 'F4')
+const MONITOR_CIFRA = rumoA(ORIGEM_CIFRA, 'E5', 0.4)
+const MONITOR_AGENDA = rumoA(ORIGEM_AGENDA, 'E5', 0.4)
+// teclado/mouse: "bem na frente do monitor" — mais um empurrão pra
+// frente a partir da posição do monitor, não do centro da mesa.
+const PERIFERICOS_CIFRA = somar(MONITOR_CIFRA, escala(PARA_FRENTE, 0.15))
+const PERIFERICOS_AGENDA = somar(MONITOR_AGENDA, escala(PARA_FRENTE, 0.15))
 
-// Vita/Norte — pedido: monitor um pouco na horizontal (mesma direção
-// pras duas, em direção à letra vizinha: E5/F5). Teclado fica como
-// está; só o mouse ganha um empurrão extra pra frente, pra ficar
-// exatamente do lado do teclado.
-const MONITOR_VITA_NORTE = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12))
+// Vita/Norte — só o monitor muda: continua onde estava (recuo +
+// direita, já validado), só que agora também "indo em direção a"
+// D6-E6 (Vita) / E6-F6 (Norte) — a casa de baixo da própria mesa.
+// Teclado e mouse ficam exatamente como estavam.
+const ORIGEM_VITA = entre('D5', 'E5')
+const ORIGEM_NORTE = entre('E5', 'F5')
+const AJUSTE_VITA = rumoAPonto(ORIGEM_VITA, entre('D6', 'E6'), 0.35)
+const AJUSTE_NORTE = rumoAPonto(ORIGEM_NORTE, entre('E6', 'F6'), 0.35)
+const MONITOR_VITA = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_VITA)
+const MONITOR_NORTE = somar(RECUO_MONITOR, escala(PARA_DIREITA, 0.12), AJUSTE_NORTE)
 const MOUSE_EXTRA_VITA_NORTE = escala(PARA_FRENTE, 0.1)
 
 export const POSTOS: Posto[] = [
@@ -194,7 +210,7 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
     deltaMonitor: MONITOR_CIFRA,
-    deltaPerifericos: PERIFERICOS_CIFRA_AGENDA,
+    deltaPerifericos: PERIFERICOS_CIFRA,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -204,7 +220,7 @@ export const POSTOS: Posto[] = [
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
     deltaMonitor: MONITOR_AGENDA,
-    deltaPerifericos: PERIFERICOS_CIFRA_AGENDA,
+    deltaPerifericos: PERIFERICOS_AGENDA,
     cadeiraDirecao: 'SW',
     deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
@@ -213,7 +229,7 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
-    deltaMonitor: MONITOR_VITA_NORTE,
+    deltaMonitor: MONITOR_VITA,
     deltaPerifericos: CENTRO_MESA,
     mouseExtra: MOUSE_EXTRA_VITA_NORTE,
     cadeiraDirecao: 'NW',
@@ -224,7 +240,7 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('E5', 'F5'),
-    deltaMonitor: MONITOR_VITA_NORTE,
+    deltaMonitor: MONITOR_NORTE,
     deltaPerifericos: CENTRO_MESA,
     mouseExtra: MOUSE_EXTRA_VITA_NORTE,
     cadeiraDirecao: 'NW',
