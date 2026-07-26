@@ -1,5 +1,5 @@
 import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js'
-import { paraTela, profundidade, TILE_W, TILE_H } from './iso'
+import { paraTela, TILE_W, TILE_H } from './iso'
 import {
   COLUNAS,
   LINHAS,
@@ -9,14 +9,11 @@ import {
   ESPESSURA_PAREDE,
   JANELA_BASE,
   JANELA_TOPO,
-  caminhoSprite,
-  type Direcao,
   type Janela,
 } from './sala'
-import { MOVEIS, POSTOS, TAPETES, pecasUsadas, RECORTES } from './mobilia'
-import { ancoraDe } from './ancoras'
-import { AGENTES, PASTA_AGENTES } from './agentes'
-import type { ItemEditavel } from './edicao'
+import { AGENTES, PASTA_AGENTES, RECORTES } from './agentes'
+import { Maquete } from './maquete'
+import type { SalaDados } from './sala-dados'
 
 // Abordagem combinada:
 //   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
@@ -30,18 +27,6 @@ import type { ItemEditavel } from './edicao'
 // Camadas, de trás pra frente:
 //   paredes → laje → piso → tapetes → móveis (estes ordenados por
 //   profundidade entre si).
-
-async function carregarTexturas(): Promise<Map<string, Texture>> {
-  const mapa = new Map<string, Texture>()
-  await Promise.all(
-    pecasUsadas().map(async ({ peca, direcao }: { peca: string; direcao: Direcao }) => {
-      const chave = `${peca}_${direcao}`
-      if (mapa.has(chave)) return
-      mapa.set(chave, await Assets.load(caminhoSprite(peca, direcao)))
-    }),
-  )
-  return mapa
-}
 
 async function carregarRetratos(): Promise<Map<string, Texture>> {
   const mapa = new Map<string, Texture>()
@@ -301,22 +286,19 @@ function desenharParede(
 
 export interface Cena {
   raiz: Container
-  // os sprites que o modo de edição pode mexer, já casados com a
-  // metadata que diz de onde o delta deles é medido
-  editaveis: ItemEditavel[]
+  // a maquete é dona da mobília (dados + sprites). O modo de edição
+  // fala com ela, nunca com os sprites direto.
+  maquete: Maquete
+  // recoloca os crachás depois que a maquete mexeu nos móveis
+  redesenharAgentes: () => void
 }
 
-export async function criarCena(): Promise<Cena> {
-  const [texturas, retratos] = await Promise.all([carregarTexturas(), carregarRetratos()])
-  const pegar = (chave: string) => {
-    const t = texturas.get(chave)
-    if (!t) throw new Error(`textura não carregada: ${chave}`)
-    return t
-  }
+export async function criarCena(dados: SalaDados): Promise<Cena> {
+  const maquete = new Maquete(dados)
+  const [retratos] = await Promise.all([carregarRetratos(), maquete.montar()])
 
   const cena = new Container()
-  const camadaMoveis = new Container()
-  camadaMoveis.sortableChildren = true
+  const camadaMoveis = maquete.camada
 
   const { norte, leste, oeste } = cantos()
 
@@ -340,74 +322,45 @@ export async function criarCena(): Promise<Cena> {
     desenharPiso(),
   )
 
-  // tapetes: no chão, acima do piso, abaixo de qualquer móvel
-  for (const t of TAPETES) {
-    const sprite = new Sprite(pegar(`${t.peca}_${t.direcao}`))
-    const a = ancoraDe(t.peca, t.direcao)
-    sprite.anchor.set(a.x, a.y)
-    const { x, y } = paraTela(t.coluna, t.linha)
-    sprite.x = x
-    sprite.y = y
-    cena.addChild(sprite)
-  }
-
   cena.addChild(camadaMoveis)
 
-  const editaveis: ItemEditavel[] = []
-
-  for (const m of MOVEIS) {
-    const sprite = new Sprite(pegar(`${m.peca}_${m.direcao}`))
-    const a = ancoraDe(m.peca, m.direcao)
-    sprite.anchor.set(a.x, a.y)
-    const { x, y } = paraTela(m.coluna, m.linha, m.altura ?? 0)
-    sprite.x = x
-    sprite.y = y
-    sprite.zIndex = profundidade(m.zColuna ?? m.coluna, m.zLinha ?? m.linha) * 10 + (m.desempate ?? 0)
-    camadaMoveis.addChild(sprite)
-
-    if (m.edicao) {
-      // o delta é o que sobra depois de tirar a origem — pras peças de
-      // cima da mesa isso devolve exatamente o deltaMonitor/deltaTeclado/
-      // ... que gerou a posição; pras mesas, a posição absoluta
-      const delta = {
-        coluna: m.coluna - m.edicao.origem.coluna,
-        linha: m.linha - m.edicao.origem.linha,
-      }
-      editaveis.push({
-        info: m.edicao,
-        sprite,
-        altura: m.altura ?? 0,
-        delta,
-        deltaOriginal: { ...delta },
-      })
-    }
-  }
-
-  // crachá do agente: na posição da cadeira, "levantado" (altura) pra
-  // ficar por cima do encosto, como se fosse a cabeça de quem senta ali
+  // Crachá do agente: fica na posição do móvel que ele ocupa,
+  // "levantado" (altura) pra ficar por cima do encosto, como se fosse
+  // a cabeça de quem senta ali.
+  //
+  // Quem responde "onde está a Cifra?" é o índice da maquete, nunca a
+  // posição — por isso o agente pode estar em qualquer móvel, em
+  // qualquer sala, sem nada aqui mudar.
+  // Vão direto na camada dos móveis (e não num sub-container), senão
+  // ficariam todos na profundidade do container e não se intercalariam
+  // com a mobília — um agente do fundo apareceria na frente de uma
+  // mesa da frente.
   const ALTURA_CRACHA = 0.62
-  for (const posto of POSTOS) {
-    const agente = AGENTES.find((a) => a.id === posto.agenteId)
-    const retrato = retratos.get(posto.agenteId)
-    const recorte = RECORTES[posto.agenteId]
-    if (!agente || !retrato || !recorte) continue
+  let crachas: Container[] = []
 
-    const colunaCadeira = posto.coluna + posto.deltaCadeira.coluna
-    const linhaCadeira = posto.linha + posto.deltaCadeira.linha
-    const { x, y } = paraTela(colunaCadeira, linhaCadeira, ALTURA_CRACHA)
-    const avatar = criarAvatar(retrato, recorte, agente.cor)
-    avatar.x = x
-    avatar.y = y
-    avatar.zIndex = profundidade(colunaCadeira, linhaCadeira) * 10 + 5
-    camadaMoveis.addChild(avatar)
+  function redesenharAgentes() {
+    for (const c of crachas) c.destroy({ children: true })
+    crachas = []
 
-    // amarra o crachá à cadeira: arrastar a cadeira leva o rosto junto
-    const cadeira = editaveis.find((i) => i.info.id === `${posto.agenteId}:cadeira`)
-    if (cadeira) {
-      cadeira.seguidores ??= []
-      cadeira.seguidores.push({ objeto: avatar, altura: ALTURA_CRACHA })
+    for (const [agenteId, movel] of maquete.agentes()) {
+      const agente = AGENTES.find((a) => a.id === agenteId)
+      const retrato = retratos.get(agenteId)
+      const recorte = RECORTES[agenteId]
+      if (!agente || !retrato || !recorte) continue
+
+      const { x, y } = paraTela(movel.coluna, movel.linha, ALTURA_CRACHA)
+      const avatar = criarAvatar(retrato, recorte, agente.cor)
+      avatar.x = x
+      avatar.y = y
+      // logo à frente do móvel que o agente ocupa, pra ficar por cima
+      // do encosto da cadeira
+      avatar.zIndex = (maquete.spriteDe(movel.id)?.zIndex ?? 0) + 50
+      camadaMoveis.addChild(avatar)
+      crachas.push(avatar)
     }
   }
 
-  return { raiz: cena, editaveis }
+  redesenharAgentes()
+
+  return { raiz: cena, maquete, redesenharAgentes }
 }

@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Application, Container } from 'pixi.js'
 import { criarCena } from './cena'
-import { criarEditor, descrever, type Editor, type EstadoEditor } from './edicao'
+import { criarEditor, type Editor, type EstadoEditor } from './edicao'
+import { carregarSala } from './persistencia'
 import { PALETA } from './sala'
 import { PainelEdicao } from './PainelEdicao'
+import { PainelCatalogo } from './PainelCatalogo'
 
-// Hospeda o mundo isométrico. React cuida só do ciclo de vida do
-// canvas e do painel de edição; tudo que é desenho mora em cena.ts. O
+// Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
+// dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
 // `mundo` é o container que vai levar câmera (pan/zoom) quando a gente
 // chegar lá — por isso a cena entra dentro dele, e não direto no palco.
 export function Escritorio() {
   const hospedeiroRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<Editor | null>(null)
   const [estado, setEstado] = useState<EstadoEditor | null>(null)
+  const [catalogoAberto, setCatalogoAberto] = useState(false)
 
   useEffect(() => {
     const hospedeiro = hospedeiroRef.current
@@ -44,11 +47,12 @@ export function Escritorio() {
       aplicacao.stage.addChild(mundo)
 
       // as texturas do pack são carregadas antes da cena existir
-      const cena = await criarCena()
+      const { sala } = carregarSala()
+      const cena = await criarCena(sala)
       if (desmontado) return
       mundo.addChild(cena.raiz)
 
-      const editor = criarEditor(cena.editaveis, mundo, aplicacao.stage, () =>
+      const editor = criarEditor(cena, mundo, aplicacao.stage, () =>
         setEstado(editorRef.current?.estado() ?? null),
       )
       editorRef.current = editor
@@ -87,9 +91,9 @@ export function Escritorio() {
     function aoTeclar(e: KeyboardEvent) {
       const editor = editorRef.current
       if (!editor) return
-      // não sequestrar o teclado enquanto o chefe digita em algum campo
+      // não sequestrar o teclado enquanto o chefe digita num campo
       const alvo = e.target as HTMLElement | null
-      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA')) return
+      if (alvo && ['INPUT', 'TEXTAREA', 'SELECT'].includes(alvo.tagName)) return
 
       if (e.key === 'e' || e.key === 'E') {
         editor.alternar()
@@ -113,18 +117,38 @@ export function Escritorio() {
         return
       }
 
-      if (e.key === 'Tab') {
-        e.preventDefault()
-        editor.ciclar(e.shiftKey ? -1 : 1)
-      } else if (e.key === '[') {
-        editor.mudarPasso(-1)
-      } else if (e.key === ']') {
-        editor.mudarPasso(1)
-      } else if (e.key === 'r' || e.key === 'R') {
-        if (e.shiftKey) editor.restaurarTudo()
-        else editor.restaurar()
-      } else if (e.key === 'c' || e.key === 'C') {
-        void navigator.clipboard?.writeText(editor.codigo())
+      switch (e.key) {
+        case 'Tab':
+          e.preventDefault()
+          editor.ciclar(e.shiftKey ? -1 : 1)
+          break
+        case 'q':
+        case 'Q':
+          editor.girar(-1)
+          break
+        case 'w':
+        case 'W':
+          editor.girar(1)
+          break
+        case 'PageUp':
+          e.preventDefault()
+          editor.mudarAltura(0.02)
+          break
+        case 'PageDown':
+          e.preventDefault()
+          editor.mudarAltura(-0.02)
+          break
+        case '[':
+          editor.mudarPasso(-1)
+          break
+        case ']':
+          editor.mudarPasso(1)
+          break
+        case 'Delete':
+        case 'Backspace':
+          e.preventDefault()
+          editor.remover()
+          break
       }
     }
 
@@ -132,9 +156,9 @@ export function Escritorio() {
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [])
 
-  const aoCopiar = useCallback(() => {
+  const chamar = useCallback((f: (e: Editor) => void) => {
     const editor = editorRef.current
-    if (editor) void navigator.clipboard?.writeText(editor.codigo())
+    if (editor) f(editor)
   }, [])
 
   return (
@@ -143,11 +167,22 @@ export function Escritorio() {
       {estado && (
         <PainelEdicao
           estado={estado}
-          descricao={estado.selecionado ? descrever(estado.selecionado.delta) : ''}
-          codigo={editorRef.current?.codigo() ?? ''}
-          aoCopiar={aoCopiar}
-          aoCiclar={(p) => editorRef.current?.ciclar(p)}
-          aoRestaurar={() => editorRef.current?.restaurar()}
+          aoGirar={() => chamar((e) => e.girar(1))}
+          aoApoiar={() => chamar((e) => e.apoiarNoDeBaixo())}
+          aoRemover={() => chamar((e) => e.remover())}
+          aoAtribuirAgente={(id) => chamar((e) => e.atribuirAgente(id))}
+          aoSalvarRascunho={() => chamar((e) => e.salvarRascunho())}
+          aoVoltarParaFonte={() => chamar((e) => e.voltarParaFonte())}
+          aoCopiarJson={() =>
+            chamar((e) => void navigator.clipboard?.writeText(e.json()))
+          }
+        />
+      )}
+      {estado?.ativo && (
+        <PainelCatalogo
+          aberto={catalogoAberto}
+          aoAlternar={() => setCatalogoAberto((v) => !v)}
+          aoAdicionar={(peca) => chamar((e) => e.adicionar(peca))}
         />
       )}
     </div>

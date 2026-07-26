@@ -1,0 +1,182 @@
+{
+  "nome": "Escritório",
+  "colunas": 7,
+  "linhas": 7,
+  "moveis": [
+    {
+      "id": "chefe-mesa",
+      "peca": "deskCorner",
+      "direcao": "NE",
+      "coluna": 1,
+      "linha": 1
+    },
+    {
+      "id": "cifra-mesa",
+      "peca": "desk",
+      "direcao": "NW",
+      "coluna": 3.5,
+      "linha": 3.0
+    },
+    {
+      "id": "cifra-monitor",
+      "peca": "computerScreen",
+      "direcao": "NW",
+      "coluna": 3.395,
+      "linha": 2.91,
+      "altura": 0.16,
+      "sobre": "cifra-mesa"
+    },
+    {
+      "id": "cifra-teclado",
+      "peca": "computerKeyboard",
+      "direcao": "NW",
+      "coluna": 3.405,
+      "linha": 2.9,
+      "altura": 0.16,
+      "sobre": "cifra-mesa"
+    },
+    {
+      "id": "cifra-mouse",
+      "peca": "computerMouse",
+      "direcao": "NW",
+      "coluna": 3.535,
+      "linha": 2.77,
+      "altura": 0.16,
+      "sobre": "cifra-mesa"
+    },
+    {
+      "id": "cifra-cadeira",
+      "peca": "chairDesk",
+      "direcao": "SW",
+      "coluna": 3.3,
+      "linha": 2.36,
+      "agente": "cifra"
+    },
+    {
+      "id": "agenda-mesa",
+      "peca": "desk",
+      "direcao": "NW",
+      "coluna": 4.5,
+      "linha": 3.0
+    },
+    {
+      "id": "agenda-monitor",
+      "peca": "computerScreen",
+      "direcao": "NW",
+      "coluna": 4.2,
+      "linha": 3.3,
+      "altura": 0.16,
+      "sobre": "agenda-mesa"
+    },
+    {
+      "id": "agenda-teclado",
+      "peca": "computerKeyboard",
+      "direcao": "NW",
+      "coluna": 4.35,
+      "linha": 3.45,
+      "altura": 0.16,
+      "sobre": "agenda-mesa"
+    },
+    {
+      "id": "agenda-mouse",
+      "peca": "computerMouse",
+      "direcao": "NW",
+      "coluna": 4.48,
+      "linha": 3.32,
+      "altura": 0.16,
+      "sobre": "agenda-mesa"
+    },
+    {
+      "id": "agenda-cadeira",
+      "peca": "chairDesk",
+      "direcao": "SW",
+      "coluna": 4.3,
+      "linha": 2.36,
+      "agente": "agenda"
+    },
+    {
+      "id": "vita-mesa",
+      "peca": "desk",
+      "direcao": "SW",
+      "coluna": 3.5,
+      "linha": 4.0
+    },
+    {
+      "id": "vita-monitor",
+      "peca": "computerScreen",
+      "direcao": "SW",
+      "coluna": 3.38,
+      "linha": 3.78,
+      "altura": 0.16,
+      "sobre": "vita-mesa"
+    },
+    {
+      "id": "vita-teclado",
+      "peca": "computerKeyboard",
+      "direcao": "SW",
+      "coluna": 3.5,
+      "linha": 4.0,
+      "altura": 0.16,
+      "sobre": "vita-mesa"
+    },
+    {
+      "id": "vita-mouse",
+      "peca": "computerMouse",
+      "direcao": "SW",
+      "coluna": 3.73,
+      "linha": 3.97,
+      "altura": 0.16,
+      "sobre": "vita-mesa"
+    },
+    {
+      "id": "vita-cadeira",
+      "peca": "chairDesk",
+      "direcao": "NW",
+      "coluna": 3.6,
+      "linha": 4.74,
+      "agente": "vita"
+    },
+    {
+      "id": "norte-mesa",
+      "peca": "desk",
+      "direcao": "SW",
+      "coluna": 4.5,
+      "linha": 4.0
+    },
+    {
+      "id": "norte-monitor",
+      "peca": "computerScreen",
+      "direcao": "SW",
+      "coluna": 4.4,
+      "linha": 4.01,
+      "altura": 0.16,
+      "sobre": "norte-mesa"
+    },
+    {
+      "id": "norte-teclado",
+      "peca": "computerKeyboard",
+      "direcao": "SW",
+      "coluna": 4.5,
+      "linha": 4.0,
+      "altura": 0.16,
+      "sobre": "norte-mesa"
+    },
+    {
+      "id": "norte-mouse",
+      "peca": "computerMouse",
+      "direcao": "SW",
+      "coluna": 4.73,
+      "linha": 3.97,
+      "altura": 0.16,
+      "sobre": "norte-mesa"
+    },
+    {
+      "id": "norte-cadeira",
+      "peca": "chairDesk",
+      "direcao": "NW",
+      "coluna": 4.6,
+      "linha": 4.74,
+      "agente": "norte"
+    }
+  ]
+}
