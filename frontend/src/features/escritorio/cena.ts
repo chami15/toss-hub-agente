@@ -349,7 +349,7 @@ export async function criarCena(): Promise<Container> {
     const { x, y } = paraTela(m.coluna, m.linha, m.altura ?? 0)
     sprite.x = x
     sprite.y = y
-    sprite.zIndex = profundidade(m.coluna, m.linha) * 10 + (m.desempate ?? 0)
+    sprite.zIndex = profundidade(m.zColuna ?? m.coluna, m.zLinha ?? m.linha) * 10 + (m.desempate ?? 0)
     camadaMoveis.addChild(sprite)
   }
 
@@ -362,8 +362,8 @@ export async function criarCena(): Promise<Container> {
     const recorte = RECORTES[posto.agenteId]
     if (!agente || !retrato || !recorte) continue
 
-    const colunaCadeira = posto.coluna + posto.deltaCadeira
-    const linhaCadeira = posto.linha + posto.deltaCadeira
+    const colunaCadeira = posto.coluna + posto.deltaCadeira.coluna
+    const linhaCadeira = posto.linha + posto.deltaCadeira.linha
     const { x, y } = paraTela(colunaCadeira, linhaCadeira, ALTURA_CRACHA)
     const avatar = criarAvatar(retrato, recorte, agente.cor, x, y)
     avatar.zIndex = profundidade(colunaCadeira, linhaCadeira) * 10 + 5

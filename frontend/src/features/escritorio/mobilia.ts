@@ -44,10 +44,10 @@ export interface RecorteRetrato {
 }
 
 export const RECORTES: Record<string, RecorteRetrato> = {
-  cifra: { cx: 0.46, cy: 0.37, raio: 0.36 },
+  cifra: { cx: 0.49, cy: 0.36, raio: 0.34 },
   agenda: { cx: 0.48, cy: 0.35, raio: 0.36 },
   vita: { cx: 0.5, cy: 0.37, raio: 0.38 },
-  norte: { cx: 0.45, cy: 0.3, raio: 0.32 },
+  norte: { cx: 0.5, cy: 0.32, raio: 0.34 },
 }
 
 export interface Movel {
@@ -57,6 +57,14 @@ export interface Movel {
   linha: number
   altura?: number
   desempate?: number
+  // Posição usada só pro CÁLCULO de profundidade (z-order), quando
+  // difere de onde o sprite é desenhado. Necessário pro monitor: se ele
+  // se desloca um pouco da mesa (ajuste fino), a profundidade dele pode
+  // cair ABAIXO da profundidade da própria mesa — e aí ele desenha
+  // atrás dela e some. Fixando a profundidade na posição da mesa,
+  // isso não acontece.
+  zColuna?: number
+  zLinha?: number
 }
 
 // Passo 1 de reorganização: só as mesas, nada de cadeira/monitor/
@@ -88,23 +96,47 @@ export function entre(refA: string, refB: string): { coluna: number; linha: numb
   }
 }
 
-// Um posto de trabalho: mesa (com sua posição/direção) + a cadeira do
-// lado de FORA do pod (pra a pessoa olhar pra dentro, em direção ao
-// corredor entre as duas duplas) + o agente que senta ali (usado por
-// cena.ts pra colocar o retrato).
+// Um posto de trabalho: mesa (com sua posição/direção) + monitor
+// (com ajuste fino próprio) + a cadeira do lado de FORA do pod (pra a
+// pessoa olhar pra dentro, em direção ao corredor entre as duas
+// duplas) + o agente que senta ali (usado por cena.ts pra colocar o
+// retrato).
+//
+// Deslocamentos sempre em (Δcoluna, Δlinha) explícitos — não um único
+// escalar — porque cadeira precisa de componente VERTICAL (aproximar/
+// afastar da mesa) e HORIZONTAL (deslizar pro lado) ao mesmo tempo, e
+// isso não dá pra fazer com um escalar só. Lembrete de sempre: mexer
+// só em coluna OU só em linha anda na diagonal da tela; horizontal
+// puro = (+k,-k), vertical puro = (+k,+k).
+export interface Delta {
+  coluna: number
+  linha: number
+}
+
 export interface Posto {
   agenteId: string
   mesaPeca: string
   mesaDirecao: Direcao
   coluna: number
   linha: number
+  deltaMonitor: Delta
   cadeiraDirecao: Direcao
-  // deslocamento puramente VERTICAL na tela (mesma direção em coluna e
-  // linha) pra empurrar a cadeira pro lado de fora do pod
-  deltaCadeira: number
+  deltaCadeira: Delta
 }
 
-const D_CADEIRA = 0.62
+function somar(a: Delta, ...resto: Delta[]): Delta {
+  return resto.reduce((acc, d) => ({ coluna: acc.coluna + d.coluna, linha: acc.linha + d.linha }), a)
+}
+
+// vetores unitários "puros" de tela, em unidades de tile
+const PARA_TRAS: Delta = { coluna: -1, linha: -1 } // pro fundo da sala (pura vertical)
+const PARA_FRENTE: Delta = { coluna: 1, linha: 1 } // pra frente da sala (pura vertical)
+const PARA_DIREITA: Delta = { coluna: 1, linha: -1 } // pura horizontal
+const PARA_ESQUERDA: Delta = { coluna: -1, linha: 1 } // pura horizontal
+
+function escala(d: Delta, k: number): Delta {
+  return { coluna: d.coluna * k, linha: d.linha * k }
+}
 
 export const POSTOS: Posto[] = [
   {
@@ -112,32 +144,42 @@ export const POSTOS: Posto[] = [
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('D4', 'E4'),
-    cadeiraDirecao: 'SE',
-    deltaCadeira: -D_CADEIRA,
+    // monitor um pouco mais "pra frente" (direção C, olhando o desk de
+    // cima: decresce coluna) — estava longe demais do agente
+    deltaMonitor: { coluna: -0.25, linha: 0 },
+    cadeiraDirecao: 'NW',
+    // cadeira mais perto da mesa (vertical reduzida) + puxada um
+    // pouco pra DIREITA
+    deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
   {
     agenteId: 'agenda',
     mesaPeca: 'desk',
     mesaDirecao: 'NW',
     ...entre('E4', 'F4'),
-    cadeiraDirecao: 'SE',
-    deltaCadeira: -D_CADEIRA,
+    deltaMonitor: { coluna: -0.25, linha: 0 },
+    cadeiraDirecao: 'NW',
+    deltaCadeira: somar(escala(PARA_TRAS, 0.42), escala(PARA_DIREITA, 0.22)),
   },
   {
     agenteId: 'vita',
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('D5', 'E5'),
-    cadeiraDirecao: 'NE',
-    deltaCadeira: D_CADEIRA,
+    // monitor um pouco mais "pra trás" — só uns pixels
+    deltaMonitor: escala(PARA_TRAS, 0.08),
+    cadeiraDirecao: 'SE',
+    // cadeira mais perto da mesa + puxada um pouco pra ESQUERDA
+    deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.22)),
   },
   {
     agenteId: 'norte',
     mesaPeca: 'desk',
     mesaDirecao: 'SW',
     ...entre('E5', 'F5'),
-    cadeiraDirecao: 'NE',
-    deltaCadeira: D_CADEIRA,
+    deltaMonitor: escala(PARA_TRAS, 0.08),
+    cadeiraDirecao: 'SE',
+    deltaCadeira: somar(escala(PARA_FRENTE, 0.42), escala(PARA_ESQUERDA, 0.22)),
   },
 ]
 
@@ -150,16 +192,20 @@ export const MOVEIS: Movel[] = [
     {
       peca: 'computerScreen',
       direcao: p.mesaDirecao,
-      coluna: p.coluna,
-      linha: p.linha,
+      coluna: p.coluna + p.deltaMonitor.coluna,
+      linha: p.linha + p.deltaMonitor.linha,
       altura: 0.16,
       desempate: 2,
+      // profundidade fixada na mesa — o ajuste fino de posição não
+      // pode fazer o monitor "recuar" pra trás da própria mesa
+      zColuna: p.coluna,
+      zLinha: p.linha,
     },
     {
       peca: 'chairDesk',
       direcao: p.cadeiraDirecao,
-      coluna: p.coluna + p.deltaCadeira,
-      linha: p.linha + p.deltaCadeira,
+      coluna: p.coluna + p.deltaCadeira.coluna,
+      linha: p.linha + p.deltaCadeira.linha,
       desempate: 4,
     },
   ]),
