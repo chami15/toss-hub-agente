@@ -43,6 +43,7 @@ export interface EstadoEditor {
   podeGravar: boolean
   gravando: boolean
   podeDesfazer: boolean
+  podeRefazer: boolean
   // confirmação passageira das ações que não têm efeito visível na
   // cena (salvar, copiar, atribuir agente) — sem isso o chefe clica e
   // não sabe se aconteceu
@@ -73,6 +74,7 @@ export interface Editor {
   mudarAltura: (delta: number) => void
   mudarPasso: (passos: number) => void
   desfazer: () => void
+  refazer: () => void
   adicionar: (peca: string) => void
   remover: () => void
   atribuirAgente: (agenteId: string | null) => void
@@ -112,11 +114,16 @@ export function criarEditor(
   // instantâneo do início da rajada.
   const JANELA_AGRUPAR = 600
   const pilha: SalaDados[] = []
+  // O refazer só existe enquanto ninguém fez nada novo: assim que o
+  // chefe edita depois de desfazer, o futuro que estava guardado
+  // deixou de fazer sentido e é descartado.
+  let pilhaRefazer: SalaDados[] = []
   let ultimoTipo = ''
   let ultimoInstante = 0
 
   function lembrar(tipo: string) {
     const agora = Date.now()
+    pilhaRefazer = []
     if (tipo === ultimoTipo && agora - ultimoInstante < JANELA_AGRUPAR) {
       ultimoInstante = agora
       return
@@ -125,6 +132,28 @@ export function criarEditor(
     if (pilha.length > LIMITE_PILHA) pilha.shift()
     ultimoTipo = tipo
     ultimoInstante = agora
+  }
+
+  // Desfazer e refazer são o mesmo movimento em sentidos opostos:
+  // tira de uma pilha, guarda o estado atual na outra, restaura.
+  function viajar(de: SalaDados[], para: SalaDados[], rotulo: string) {
+    const destino = de.pop()
+    if (!destino) {
+      avisar(`não há o que ${rotulo}`)
+      notificar()
+      return
+    }
+    para.push(maquete.exportar())
+    // a rajada acabou: o próximo gesto captura de novo
+    ultimoTipo = ''
+    void maquete.restaurar(destino).then(() => {
+      for (const m of maquete.moveis) ligarClique(m.id)
+      aplicarInteratividade()
+      // a peça selecionada pode ter deixado de existir
+      if (selecionadoId && !maquete.movel(selecionadoId)) selecionadoId = null
+      avisar(rotulo === 'desfazer' ? 'desfeito' : 'refeito')
+      notificar()
+    })
   }
 
   // Referência pra saber se há mudança pendente. Comparar o estado
@@ -259,6 +288,7 @@ export function criarEditor(
       podeGravar: podeGravarNaFonte(),
       gravando,
       podeDesfazer: pilha.length > 0,
+      podeRefazer: pilhaRefazer.length > 0,
       mensagem,
     }),
 
@@ -307,22 +337,11 @@ export function criarEditor(
     // Volta ao estado anterior sem sair da edição — que é o ponto:
     // errar e corrigir na hora, sem perder o contexto.
     desfazer() {
-      const anterior = pilha.pop()
-      if (!anterior) {
-        avisar('não há o que desfazer')
-        notificar()
-        return
-      }
-      // a rajada acabou: o próximo gesto captura de novo
-      ultimoTipo = ''
-      void maquete.restaurar(anterior).then(() => {
-        for (const m of maquete.moveis) ligarClique(m.id)
-        aplicarInteratividade()
-        // a peça selecionada pode ter deixado de existir
-        if (selecionadoId && !maquete.movel(selecionadoId)) selecionadoId = null
-        avisar('desfeito')
-        notificar()
-      })
+      viajar(pilha, pilhaRefazer, 'desfazer')
+    },
+
+    refazer() {
+      viajar(pilhaRefazer, pilha, 'refazer')
     },
 
     mudarPasso(passos) {

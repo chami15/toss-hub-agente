@@ -89,6 +89,7 @@ interface Props {
   aoRemover: () => void
   aoGirar: () => void
   aoDesfazer: () => void
+  aoRefazer: () => void
   aoApoiar: () => void
   aoAtribuirAgente: (id: string | null) => void
   aoSalvarRascunho: () => void
@@ -102,6 +103,7 @@ export function PainelEdicao({
   aoRemover,
   aoGirar,
   aoDesfazer,
+  aoRefazer,
   aoApoiar,
   aoAtribuirAgente,
   aoSalvarRascunho,
@@ -211,13 +213,22 @@ export function PainelEdicao({
         </>
       )}
 
-      <button
-        style={{ ...BOTAO, opacity: estado.podeDesfazer ? 1 : 0.4 }}
-        onClick={aoDesfazer}
-        disabled={!estado.podeDesfazer}
-      >
-        ↶ desfazer (Ctrl+Z)
-      </button>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          style={{ ...BOTAO, opacity: estado.podeDesfazer ? 1 : 0.4 }}
+          onClick={aoDesfazer}
+          disabled={!estado.podeDesfazer}
+        >
+          ↶ desfazer
+        </button>
+        <button
+          style={{ ...BOTAO, opacity: estado.podeRefazer ? 1 : 0.4 }}
+          onClick={aoRefazer}
+          disabled={!estado.podeRefazer}
+        >
+          refazer ↷
+        </button>
+      </div>
 
       <div style={{ display: 'flex', gap: 6 }}>
         <button style={VERDE} onClick={aoSalvarRascunho}>
@@ -262,7 +273,7 @@ export function PainelEdicao({
           <li>Q W · girar &nbsp; Tab · próxima</li>
           <li>A Z · altura</li>
           <li>[ ] · passo &nbsp; Del · excluir</li>
-          <li>Ctrl+Z · desfazer</li>
+          <li>Ctrl+Z · desfazer &nbsp; Ctrl+Shift+Z · refazer</li>
           <li>E · sair</li>
         </ul>
       </div>

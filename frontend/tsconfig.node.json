@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vite-plugin-salas.ts"]
+  "include": ["vite.config.ts", "vite-plugin-salas.ts", "src/features/escritorio/sala-conferir.ts", "src/features/escritorio/agentes.ts"]
 }

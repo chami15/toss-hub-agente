@@ -1,6 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
+import { conferirSala, type SalaConferivel } from './src/features/escritorio/sala-conferir.ts'
+import { AGENTES } from './src/features/escritorio/agentes.ts'
 
 // ---------------------------------------------------------------
 // GRAVAR A SALA NA FONTE (só em desenvolvimento)
@@ -110,6 +112,24 @@ export function pluginSalas(): Plugin {
           const sala = JSON.parse(bruto) as SalaRecebida
           if (!pareceSala(sala)) {
             responder(400, { erro: 'isso não parece uma sala' })
+            return
+          }
+
+          // A barreira que interessa: os defeitos que não quebram nada
+          // na hora — id repetido, `sobre` apontando pra peça que não
+          // existe, agente desconhecido — não podem entrar no arquivo
+          // versionado. Uma vez gravados, viram problema de outro dia,
+          // sem ninguém lembrar de onde vieram.
+          const defeitos = conferirSala(
+            sala as unknown as SalaConferivel,
+            AGENTES.map((a) => a.id),
+          )
+          if (defeitos.length > 0) {
+            server.config.logger.warn(
+              `  gravação recusada (${nome}): ${defeitos.join(' | ')}`,
+              { timestamp: true },
+            )
+            responder(422, { erro: `sala inconsistente — ${defeitos.join('; ')}` })
             return
           }
 

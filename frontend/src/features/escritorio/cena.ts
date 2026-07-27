@@ -291,15 +291,17 @@ export interface Cena {
   maquete: Maquete
   // recoloca os crachás depois que a maquete mexeu nos móveis
   redesenharAgentes: () => void
+  // defeitos do JSON que não impedem de rodar — quem exibe é a
+  // interface, porque console.warn se ignora
+  problemas: string[]
 }
 
 export async function criarCena(dados: SalaDados): Promise<Cena> {
-  // Falhas silenciosas viram barulho antes de qualquer coisa ser
-  // desenhada — todas vêm de edição à mão do JSON, e todas fazem a
-  // sala carregar "quase certa", que é o pior tipo de defeito.
-  for (const problema of conferirSala(dados, AGENTES.map((a) => a.id))) {
-    console.warn(`[sala] ${problema}`)
-  }
+  // Falhas silenciosas são levantadas antes de desenhar qualquer
+  // coisa. Vão pro console E pra tela: todas fazem a sala carregar
+  // "quase certa", que é o pior tipo de defeito pra deixar escondido.
+  const problemas = conferirSala(dados, AGENTES.map((a) => a.id))
+  for (const problema of problemas) console.warn(`[sala] ${problema}`)
 
   const maquete = new Maquete(dados)
   const [retratos] = await Promise.all([carregarRetratos(), maquete.montar()])
@@ -369,5 +371,5 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
 
   redesenharAgentes()
 
-  return { raiz: cena, maquete, redesenharAgentes }
+  return { raiz: cena, maquete, redesenharAgentes, problemas }
 }

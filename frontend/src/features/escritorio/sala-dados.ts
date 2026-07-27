@@ -93,37 +93,7 @@ export function novoId(peca: string, existentes: Set<string>): string {
   return `${peca}-${n}`
 }
 
-// Problemas que o JSON pode ter e que NÃO dão erro em lugar nenhum —
-// a sala carrega, parece certa, e só está sutilmente errada. Todos
-// vêm de edição à mão do arquivo; o editor não produz nenhum deles.
-// Não corrige nada de propósito: adivinhar a intenção seria pior que
-// avisar e deixar o chefe decidir.
-export function conferirSala(sala: SalaDados, agentesConhecidos: string[]): string[] {
-  const problemas: string[] = []
-  const vistos = new Set<string>()
-  const ids = new Set(sala.moveis.map((m) => m.id))
-
-  for (const m of sala.moveis) {
-    if (vistos.has(m.id)) {
-      // o índice é um Map: o segundo apaga o primeiro e sobra um
-      // sprite que ninguém mais consegue selecionar nem mover
-      problemas.push(`id repetido: "${m.id}" — um dos dois vira sprite órfão`)
-    }
-    vistos.add(m.id)
-
-    if (m.sobre && !ids.has(m.sobre)) {
-      // baseNoChao devolve a própria peça, e a profundidade dela fica
-      // errada em silêncio — pode desenhar atrás do que deveria cobrir
-      problemas.push(`"${m.id}" está apoiado em "${m.sobre}", que não existe`)
-    }
-    if (m.sobre === m.id) {
-      problemas.push(`"${m.id}" está apoiado em si mesmo`)
-    }
-    if (m.agente && !agentesConhecidos.includes(m.agente)) {
-      // redesenharAgentes simplesmente pula: o crachá não aparece e
-      // nada explica por quê
-      problemas.push(`"${m.id}" tem o agente "${m.agente}", que não existe`)
-    }
-  }
-  return problemas
-}
+// A conferência mora em sala-conferir.ts, um arquivo sem imports —
+// é usada também pelo plugin do Vite e pelos testes, que rodam com
+// regras de módulo diferentes das do app.
+export { conferirSala } from './sala-conferir'

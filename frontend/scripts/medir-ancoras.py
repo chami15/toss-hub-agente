@@ -51,8 +51,24 @@ def medir(caminho: Path) -> tuple[float, float] | None:
             return None
         x0, y0, x1, y1 = caixa
         largura = x1 - x0
-        # −1 porque y1 vem exclusivo: a última linha opaca é y1−1
-        base_y = (y1 - 1) - (largura * TILE_H / TILE_W) / 2
+        altura = y1 - y0
+        meio_losango = (largura * TILE_H / TILE_W) / 2
+
+        if altura >= meio_losango:
+            # caso normal: a peça ocupa por volta de um tile, e a ponta
+            # de baixo dos pixels opacos é a ponta de baixo do losango
+            # da base. −1 porque y1 vem exclusivo do getbbox().
+            base_y = (y1 - 1) - meio_losango
+        else:
+            # Peça baixa e larga demais pro losango caber dentro dela —
+            # não é um móvel de um tile (hoje: só as escadas abertas,
+            # 4 dos 560 sprites). A fórmula daria âncora NEGATIVA, ou
+            # seja fora da imagem, e a peça apareceria deslocada.
+            # Aproxima pelo centro vertical da parte opaca, que é o
+            # razoável pra uma peça deitada no chão. Se alguma dessas
+            # for usada de fato, vale conferir a olho.
+            base_y = (y0 + y1 - 1) / 2
+
         return ((x0 + x1) / 2 / im.width, base_y / im.height)
 
 

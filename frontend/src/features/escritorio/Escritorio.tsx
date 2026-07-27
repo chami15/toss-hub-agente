@@ -6,6 +6,7 @@ import { carregarSala } from './persistencia'
 import { PALETA } from './sala'
 import { PainelEdicao } from './PainelEdicao'
 import { PainelCatalogo } from './PainelCatalogo'
+import { PainelProblemas } from './PainelProblemas'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -16,6 +17,7 @@ export function Escritorio() {
   const editorRef = useRef<Editor | null>(null)
   const [estado, setEstado] = useState<EstadoEditor | null>(null)
   const [catalogoAberto, setCatalogoAberto] = useState(false)
+  const [problemas, setProblemas] = useState<string[]>([])
 
   useEffect(() => {
     const hospedeiro = hospedeiroRef.current
@@ -51,6 +53,7 @@ export function Escritorio() {
       const cena = await criarCena(sala)
       if (desmontado) return
       mundo.addChild(cena.raiz)
+      setProblemas(cena.problemas)
 
       const editor = criarEditor(cena, mundo, aplicacao.stage, () =>
         setEstado(editorRef.current?.estado() ?? null),
@@ -101,10 +104,17 @@ export function Escritorio() {
       }
       if (!editor.estado().ativo) return
 
-      // Ctrl+Z (ou Cmd+Z no mac) — desfaz sem sair da edição
+      // Ctrl+Z desfaz, Ctrl+Shift+Z refaz (Cmd no mac). Ctrl+Y também
+      // refaz, que é o costume de quem vem do Windows.
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault()
-        editor.desfazer()
+        if (e.shiftKey) editor.refazer()
+        else editor.desfazer()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        editor.refazer()
         return
       }
 
@@ -184,6 +194,7 @@ export function Escritorio() {
           estado={estado}
           aoGirar={() => chamar((e) => e.girar(1))}
           aoDesfazer={() => chamar((e) => e.desfazer())}
+          aoRefazer={() => chamar((e) => e.refazer())}
           aoApoiar={() => chamar((e) => e.apoiarNoDeBaixo())}
           aoRemover={() => chamar((e) => e.remover())}
           aoAtribuirAgente={(id) => chamar((e) => e.atribuirAgente(id))}
@@ -193,6 +204,7 @@ export function Escritorio() {
           aoCopiarJson={() => chamar((e) => e.copiarJson())}
         />
       )}
+      <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}
