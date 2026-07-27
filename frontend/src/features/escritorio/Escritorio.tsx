@@ -180,6 +180,7 @@ export function Escritorio() {
           aoRemover={() => chamar((e) => e.remover())}
           aoAtribuirAgente={(id) => chamar((e) => e.atribuirAgente(id))}
           aoSalvarRascunho={() => chamar((e) => e.salvarRascunho())}
+          aoGravarNaFonte={() => chamar((e) => e.gravarNaFonte())}
           aoVoltarParaFonte={() => chamar((e) => e.voltarParaFonte())}
           aoCopiarJson={() => chamar((e) => e.copiarJson())}
         />

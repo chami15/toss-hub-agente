@@ -91,6 +91,7 @@ interface Props {
   aoApoiar: () => void
   aoAtribuirAgente: (id: string | null) => void
   aoSalvarRascunho: () => void
+  aoGravarNaFonte: () => void
   aoVoltarParaFonte: () => void
   aoCopiarJson: () => void
 }
@@ -102,6 +103,7 @@ export function PainelEdicao({
   aoApoiar,
   aoAtribuirAgente,
   aoSalvarRascunho,
+  aoGravarNaFonte,
   aoVoltarParaFonte,
   aoCopiarJson,
 }: Props) {
@@ -215,6 +217,20 @@ export function PainelEdicao({
           copiar JSON
         </button>
       </div>
+
+      {/* só aparece rodando `npm run dev`: num site publicado não
+          existe servidor pra gravar o arquivo */}
+      {estado.podeGravar && (
+        <button
+          style={{ ...VERDE, opacity: estado.gravando ? 0.6 : 1 }}
+          onClick={aoGravarNaFonte}
+          disabled={estado.gravando}
+          title="escreve em salas/escritorio.json — depois é só commitar"
+        >
+          {estado.gravando ? 'gravando…' : 'gravar na fonte (git)'}
+        </button>
+      )}
+
       <button style={BOTAO} onClick={aoVoltarParaFonte}>
         descartar e voltar à fonte
       </button>

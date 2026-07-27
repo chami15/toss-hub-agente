@@ -7,7 +7,11 @@ import { novoId } from './sala-dados'
 import type { Direcao } from './sala'
 import { AGENTES } from './agentes'
 import {
+  consumirAvisoDeGravacao,
   descartarRascunho,
+  gravarNaFonte,
+  marcarQueGravou,
+  podeGravarNaFonte,
   salaDaFonte,
   salvarRascunho,
   temRascunho,
@@ -35,6 +39,9 @@ export interface EstadoEditor {
   camada: Camada
   sujo: boolean
   totalMoveis: number
+  // se dá pra gravar direto no arquivo versionado (só em dev)
+  podeGravar: boolean
+  gravando: boolean
   // confirmação passageira das ações que não têm efeito visível na
   // cena (salvar, copiar, atribuir agente) — sem isso o chefe clica e
   // não sabe se aconteceu
@@ -69,6 +76,7 @@ export interface Editor {
   atribuirAgente: (agenteId: string | null) => void
   apoiarNoDeBaixo: () => void
   salvarRascunho: () => void
+  gravarNaFonte: () => void
   voltarParaFonte: () => void
   copiarJson: () => void
   destruir: () => void
@@ -90,6 +98,7 @@ export function criarEditor(
   let ultimoPonto: { x: number; y: number } | null = null
   let mensagem: string | null = null
   let timerMensagem: number | undefined
+  let gravando = false
 
   // losango no chão marcando a peça selecionada — o mesmo formato do
   // tile, pra leitura na perspectiva ficar óbvia
@@ -168,6 +177,10 @@ export function criarEditor(
 
   for (const m of maquete.moveis) ligarClique(m.id)
 
+  // se a página recarregou logo após uma gravação, mostra a
+  // confirmação que ficou pendente do outro lado
+  if (consumirAvisoDeGravacao()) avisar('gravado no arquivo da sala')
+
   function aoMoverPonteiro(e: FederatedPointerEvent) {
     if (!ativo || !arrastando || !ultimoPonto) return
     const agora = mundo.toLocal(e.global)
@@ -204,6 +217,8 @@ export function criarEditor(
       camada,
       sujo,
       totalMoveis: maquete.moveis.length,
+      podeGravar: podeGravarNaFonte(),
+      gravando,
       mensagem,
     }),
 
@@ -325,6 +340,34 @@ export function criarEditor(
       aplicarInteratividade()
       avisar('rascunho salvo')
       notificar()
+    },
+
+    // Grava no arquivo versionado. Depois disso o Vite vê o arquivo
+    // mudar e recarrega a página sozinho — por isso o aviso fica na
+    // sessão, pra reaparecer do outro lado.
+    gravarNaFonte() {
+      if (gravando) return
+      gravando = true
+      avisar('gravando…')
+      notificar()
+      void gravarNaFonte(maquete.exportar())
+        .then(() => {
+          marcarQueGravou()
+          camada = 'fonte'
+          sujo = false
+          gravando = false
+          ativo = false
+          arrastando = null
+          selecionadoId = null
+          aplicarInteratividade()
+          avisar('gravado no arquivo da sala')
+          notificar()
+        })
+        .catch((e: unknown) => {
+          gravando = false
+          avisar(`falhou: ${e instanceof Error ? e.message : 'erro ao gravar'}`)
+          notificar()
+        })
     },
 
     voltarParaFonte() {

@@ -59,3 +59,45 @@ export function carregarSala(): { sala: SalaDados; camada: Camada } {
   if (rascunho) return { sala: rascunho, camada: 'rascunho' }
   return { sala: salaDaFonte(), camada: 'fonte' }
 }
+
+// --- Gravar na fonte ---------------------------------------------
+//
+// O navegador não escreve em disco, mas o servidor de dev do Vite
+// escreve (ver vite-plugin-salas.ts). Só existe em `npm run dev`: num
+// site publicado a rota não existe, então o botão some.
+
+const NOME_SALA = 'escritorio'
+const AVISO_POS_RELOAD = 'escritorio:gravou'
+
+export function podeGravarNaFonte(): boolean {
+  return import.meta.env.DEV
+}
+
+export async function gravarNaFonte(sala: SalaDados): Promise<void> {
+  const resposta = await fetch(`/__salas/${NOME_SALA}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sala),
+  })
+  if (!resposta.ok) {
+    const corpo = (await resposta.json().catch(() => null)) as { erro?: string } | null
+    throw new Error(corpo?.erro ?? `servidor respondeu ${resposta.status}`)
+  }
+  // gravou na fonte = o rascunho virou oficial, não há mais o que
+  // guardar à parte. Sem isso o rascunho continuaria tendo prioridade
+  // no carregamento e esconderia a fonte que acabou de ser escrita.
+  descartarRascunho()
+}
+
+// Gravar altera um arquivo dentro de src/, então o Vite recarrega a
+// página sozinho (HMR) — e o toast morreria junto. Deixamos o recado
+// na sessão pra ele reaparecer do outro lado do reload.
+export function marcarQueGravou(): void {
+  sessionStorage.setItem(AVISO_POS_RELOAD, '1')
+}
+
+export function consumirAvisoDeGravacao(): boolean {
+  const tem = sessionStorage.getItem(AVISO_POS_RELOAD) === '1'
+  if (tem) sessionStorage.removeItem(AVISO_POS_RELOAD)
+  return tem
+}
