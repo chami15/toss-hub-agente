@@ -607,5 +607,54 @@ Antes de dar qualquer coisa por pronta:
 
 ---
 
+# PARTE 10 — Painéis de agente (clique no crachá)
+
+A decisão de **layout** (largura estreita vs. larga por tipo de
+conteúdo, exclusividade, atalho de campo único) mora em
+`frontend-design.md` — aqui só a parte técnica de como isso se encaixa
+no que já existe.
+
+## Interatividade reaproveitada da porta
+
+Clicar num crachá de agente só abre painel **fora do modo de edição** —
+mesmo mecanismo já construído pra porta clicável (múltiplas salas,
+`edicao.ts`): `sprite.eventMode` e `cursor` alternam entre "arrastável"
+(edição ligada) e "clicável" (edição desligada) na mesma função
+`aplicarInteratividade()`, e os handlers (`pointerover` / `pointerout` /
+`pointertap`) ficam ligados no sprite pra sempre, cada um decidindo
+sozinho se age olhando `ativo` na hora — não uma lista de listeners
+que é montada/desmontada a cada toggle. Em modo de edição, o crachá não
+abre nada: a peça por baixo continua um móvel comum, arrastável.
+
+## A ponte entre o crachá e o agente de verdade
+
+O escritório desenha os crachás a partir de uma lista **própria e
+estática** (`AGENTES` em `features/escritorio/agentes.ts`: id string
+`cifra`/`agenda`/`vita`/`norte`, cor, retrato) — ela não sabe nada do
+agente de verdade do backend, que tem **id numérico** (`GET /agentes`,
+`types/agente.ts`).
+
+A chave de junção entre os dois é o campo **`especialidade`** do
+agente do backend (`financeiro`/`agenda`/`saude`/`norte` — ver
+`backend/scripts/seed.py`), que bate 1:1 com o id string local. Nunca
+comparar id numérico do backend contra o id string do escritório
+diretamente — eles não têm relação nenhuma entre si, só via
+`especialidade`.
+
+## Onde o painel vive
+
+Painel de agente é **overlay DOM comum (React)**, nunca desenhado
+dentro do Pixi — mesmo padrão de `PainelEdicao`, `PainelCatalogo`,
+`PainelSalas` e `PopupPorta`. O Pixi cuida só da cena; toda UI de
+painel é HTML/CSS por cima, posicionado `position: absolute` sobre o
+mesmo container.
+
+Se a abertura/fechamento for animada (slide-in), vale a mesma regra de
+performance da PARTE 5: só `transform`/`opacity`, nunca animar
+`width`/`left`/`right` — isso forçaria recálculo de layout a cada
+frame.
+
+---
+
 *(Este arquivo cresce conforme novas decisões técnicas do frontend
 forem tomadas — não é reescrito do zero a cada atualização.)*

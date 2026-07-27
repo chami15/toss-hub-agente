@@ -280,6 +280,48 @@ pra quando começar:
 
 ---
 
+## Painel do agente — layout (decidido)
+
+Resolve a "decisão em aberto" que existia aqui antes sobre lateral vs.
+modal vs. dentro do avatar. **É lateral — mas não um tamanho único pros
+quatro agentes.**
+
+- **Painel estreito** (mesma faixa do catálogo de mobília do
+  escritório): usado por conteúdo que é conversa, menu de botões ou um
+  card único — Agenda, o menu principal do Vita, o card do Norte. O
+  escritório continua visível ao lado; faz sentido acompanhar a sala
+  enquanto conversa com um agente.
+- **Painel largo** (bem mais que a faixa do catálogo — próximo de
+  metade da tela ou mais): usado por conteúdo denso — o dashboard do
+  Cifra (KPIs + gráfico) e formulários tabulares do Vita (ficha de
+  treino com vários exercícios por dia da semana). Espremer gráfico ou
+  tabela numa faixa estreita não é opção. O escritório escurece atrás
+  dele (sinaliza foco), diferente do painel estreito.
+- Largura exata e o visual de cada um são detalhe de implementação —
+  a decisão registrada aqui é só a existência das DUAS faixas, não o
+  pixel exato.
+- **Só um painel de agente aberto por vez.** Abrir outro troca o
+  conteúdo do painel existente, nunca empilha um sobre o outro — mesma
+  filosofia de "uma coisa focada por vez" que já vale entre modo de
+  edição / catálogo / menu de salas.
+- **Painel de agente aberto esconde o menu lateral de salas** (o que
+  lista/cria/exclui salas) — trocar de sala não faz sentido no meio de
+  uma conversa com um agente, mesma regra que já impede trocar de sala
+  durante o modo de edição.
+- **Atalho de campo único (peso/hidratação) não abre o painel
+  inteiro** — é um popup pequeno ancorado no próprio crachá do agente,
+  com um campo e confirmar. Reaproveita o mesmo mecanismo visual do
+  popup que aparece ao passar o mouse numa porta (hover/clique
+  ancorados na posição do sprite na tela).
+- **Estado de qual painel está aberto não persiste entre reloads** —
+  sempre fecha ao recarregar a página. É estado de UI transitório, não
+  dado — não faz sentido salvar isso em rascunho nem em lugar nenhum
+  do backend.
+- **Fora de escopo por ora:** responsividade pra tela pequena/mobile.
+  O escritório e os painéis assumem desktop.
+
+---
+
 ## Requisitos funcionais
 
 Derivados do que já existe no backend de cada agente — não são desejo,
@@ -391,10 +433,6 @@ são o que a API já suporta e o frontend precisa cobrir.
 - **Indicador de pendência em aberto:** vale a UI perguntar
   proativamente "qual pendência em aberto" ao carregar a tela do Agenda
   (pra mostrar um badge), em vez de esperar o chefe lembrar de perguntar?
-- **Layout do menu do Saúde:** lateral fixo, modal, ou dentro do próprio
-  painel do avatar? Ainda não desenhado.
-- **Onde os atalhos de campo único aparecem:** só na bolha do avatar no
-  escritório, ou também dentro do painel do agente quando já aberto?
 - **Visão geral de projetos do Norte:** lista simples de cartões, ou algo
   mais visual tipo um quadro/kanban por projeto? Ainda não desenhado.
 - **Como sinalizar "estagnado" visualmente:** cor diferente no card do
