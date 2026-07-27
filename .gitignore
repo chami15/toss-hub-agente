@@ -1,0 +1,14 @@
+# Dependências. Cada pacote tem seu próprio .gitignore, mas rodar um
+# comando de dentro da pasta errada cria um node_modules solto aqui —
+# já aconteceu, com cache de teste dentro.
+node_modules/
+
+# Caches de ferramenta
+.vite/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Sistema
+.DS_Store
