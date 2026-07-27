@@ -101,6 +101,13 @@ export function Escritorio() {
       }
       if (!editor.estado().ativo) return
 
+      // Ctrl+Z (ou Cmd+Z no mac) — desfaz sem sair da edição
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        editor.desfazer()
+        return
+      }
+
       // as setas andam nas 4 direções nomeadas: a tela sobe = fundo da
       // sala = PARA_TRAS (−1,−1); desce = PARA_FRENTE (1,1); direita =
       // PARA_DIREITA (1,−1); esquerda = PARA_ESQUERDA (−1,1)
@@ -176,6 +183,7 @@ export function Escritorio() {
         <PainelEdicao
           estado={estado}
           aoGirar={() => chamar((e) => e.girar(1))}
+          aoDesfazer={() => chamar((e) => e.desfazer())}
           aoApoiar={() => chamar((e) => e.apoiarNoDeBaixo())}
           aoRemover={() => chamar((e) => e.remover())}
           aoAtribuirAgente={(id) => chamar((e) => e.atribuirAgente(id))}

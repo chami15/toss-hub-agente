@@ -13,7 +13,7 @@ import {
 } from './sala'
 import { AGENTES, PASTA_AGENTES, RECORTES } from './agentes'
 import { Maquete } from './maquete'
-import type { SalaDados } from './sala-dados'
+import { conferirSala, type SalaDados } from './sala-dados'
 
 // Abordagem combinada:
 //   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
@@ -294,6 +294,13 @@ export interface Cena {
 }
 
 export async function criarCena(dados: SalaDados): Promise<Cena> {
+  // Falhas silenciosas viram barulho antes de qualquer coisa ser
+  // desenhada — todas vêm de edição à mão do JSON, e todas fazem a
+  // sala carregar "quase certa", que é o pior tipo de defeito.
+  for (const problema of conferirSala(dados, AGENTES.map((a) => a.id))) {
+    console.warn(`[sala] ${problema}`)
+  }
+
   const maquete = new Maquete(dados)
   const [retratos] = await Promise.all([carregarRetratos(), maquete.montar()])
 

@@ -88,6 +88,7 @@ interface Props {
   estado: EstadoEditor
   aoRemover: () => void
   aoGirar: () => void
+  aoDesfazer: () => void
   aoApoiar: () => void
   aoAtribuirAgente: (id: string | null) => void
   aoSalvarRascunho: () => void
@@ -100,6 +101,7 @@ export function PainelEdicao({
   estado,
   aoRemover,
   aoGirar,
+  aoDesfazer,
   aoApoiar,
   aoAtribuirAgente,
   aoSalvarRascunho,
@@ -209,6 +211,14 @@ export function PainelEdicao({
         </>
       )}
 
+      <button
+        style={{ ...BOTAO, opacity: estado.podeDesfazer ? 1 : 0.4 }}
+        onClick={aoDesfazer}
+        disabled={!estado.podeDesfazer}
+      >
+        ↶ desfazer (Ctrl+Z)
+      </button>
+
       <div style={{ display: 'flex', gap: 6 }}>
         <button style={VERDE} onClick={aoSalvarRascunho}>
           salvar rascunho
@@ -252,6 +262,7 @@ export function PainelEdicao({
           <li>Q W · girar &nbsp; Tab · próxima</li>
           <li>A Z · altura</li>
           <li>[ ] · passo &nbsp; Del · excluir</li>
+          <li>Ctrl+Z · desfazer</li>
           <li>E · sair</li>
         </ul>
       </div>

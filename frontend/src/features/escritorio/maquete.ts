@@ -91,6 +91,18 @@ export class Maquete {
     for (const m of this.dados.moveis) this.criarSprite(m)
   }
 
+  // Troca o estado inteiro da sala (usado pelo desfazer). Destrói só
+  // os sprites de móvel — a camada também hospeda os crachás e a marca
+  // de seleção, que são de outra gente e não podem ser levados junto.
+  async restaurar(sala: SalaDados): Promise<void> {
+    for (const sprite of this.sprites.values()) sprite.destroy()
+    this.sprites.clear()
+    this.dados = sala
+    this.reindexar()
+    await this.carregar(this.pecasEmUso())
+    for (const m of this.dados.moveis) this.criarSprite(m)
+  }
+
   private criarSprite(m: MovelSala): Sprite {
     const textura = this.texturas.get(`${m.peca}_${m.direcao}`)
     if (!textura) throw new Error(`textura não carregada: ${m.peca}_${m.direcao}`)

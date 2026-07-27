@@ -13,7 +13,12 @@ import type { SalaDados } from './sala-dados'
 // "permanente" é caro demais pra deixar por conta de heurística.
 // ---------------------------------------------------------------
 
-const CHAVE_RASCUNHO = 'escritorio:rascunho'
+// A versão entra na CHAVE, não no conteúdo: assim um rascunho de
+// formato antigo simplesmente não é encontrado, em vez de ser lido e
+// interpretado errado. Suba este número toda vez que o formato de
+// SalaDados mudar de um jeito incompatível — o rascunho velho é
+// abandonado e o chefe cai na fonte, que é o comportamento seguro.
+const CHAVE_RASCUNHO = 'escritorio:rascunho:v1'
 
 export type Camada = 'fonte' | 'rascunho'
 

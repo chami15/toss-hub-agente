@@ -2,7 +2,7 @@ import type { Container, FederatedPointerEvent } from 'pixi.js'
 import { Graphics } from 'pixi.js'
 import { paraTela, TILE_W, TILE_H } from './iso'
 import type { Cena } from './cena'
-import type { MovelSala } from './sala-dados'
+import type { MovelSala, SalaDados } from './sala-dados'
 import { novoId } from './sala-dados'
 import type { Direcao } from './sala'
 import { AGENTES } from './agentes'
@@ -42,6 +42,7 @@ export interface EstadoEditor {
   // se dá pra gravar direto no arquivo versionado (só em dev)
   podeGravar: boolean
   gravando: boolean
+  podeDesfazer: boolean
   // confirmação passageira das ações que não têm efeito visível na
   // cena (salvar, copiar, atribuir agente) — sem isso o chefe clica e
   // não sabe se aconteceu
@@ -71,6 +72,7 @@ export interface Editor {
   girar: (passos: number) => void
   mudarAltura: (delta: number) => void
   mudarPasso: (passos: number) => void
+  desfazer: () => void
   adicionar: (peca: string) => void
   remover: () => void
   atribuirAgente: (agenteId: string | null) => void
@@ -99,6 +101,40 @@ export function criarEditor(
   let mensagem: string | null = null
   let timerMensagem: number | undefined
   let gravando = false
+
+  // --- Desfazer ---------------------------------------------------
+  // Guarda o estado ANTES de cada gesto. Um instantâneo da sala é
+  // pequeno (algumas dezenas de móveis), então cópia integral é mais
+  // simples e mais confiável que registrar operações inversas.
+  const LIMITE_PILHA = 60
+  // Uma rajada (segurar a seta, arrastar) tem que virar UM desfazer, e
+  // não cem. Ações do mesmo tipo dentro desta janela reaproveitam o
+  // instantâneo do início da rajada.
+  const JANELA_AGRUPAR = 600
+  const pilha: SalaDados[] = []
+  let ultimoTipo = ''
+  let ultimoInstante = 0
+
+  function lembrar(tipo: string) {
+    const agora = Date.now()
+    if (tipo === ultimoTipo && agora - ultimoInstante < JANELA_AGRUPAR) {
+      ultimoInstante = agora
+      return
+    }
+    pilha.push(maquete.exportar())
+    if (pilha.length > LIMITE_PILHA) pilha.shift()
+    ultimoTipo = tipo
+    ultimoInstante = agora
+  }
+
+  // Referência pra saber se há mudança pendente. Comparar o estado
+  // atual com ela mantém o "· alterado" do HUD honesto inclusive
+  // depois de desfazer tudo de volta ao ponto de partida.
+  let referencia = JSON.stringify(maquete.exportar())
+
+  function estaSujo(): boolean {
+    return JSON.stringify(maquete.exportar()) !== referencia
+  }
 
   // losango no chão marcando a peça selecionada — o mesmo formato do
   // tile, pra leitura na perspectiva ficar óbvia
@@ -144,8 +180,8 @@ export function criarEditor(
     marca.visible = true
   }
 
-  function notificar(mexeu = false) {
-    if (mexeu) sujo = true
+  function notificar() {
+    sujo = estaSujo()
     redesenharMarca()
     cena.redesenharAgentes()
     aoMudar()
@@ -168,6 +204,9 @@ export function criarEditor(
     sprite.on('pointerdown', (e: FederatedPointerEvent) => {
       if (!ativo) return
       e.stopPropagation()
+      // um instantâneo pro arraste inteiro: os pointermove seguintes
+      // não capturam nada, senão cada pixel viraria um desfazer
+      lembrar(`arrastar:${id}`)
       selecionadoId = id
       arrastando = id
       ultimoPonto = mundo.toLocal(e.global)
@@ -187,7 +226,7 @@ export function criarEditor(
     const passo = telaParaGrade(agora.x - ultimoPonto.x, agora.y - ultimoPonto.y)
     maquete.mover(arrastando, passo.coluna, passo.linha)
     ultimoPonto = agora
-    notificar(true)
+    notificar()
   }
 
   function aoSoltar() {
@@ -219,6 +258,7 @@ export function criarEditor(
       totalMoveis: maquete.moveis.length,
       podeGravar: podeGravarNaFonte(),
       gravando,
+      podeDesfazer: pilha.length > 0,
       mensagem,
     }),
 
@@ -245,20 +285,44 @@ export function criarEditor(
 
     mover(coluna, linha) {
       if (!selecionadoId) return
+      lembrar(`mover:${selecionadoId}`)
       const p = PASSOS[indicePasso]
       maquete.mover(selecionadoId, coluna * p, linha * p)
-      notificar(true)
+      notificar()
     },
 
     girar(passos) {
       if (!selecionadoId) return
-      void maquete.girar(selecionadoId, passos).then(() => notificar(true))
+      lembrar(`girar:${selecionadoId}`)
+      void maquete.girar(selecionadoId, passos).then(() => notificar())
     },
 
     mudarAltura(delta) {
       if (!selecionadoId) return
+      lembrar(`altura:${selecionadoId}`)
       maquete.mudarAltura(selecionadoId, delta)
-      notificar(true)
+      notificar()
+    },
+
+    // Volta ao estado anterior sem sair da edição — que é o ponto:
+    // errar e corrigir na hora, sem perder o contexto.
+    desfazer() {
+      const anterior = pilha.pop()
+      if (!anterior) {
+        avisar('não há o que desfazer')
+        notificar()
+        return
+      }
+      // a rajada acabou: o próximo gesto captura de novo
+      ultimoTipo = ''
+      void maquete.restaurar(anterior).then(() => {
+        for (const m of maquete.moveis) ligarClique(m.id)
+        aplicarInteratividade()
+        // a peça selecionada pode ter deixado de existir
+        if (selecionadoId && !maquete.movel(selecionadoId)) selecionadoId = null
+        avisar('desfeito')
+        notificar()
+      })
     },
 
     mudarPasso(passos) {
@@ -267,6 +331,7 @@ export function criarEditor(
     },
 
     adicionar(peca) {
+      lembrar(`adicionar:${Date.now()}`)
       const existentes = new Set(maquete.moveis.map((m) => m.id))
       const novo: MovelSala = {
         id: novoId(peca, existentes),
@@ -282,24 +347,26 @@ export function criarEditor(
           sprite.cursor = ativo ? 'move' : 'default'
         }
         selecionadoId = novo.id
-        notificar(true)
+        notificar()
       })
     },
 
     remover() {
       if (!selecionadoId) return
+      lembrar(`remover:${selecionadoId}`)
       maquete.remover(selecionadoId)
       selecionadoId = null
       avisar('peça removida')
-      notificar(true)
+      notificar()
     },
 
     atribuirAgente(agenteId) {
       if (!selecionadoId) return
+      lembrar(`agente:${selecionadoId}`)
       maquete.atribuirAgente(selecionadoId, agenteId)
       const nome = AGENTES.find((a) => a.id === agenteId)?.nome
       avisar(nome ? `${nome} atribuído a esta peça` : 'agente removido da peça')
-      notificar(true)
+      notificar()
     },
 
     // Apoia a peça selecionada no móvel mais próximo que esteja
@@ -308,9 +375,10 @@ export function criarEditor(
     apoiarNoDeBaixo() {
       const m = selecionado()
       if (!m) return
+      lembrar(`apoiar:${m.id}`)
       if (m.sobre) {
         maquete.apoiarEm(m.id, null)
-        notificar(true)
+        notificar()
         return
       }
       let melhor: MovelSala | null = null
@@ -325,12 +393,13 @@ export function criarEditor(
         }
       }
       if (melhor) maquete.apoiarEm(m.id, melhor.id)
-      notificar(true)
+      notificar()
     },
 
     salvarRascunho() {
       salvarRascunho(maquete.exportar())
       camada = 'rascunho'
+      referencia = JSON.stringify(maquete.exportar())
       sujo = false
       // sai da edição: salvar é o fim de uma sessão de trabalho, e
       // deixar o modo ligado esconde a maquete atrás dos painéis
@@ -354,6 +423,7 @@ export function criarEditor(
         .then(() => {
           marcarQueGravou()
           camada = 'fonte'
+          referencia = JSON.stringify(maquete.exportar())
           sujo = false
           gravando = false
           ativo = false
