@@ -1,7 +1,12 @@
 import { readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
-import { conferirSala, type SalaConferivel } from './src/features/escritorio/sala-conferir.ts'
+import {
+  conferirConjuntoDeSalas,
+  conferirSala,
+  type SalaConferivel,
+  type SalaConferivelComNome,
+} from './src/features/escritorio/sala-conferir.ts'
 import { AGENTES } from './src/features/escritorio/agentes.ts'
 
 // ---------------------------------------------------------------
@@ -50,6 +55,33 @@ interface SalaRecebida {
   colunas?: unknown
   linhas?: unknown
   moveis?: unknown
+}
+
+// Lê todo arquivo de salas/ menos o que está sendo gravado/excluído
+// agora (esse entra na conferência com o payload NOVO, não o velho
+// que ainda está em disco). Usado tanto pra recusar um conflito entre
+// salas quanto pra limpar porta pendurada depois de uma exclusão.
+async function lerOutrasSalas(
+  pastaSalas: string,
+  exceto: string,
+): Promise<Record<string, SalaConferivelComNome>> {
+  const arquivos = await readdir(pastaSalas).catch(() => [])
+  const outras: Record<string, SalaConferivelComNome> = {}
+  for (const arquivo of arquivos) {
+    if (!arquivo.endsWith('.json')) continue
+    const id = arquivo.replace(/\.json$/, '')
+    if (id === exceto) continue
+    const conteudo = await readFile(resolve(pastaSalas, arquivo), 'utf8').catch(() => null)
+    if (conteudo === null) continue
+    try {
+      outras[id] = JSON.parse(conteudo) as SalaConferivelComNome
+    } catch {
+      // arquivo ilegível não entra na conferência — não é problema
+      // que esta rota resolve, e travar a gravação/exclusão de OUTRA
+      // sala por causa disso seria pior que o defeito original
+    }
+  }
+  return outras
 }
 
 // Valida o suficiente pra não gravar lixo por cima de um arquivo bom.
@@ -123,9 +155,7 @@ export function pluginSalas(): Plugin {
               return
             }
 
-            // guarda básica: não apaga sala com agente dentro. A
-            // checagem completa (porta pendurada apontando pra cá)
-            // ainda não existe — vem na conferência entre salas.
+            // guarda básica: não apaga sala com agente dentro.
             const sala = JSON.parse(existente) as { moveis?: Array<{ agente?: unknown }> }
             const ocupada = (sala.moveis ?? []).some((m) => typeof m.agente === 'string')
             if (ocupada) {
@@ -134,6 +164,35 @@ export function pluginSalas(): Plugin {
             }
 
             await unlink(destino)
+
+            // limpa porta pendurada: qualquer OUTRA sala que tinha
+            // peça levando pra esta perde só o campo `leva` — a peça
+            // continua ali, vira decoração comum, deixa de ser botão
+            const outras = await lerOutrasSalas(pastaSalas, nome)
+            for (const [id, outraSala] of Object.entries(outras)) {
+              const moveis = Array.isArray(outraSala.moveis) ? outraSala.moveis : []
+              let mudou = false
+              const moveisLimpos = moveis.map((m) => {
+                if (m.leva === nome) {
+                  mudou = true
+                  const { leva: _descartado, ...resto } = m
+                  return resto
+                }
+                return m
+              })
+              if (mudou) {
+                const atualizada = { ...outraSala, moveis: moveisLimpos }
+                await writeFile(
+                  resolve(pastaSalas, `${id}.json`),
+                  JSON.stringify(atualizada, null, 2) + '\n',
+                  'utf8',
+                )
+                server.config.logger.info(`  porta pendurada limpa: ${PASTA}/${id}.json`, {
+                  timestamp: true,
+                })
+              }
+            }
+
             server.config.logger.info(`  sala excluída: ${PASTA}/${nome}.json`, {
               timestamp: true,
             })
@@ -167,6 +226,23 @@ export function pluginSalas(): Plugin {
               { timestamp: true },
             )
             responder(422, { erro: `sala inconsistente — ${defeitos.join('; ')}` })
+            return
+          }
+
+          // A sala sozinha está ok — falta conferir contra as OUTRAS:
+          // nome duplicado, agente já usado alhures, porta levando pra
+          // sala que não existe. Sem isso, editar a Sala A e gravar
+          // poderia introduzir um agente que já está na Sala B sem
+          // ninguém perceber até abrir a B.
+          const outras = await lerOutrasSalas(pastaSalas, nome)
+          const conjunto = { ...outras, [nome]: sala as SalaConferivelComNome }
+          const defeitosConjunto = conferirConjuntoDeSalas(conjunto)
+          if (defeitosConjunto.length > 0) {
+            server.config.logger.warn(
+              `  gravação recusada (${nome}): ${defeitosConjunto.join(' | ')}`,
+              { timestamp: true },
+            )
+            responder(422, { erro: `conflito com outra sala — ${defeitosConjunto.join('; ')}` })
             return
           }
 

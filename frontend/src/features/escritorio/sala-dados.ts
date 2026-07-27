@@ -32,6 +32,13 @@ export interface MovelSala {
   // campo. Assim o agente pode estar em qualquer móvel, em qualquer
   // sala, sem nada no código mudar.
   agente?: string
+  // id da sala pra onde esta peça leva. Só vira "botão" clicável
+  // quando aponta pra uma sala que existe de verdade (conferência
+  // entre salas, em sala-conferir.ts) — sem isso é decoração comum,
+  // igual qualquer outro móvel. Qualquer peça pode ter `leva`, não só
+  // as que parecem porta: é o que permite passagem secreta atrás de
+  // uma estante.
+  leva?: string
 }
 
 export interface SalaDados {

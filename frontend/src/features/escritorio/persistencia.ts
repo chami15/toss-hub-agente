@@ -168,9 +168,12 @@ export async function gravarNaFonte(idSala: string, sala: SalaDados): Promise<vo
 }
 
 // Exclui o arquivo da sala. O servidor recusa (409) se for a última
-// sala restante ou se ela tiver algum agente dentro — a guarda contra
-// porta pendurada (outra sala apontando pra uma que sumiu) ainda não
-// existe, vem junto com a conferência entre salas.
+// sala restante ou se ela tiver algum agente dentro. Se der certo, o
+// servidor já limpa a porta pendurada na FONTE de qualquer outra sala
+// que levava pra esta (vite-plugin-salas.ts) — mas um RASCUNHO local
+// (só existe neste navegador) o servidor não enxerga, então essa
+// limpeza é feita aqui, senão um "gravar" futuro naquele rascunho
+// ressuscitaria a porta que devia ter sumido.
 export async function excluirSalaNaFonte(idSala: string): Promise<void> {
   const resposta = await fetch(`/__salas/${idSala}`, { method: 'DELETE' })
   if (!resposta.ok) {
@@ -178,6 +181,20 @@ export async function excluirSalaNaFonte(idSala: string): Promise<void> {
     throw new Error(corpo?.erro ?? `servidor respondeu ${resposta.status}`)
   }
   descartarRascunho(idSala)
+
+  for (const outroId of idsDasSalas()) {
+    if (outroId === idSala) continue
+    const rascunho = lerRascunho(outroId)
+    if (!rascunho) continue
+    let mudou = false
+    const moveis = rascunho.moveis.map((m) => {
+      if (m.leva !== idSala) return m
+      mudou = true
+      const { leva: _descartado, ...resto } = m
+      return resto
+    })
+    if (mudou) salvarRascunho(outroId, { ...rascunho, moveis })
+  }
 }
 
 // Gravar altera um arquivo dentro de src/, então o Vite recarrega a

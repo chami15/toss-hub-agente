@@ -154,6 +154,32 @@ describe('excluirSalaNaFonte', () => {
 
     await expect(excluirSalaNaFonte('escritorio')).rejects.toThrow(/agente dentro/)
   })
+
+  it('limpa a porta pendurada no RASCUNHO local de outra sala — o servidor só limpa a fonte dele', async () => {
+    // o servidor (vite-plugin-salas.ts) já limpa `leva` na FONTE de
+    // quem apontava pra sala excluída — mas um rascunho só existe
+    // neste navegador, e o servidor não tem como enxergar isso
+    const sala = salaDaFonte('escritorio')
+    sala.moveis.push({
+      id: 'porta-fantasma',
+      peca: 'doorway',
+      direcao: 'NE',
+      coluna: 0,
+      linha: 0,
+      leva: 'sala-que-vai-sumir',
+    })
+    salvarRascunho('escritorio', sala)
+
+    const fetchFalso = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    vi.stubGlobal('fetch', fetchFalso)
+
+    await excluirSalaNaFonte('sala-que-vai-sumir')
+
+    const rascunho = lerRascunho('escritorio')
+    const porta = rascunho?.moveis.find((m) => m.id === 'porta-fantasma')
+    expect(porta).toBeDefined()
+    expect(porta?.leva).toBeUndefined()
+  })
 })
 
 describe('carregarSala', () => {

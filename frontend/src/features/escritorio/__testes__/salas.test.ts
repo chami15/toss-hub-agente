@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CHAVES_PALETA, conferirSala } from '../sala-conferir'
+import { CHAVES_PALETA, conferirConjuntoDeSalas, conferirSala } from '../sala-conferir'
 import { AGENTES } from '../agentes'
 import { ANCORAS } from '../ancoras'
 import type { SalaDados } from '../sala-dados'
@@ -31,6 +31,11 @@ it('existe pelo menos uma sala', () => {
   // se a pasta esvaziar por acidente, os testes abaixo passariam
   // vazios e ninguém perceberia
   expect(arquivos.length).toBeGreaterThan(0)
+})
+
+it('o CONJUNTO de salas não tem defeito silencioso (nome duplicado, agente em duas salas, porta pendurada)', () => {
+  const conjunto = Object.fromEntries(arquivos.map((arquivo) => [arquivo.replace(/\.json$/, ''), lerSala(arquivo)]))
+  expect(conferirConjuntoDeSalas(conjunto)).toEqual([])
 })
 
 describe.each(arquivos)('sala %s', (arquivo) => {

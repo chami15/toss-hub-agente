@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHAVES_PALETA, conferirSala, criariaCiclo } from '../sala-conferir'
+import { CHAVES_PALETA, conferirConjuntoDeSalas, conferirSala, criariaCiclo } from '../sala-conferir'
 
 // A conferência é a rede que pega os defeitos silenciosos. Se ELA
 // tiver um furo, o furo é invisível por definição — por isso cada
@@ -14,8 +14,12 @@ const AGENTES = ['cifra', 'agenda']
 // especificamente é o describe('geometria e paleta') mais abaixo.
 const PALETA_OK = Object.fromEntries(CHAVES_PALETA.map((c) => [c, 0x000000]))
 
-function sala(moveis: { id: string; sobre?: string; agente?: string }[]) {
+function sala(moveis: { id: string; sobre?: string; agente?: string; leva?: unknown }[]) {
   return { colunas: 7, linhas: 7, paleta: PALETA_OK, moveis }
+}
+
+function salaComNome(nome: string, moveis: { id: string; agente?: string; leva?: unknown }[]) {
+  return { nome, ...sala(moveis) }
 }
 
 describe('conferirSala', () => {
@@ -81,6 +85,16 @@ describe('conferirSala', () => {
       ...(i > 0 ? { sobre: `p${i - 1}` } : {}),
     }))
     expect(conferirSala(sala(moveis), AGENTES)).toEqual([])
+  })
+
+  it('pega leva com tipo errado (a checagem de sala de destino é do conjunto, não daqui)', () => {
+    const s = sala([{ id: 'porta', leva: 42 }])
+    expect(conferirSala(s, AGENTES)).toEqual([expect.stringContaining('tipo inválido')])
+  })
+
+  it('não reclama de leva com o tipo certo — validar se a sala existe é conferirConjuntoDeSalas', () => {
+    const s = sala([{ id: 'porta', leva: 'cozinha' }])
+    expect(conferirSala(s, AGENTES)).toEqual([])
   })
 
   it('acha vários defeitos de uma vez', () => {
@@ -176,5 +190,65 @@ describe('criariaCiclo', () => {
 
   it('aceita suporte que não existe (quem barra isso é conferirSala)', () => {
     expect(criariaCiclo('a', 'fantasma', [{ id: 'a' }])).toBe(false)
+  })
+})
+
+// Defeitos que só existem olhando MAIS DE UMA sala — conferirSala,
+// sozinha, não tem como pegar nenhum destes: ela nem sabe que outras
+// salas existem.
+describe('conferirConjuntoDeSalas', () => {
+  it('não reclama de um conjunto correto', () => {
+    const conjunto = {
+      escritorio: salaComNome('Escritório', [
+        { id: 'cadeira', agente: 'cifra' },
+        { id: 'porta-cozinha', leva: 'cozinha' },
+      ]),
+      cozinha: salaComNome('Cozinha', [{ id: 'porta-escritorio', leva: 'escritorio' }]),
+    }
+    expect(conferirConjuntoDeSalas(conjunto)).toEqual([])
+  })
+
+  it('pega duas salas com o mesmo nome', () => {
+    const conjunto = {
+      a: salaComNome('Sala Principal', []),
+      b: salaComNome('sala principal', []), // maiúscula/minúscula não conta como diferente
+    }
+    expect(conferirConjuntoDeSalas(conjunto)).toEqual([expect.stringContaining('mesmo nome')])
+  })
+
+  it('pega o mesmo agente em duas salas diferentes', () => {
+    const conjunto = {
+      a: salaComNome('A', [{ id: 'cadeira-a', agente: 'cifra' }]),
+      b: salaComNome('B', [{ id: 'cadeira-b', agente: 'cifra' }]),
+    }
+    expect(conferirConjuntoDeSalas(conjunto)).toEqual([expect.stringContaining('duas salas')])
+  })
+
+  it('não denuncia de novo o mesmo agente repetido DENTRO da mesma sala — isso é conferirSala', () => {
+    const conjunto = {
+      a: salaComNome('A', [
+        { id: 'cadeira-1', agente: 'cifra' },
+        { id: 'cadeira-2', agente: 'cifra' },
+      ]),
+    }
+    expect(conferirConjuntoDeSalas(conjunto)).toEqual([])
+  })
+
+  it('pega porta que leva pra sala que não existe (apagada, ou nome errado)', () => {
+    const conjunto = {
+      escritorio: salaComNome('Escritório', [{ id: 'porta', leva: 'sala-fantasma' }]),
+    }
+    expect(conferirConjuntoDeSalas(conjunto)).toEqual([
+      expect.stringContaining('sala-fantasma'),
+    ])
+  })
+
+  it('pega porta que leva pra ela mesma', () => {
+    const conjunto = {
+      escritorio: salaComNome('Escritório', [{ id: 'porta', leva: 'escritorio' }]),
+    }
+    expect(conferirConjuntoDeSalas(conjunto)).toEqual([
+      expect.stringContaining('leva pra ela mesma'),
+    ])
   })
 })

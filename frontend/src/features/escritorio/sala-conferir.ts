@@ -14,6 +14,7 @@ export interface MovelConferivel {
   id: string
   sobre?: string
   agente?: string
+  leva?: unknown
 }
 
 export interface SalaConferivel {
@@ -21,6 +22,13 @@ export interface SalaConferivel {
   linhas?: unknown
   paleta?: unknown
   moveis: MovelConferivel[]
+}
+
+// Só entra na conferência ENTRE salas (conferirConjuntoDeSalas) — a
+// sala sozinha (conferirSala) não sabe o próprio id nem precisa saber
+// o próprio nome pra se validar.
+export interface SalaConferivelComNome extends SalaConferivel {
+  nome?: unknown
 }
 
 // As 14 chaves de Paleta, repetidas aqui como dado (não como import de
@@ -124,6 +132,14 @@ export function conferirSala(sala: SalaConferivel, agentesConhecidos: string[]):
       problemas.push(`"${m.id}" está apoiado em "${m.sobre}", que não existe`)
     }
 
+    if (m.leva !== undefined && typeof m.leva !== 'string') {
+      // valor certo mas tipo errado (número, objeto...) — a checagem
+      // de sala de destino de verdade só dá pra fazer olhando o
+      // conjunto inteiro (conferirConjuntoDeSalas), mas o TIPO já dá
+      // pra pegar sozinho, sem precisar saber quais salas existem
+      problemas.push(`"${m.id}" tem leva com tipo inválido: ${JSON.stringify(m.leva)}`)
+    }
+
     if (m.agente !== undefined) {
       if (!agentesConhecidos.includes(m.agente)) {
         // redesenharAgentes simplesmente pula: o crachá não aparece e
@@ -158,6 +174,63 @@ export function conferirSala(sala: SalaConferivel, agentesConhecidos: string[]):
       }
       visitados.add(atual.id)
       atual = porId.get(atual.sobre)
+    }
+  }
+
+  return [...new Set(problemas)]
+}
+
+// Defeitos que só existem olhando MAIS DE UMA sala ao mesmo tempo:
+// nome de sala repetido, agente em duas salas diferentes, porta que
+// leva pra uma sala que não existe (mais). conferirSala (acima) não
+// pode pegar nenhum desses sozinha — ela nem sabe que outras salas
+// existem.
+//
+// `salas` é um mapa id → sala, o mesmo formato que
+// todasAsSalasDaFonte() já devolve no app, e que dá pra montar direto
+// lendo os arquivos de salas/ (no plugin do Vite e nos testes).
+export function conferirConjuntoDeSalas(salas: Record<string, SalaConferivelComNome>): string[] {
+  const problemas: string[] = []
+  const idsValidos = new Set(Object.keys(salas))
+  const donoDoNome = new Map<string, string>()
+  const donoDoAgente = new Map<string, string>()
+
+  for (const [id, sala] of Object.entries(salas)) {
+    if (typeof sala.nome === 'string') {
+      const chave = sala.nome.trim().toLowerCase()
+      const outroId = donoDoNome.get(chave)
+      if (outroId) {
+        // duas salas com o mesmo nome — o menu de troca (passo 5) não
+        // teria como diferenciar uma da outra pro chefe
+        problemas.push(`"${id}" e "${outroId}" têm o mesmo nome de sala ("${sala.nome}")`)
+      } else {
+        donoDoNome.set(chave, id)
+      }
+    }
+
+    for (const m of sala.moveis) {
+      if (m.agente !== undefined) {
+        const chave = `${id}/${m.id}`
+        const outro = donoDoAgente.get(m.agente)
+        // duplicata DENTRO da mesma sala já é responsabilidade de
+        // conferirSala — aqui só interessa quando são salas diferentes
+        if (outro && outro.split('/')[0] !== id) {
+          problemas.push(`o agente "${m.agente}" está em duas salas: "${outro}" e "${chave}"`)
+        }
+        if (!outro) donoDoAgente.set(m.agente, chave)
+      }
+
+      if (typeof m.leva === 'string') {
+        if (m.leva === id) {
+          // não é erro de digitação — é uma porta que leva pra dentro
+          // da própria sala, o que não significa nada
+          problemas.push(`"${m.id}" na sala "${id}" tem uma porta que leva pra ela mesma`)
+        } else if (!idsValidos.has(m.leva)) {
+          // sala apagada, ou nome digitado errado à mão — a peça
+          // continua ali, mas não vira botão nenhum (só decoração)
+          problemas.push(`"${m.id}" na sala "${id}" leva pra "${m.leva}", que não existe`)
+        }
+      }
     }
   }
 
