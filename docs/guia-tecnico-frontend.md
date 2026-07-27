@@ -418,6 +418,32 @@ apertando um botão. Errar pra "permanente" é caro demais pra deixar por
 conta de heurística — por isso são ações explícitas, e o HUD sempre
 mostra em qual camada a tela está.
 
+## Falhas que não fazem barulho
+
+Quatro defeitos no JSON fazem a sala carregar *quase* certa, sem erro
+em lugar nenhum — o pior tipo de defeito. Todos vêm de edição à mão do
+arquivo; nenhum é produzido pelo editor:
+
+| Defeito | O que acontece |
+|---|---|
+| `id` repetido | o índice é um `Map`: o segundo apaga o primeiro e sobra um sprite que ninguém consegue selecionar |
+| `sobre` apontando pra id inexistente | `baseNoChao` devolve a própria peça; profundidade errada, pode desenhar atrás do que deveria cobrir |
+| `sobre` apontando pra si mesmo | idem |
+| `agente` desconhecido | o crachá some e nada explica por quê |
+
+`conferirSala()` avisa no console antes de desenhar. **Só avisa, não
+corrige** — adivinhar a intenção seria pior que deixar o chefe
+decidir.
+
+## Rascunho versionado
+
+A versão vai na **chave** do localStorage (`escritorio:rascunho:v1`),
+não no conteúdo: rascunho de formato antigo simplesmente não é
+encontrado, em vez de ser lido e interpretado errado. **Suba o número
+sempre que `SalaDados` mudar de forma incompatível** — o rascunho
+velho é abandonado e o chefe cai na fonte, que é o comportamento
+seguro.
+
 ## Gravar na fonte (só em dev)
 
 O navegador não escreve em disco, mas o servidor de dev do Vite
@@ -448,7 +474,22 @@ gravada.
 | `Q` / `W` | girar (só troca a textura + âncora da direção) |
 | `PgUp` / `PgDn` | altura |
 | `Tab` | próxima peça · `[` `]` passo · `Del` excluir |
+| `Ctrl+Z` | desfazer (sem sair da edição) |
 | `E` | entra e sai |
+
+O desfazer guarda o estado inteiro da sala antes de cada gesto —
+cópia integral em vez de operações inversas, porque uma sala tem
+algumas dezenas de móveis e o simples aqui é também o confiável.
+
+**O detalhe que faz a funcionalidade existir é o agrupamento.** Sem
+ele, segurar a seta ou arrastar o mouse geraria um nível de desfazer
+por quadro e `Ctrl+Z` andaria um pixel de cada vez. Gestos do mesmo
+tipo dentro de 600ms reaproveitam o instantâneo do início da rajada, e
+o arraste captura só no `pointerdown`.
+
+O "· alterado" do HUD sai de **comparar** o estado atual com o do
+último salvamento, não de um sinalizador que só liga. Assim desfazer
+até o começo volta a dizer "sem alterações".
 
 ## Como adicionar mobília nova
 
