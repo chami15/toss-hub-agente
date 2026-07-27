@@ -166,6 +166,13 @@
       "direcao": "NW",
       "coluna": 5.765,
       "linha": -0.539
+    },
+    {
+      "id": "pottedPlant-1",
+      "peca": "pottedPlant",
+      "direcao": "NE",
+      "coluna": 0.415,
+      "linha": 1.423
     }
   ]
 }
