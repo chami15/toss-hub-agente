@@ -431,9 +431,26 @@ arquivo; nenhum é produzido pelo editor:
 | `sobre` apontando pra si mesmo | idem |
 | `agente` desconhecido | o crachá some e nada explica por quê |
 
-`conferirSala()` avisa no console antes de desenhar. **Só avisa, não
-corrige** — adivinhar a intenção seria pior que deixar o chefe
-decidir.
+Defesa em **quatro camadas**, da que pega mais cedo pra que pega mais
+tarde:
+
+1. **o editor não consegue criar nenhum deles** — `novoId` evita id
+   repetido, remover limpa o `sobre` dos filhos, atribuir agente tira
+   ele de onde estava
+2. **o plugin recusa gravar** sala inconsistente (422 + motivo). É a
+   camada que mais importa: o que não entra no arquivo versionado não
+   vira problema de outro dia sem ninguém lembrar de onde veio
+3. **`npm test`** percorre todo JSON em `salas/` e prova coerência —
+   pega edição à mão antes de rodar o app
+4. **painel vermelho na tela** ao carregar, listando cada defeito
+
+**Nenhuma camada corrige nada** — adivinhar a intenção de um dado
+torto é como se cria um problema pior que o original.
+
+`conferirSala()` mora em `sala-conferir.ts`, **um arquivo sem nenhum
+import**. É usado pelo app (resolução `bundler`), pelo plugin do Vite
+(`nodenext`) e pelos testes; qualquer dependência transitiva viraria
+briga de resolução de módulo em um dos três.
 
 ## Rascunho versionado
 
@@ -510,7 +527,34 @@ dele) e faz ela acompanhar o suporte quando ele se move.
 
 ---
 
-# PARTE 8 — Pontos de atenção (checklist)
+# PARTE 8 — Testes
+
+`npm test` (vitest). Rodam sem navegador: são sobre dado e matemática,
+não sobre pixel — o que dá pra ver na tela a gente já vê na tela.
+
+O critério pra existir um teste aqui é **cobrir o que não está sob os
+olhos**:
+
+| Arquivo | O que protege |
+|---|---|
+| `salas.test.ts` | toda sala versionada é coerente, só usa peça que existe no pack e tem âncora medida. Descobre os arquivos sozinho — vale pras salas futuras |
+| `sala-conferir.test.ts` | a própria rede de proteção pega cada defeito, e **não dá alarme falso** em sala boa (alarme falso ensina a ignorar o aviso, que é o mesmo que não ter) |
+| `iso.test.ts` | a ida e volta tela ↔ tabuleiro do arraste. Se as duas contas divergirem, a peça escorrega do cursor sem erro nenhum |
+| `catalogo.test.ts` | catálogo, arquivos do pack e âncoras casados entre si |
+
+> **Já valeu a pena na primeira execução:** os testes acharam que
+> `stairsOpen` e `stairsOpenSingle` tinham âncora **negativa** — fora
+> da imagem. São largas e baixas demais pro losango da base caber, e a
+> fórmula de medição não vale pra elas (4 dos 560 sprites). Ninguém
+> tinha usado essas peças ainda, então o defeito estava lá esperando.
+
+Os testes ficam em `__testes__/` e têm `tsconfig.test.json` próprio —
+usam API do Node (ler os JSON de sala, listar os sprites), que não faz
+sentido nos tipos do app.
+
+---
+
+# PARTE 9 — Pontos de atenção (checklist)
 
 Antes de dar qualquer coisa por pronta:
 
@@ -522,6 +566,8 @@ Antes de dar qualquer coisa por pronta:
 - [ ] Se mexeu em z-order: a peça está na camada certa?
 - [ ] Se mudou o pack de sprites: rodou `scripts/medir-ancoras.py` de novo?
 - [ ] Se mudou posição de móvel: fez no modo de edição, e não na mão?
+- [ ] `npm test` passa?
+- [ ] Se mexeu no formato da sala: subiu a versão da chave do rascunho?
 - [ ] Se adicionou dependência: avisou que o chefe precisa de `npm install` após o `git pull`?
 
 ## Erros recorrentes a evitar
