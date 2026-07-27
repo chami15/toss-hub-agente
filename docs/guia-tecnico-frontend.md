@@ -415,8 +415,29 @@ salva. Ninguém precisa acertar pixel por descrição.
 
 **O código nunca adivinha qual é qual.** Quem decide é o chefe,
 apertando um botão. Errar pra "permanente" é caro demais pra deixar por
-conta de heurística — por isso são duas ações explícitas, e o HUD sempre
+conta de heurística — por isso são ações explícitas, e o HUD sempre
 mostra em qual camada a tela está.
+
+## Gravar na fonte (só em dev)
+
+O navegador não escreve em disco, mas o servidor de dev do Vite
+escreve. `vite-plugin-salas.ts` abre uma rota local que recebe o JSON
+da sala e grava em `salas/`. Depois é só `git add`.
+
+`apply: 'serve'` faz o plugin existir **só** no `npm run dev`. No build
+de produção o botão não renderiza (`import.meta.env.DEV`) e a rota não
+existe — a fronteira é estrutural, não uma checagem que dá pra
+esquecer.
+
+O plugin valida o nome da sala por regex, confere que o caminho
+resolvido não escapou da pasta, limita o tamanho do corpo e checa o
+formato antes de gravar. O risco concreto que isso cobre não é ataque
+remoto (é servidor local): é um POST malformado destruir a sala
+versionada.
+
+Gravar descarta o rascunho — ele virou oficial, e se continuasse
+existindo teria prioridade no carregamento e esconderia a fonte recém
+gravada.
 
 ## Comandos
 
