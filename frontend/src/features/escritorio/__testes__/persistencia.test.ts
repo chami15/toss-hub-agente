@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   carregarSala,
   definirSalaAtual,
   descartarRascunho,
+  excluirSalaNaFonte,
   existeSala,
   idSalaAtual,
   idsDasSalas,
@@ -123,6 +124,35 @@ describe('rascunho — isolado por sala', () => {
   it('rascunho corrompido não derruba o app — cai como se não existisse', () => {
     localStorage.setItem('escritorio:rascunho:v2:escritorio', '{ isso não é json')
     expect(lerRascunho('escritorio')).toBeNull()
+  })
+})
+
+describe('excluirSalaNaFonte', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('chama DELETE na rota da sala e descarta o rascunho local', async () => {
+    const sala = salaDaFonte('escritorio')
+    salvarRascunho('cozinha', sala)
+    const fetchFalso = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    vi.stubGlobal('fetch', fetchFalso)
+
+    await excluirSalaNaFonte('cozinha')
+
+    expect(fetchFalso).toHaveBeenCalledWith('/__salas/cozinha', { method: 'DELETE' })
+    expect(temRascunho('cozinha')).toBe(false)
+  })
+
+  it('propaga o erro do servidor (sala ocupada, última sala, etc.)', async () => {
+    const fetchFalso = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ erro: 'sala tem agente dentro — desvincule antes de excluir' }),
+    })
+    vi.stubGlobal('fetch', fetchFalso)
+
+    await expect(excluirSalaNaFonte('escritorio')).rejects.toThrow(/agente dentro/)
   })
 })
 

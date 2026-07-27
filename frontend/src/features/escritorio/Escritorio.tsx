@@ -7,6 +7,7 @@ import { PALETAS } from './sala'
 import { PainelEdicao } from './PainelEdicao'
 import { PainelCatalogo } from './PainelCatalogo'
 import { PainelProblemas } from './PainelProblemas'
+import { PainelSalas } from './PainelSalas'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -214,6 +215,7 @@ export function Escritorio() {
         />
       )}
       <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
+      {!estado?.ativo && <PainelSalas />}
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}

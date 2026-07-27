@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
 import { conferirSala, type SalaConferivel } from './src/features/escritorio/sala-conferir.ts'
@@ -84,7 +84,7 @@ export function pluginSalas(): Plugin {
       const pastaSalas = resolve(server.config.root, PASTA)
 
       server.middlewares.use(ROTA, async (req, res, next) => {
-        if (req.method !== 'POST') return next()
+        if (req.method !== 'POST' && req.method !== 'DELETE') return next()
 
         const responder = (status: number, corpo: Record<string, unknown>) => {
           res.statusCode = status
@@ -104,6 +104,43 @@ export function pluginSalas(): Plugin {
         // caminho final não escapou da pasta
         if (!destino.startsWith(pastaSalas + sep)) {
           responder(400, { erro: 'caminho fora da pasta de salas' })
+          return
+        }
+
+        if (req.method === 'DELETE') {
+          try {
+            const existente = await readFile(destino, 'utf8').catch(() => null)
+            if (existente === null) {
+              responder(404, { erro: 'sala não existe' })
+              return
+            }
+
+            // não pode ficar sem nenhuma sala — sem isso o app não
+            // teria mais o que carregar
+            const arquivos = (await readdir(pastaSalas)).filter((f) => f.endsWith('.json'))
+            if (arquivos.length <= 1) {
+              responder(409, { erro: 'não dá pra excluir a última sala' })
+              return
+            }
+
+            // guarda básica: não apaga sala com agente dentro. A
+            // checagem completa (porta pendurada apontando pra cá)
+            // ainda não existe — vem na conferência entre salas.
+            const sala = JSON.parse(existente) as { moveis?: Array<{ agente?: unknown }> }
+            const ocupada = (sala.moveis ?? []).some((m) => typeof m.agente === 'string')
+            if (ocupada) {
+              responder(409, { erro: 'sala tem agente dentro — desvincule antes de excluir' })
+              return
+            }
+
+            await unlink(destino)
+            server.config.logger.info(`  sala excluída: ${PASTA}/${nome}.json`, {
+              timestamp: true,
+            })
+            responder(200, { ok: true })
+          } catch (e) {
+            responder(500, { erro: e instanceof Error ? e.message : 'falha ao excluir' })
+          }
           return
         }
 

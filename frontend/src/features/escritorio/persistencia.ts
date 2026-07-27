@@ -167,6 +167,19 @@ export async function gravarNaFonte(idSala: string, sala: SalaDados): Promise<vo
   descartarRascunho(idSala)
 }
 
+// Exclui o arquivo da sala. O servidor recusa (409) se for a última
+// sala restante ou se ela tiver algum agente dentro — a guarda contra
+// porta pendurada (outra sala apontando pra uma que sumiu) ainda não
+// existe, vem junto com a conferência entre salas.
+export async function excluirSalaNaFonte(idSala: string): Promise<void> {
+  const resposta = await fetch(`/__salas/${idSala}`, { method: 'DELETE' })
+  if (!resposta.ok) {
+    const corpo = (await resposta.json().catch(() => null)) as { erro?: string } | null
+    throw new Error(corpo?.erro ?? `servidor respondeu ${resposta.status}`)
+  }
+  descartarRascunho(idSala)
+}
+
 // Gravar altera um arquivo dentro de src/, então o Vite recarrega a
 // página sozinho (HMR) — e o toast morreria junto. Deixamos o recado
 // na sessão pra ele reaparecer do outro lado do reload.
