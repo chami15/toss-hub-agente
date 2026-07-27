@@ -1,38 +1,89 @@
-import salaFonte from './salas/escritorio.json'
 import type { SalaDados } from './sala-dados'
 
 // ---------------------------------------------------------------
-// AS TRÊS CAMADAS
+// DESCOBERTA AUTOMÁTICA DAS SALAS
 //
-//   fonte    — o JSON versionado no git. O layout oficial.
-//   rascunho — localStorage. Sobrevive ao reload, só nesta máquina.
-//   sessão   — só na memória da Maquete: some ao recarregar.
+// import.meta.glob é recurso do Vite: lê a pasta em BUILD TIME e gera
+// os imports de cada arquivo que casar o padrão. Arquivo novo em
+// salas/ aparece sozinho — não existe uma lista pra manter em dia em
+// lugar nenhum (e "esqueci de registrar a sala nova" nem chega a ser
+// um jeito de errar).
 //
-// A regra que importa: o código NUNCA adivinha se uma mudança é
-// definitiva. Quem decide é o chefe, apertando um botão — errar pra
-// "permanente" é caro demais pra deixar por conta de heurística.
+// O "id" de uma sala é o nome do arquivo sem `.json` — é o mesmo nome
+// que o formulário de criação usa pra escrever o arquivo, e o mesmo
+// que a rota /__salas/<id> do plugin do Vite espera.
 // ---------------------------------------------------------------
 
-// A versão entra na CHAVE, não no conteúdo: assim um rascunho de
-// formato antigo simplesmente não é encontrado, em vez de ser lido e
-// interpretado errado. Suba este número toda vez que o formato de
-// SalaDados mudar de um jeito incompatível — o rascunho velho é
-// abandonado e o chefe cai na fonte, que é o comportamento seguro.
-const CHAVE_RASCUNHO = 'escritorio:rascunho:v1'
+const MODULOS_SALAS = import.meta.glob('./salas/*.json', {
+  eager: true,
+  import: 'default',
+}) as Record<string, SalaDados>
 
-export type Camada = 'fonte' | 'rascunho'
+function idDoCaminho(caminho: string): string {
+  return (caminho.split('/').pop() ?? caminho).replace(/\.json$/, '')
+}
+
+const SALAS_DA_FONTE: Record<string, SalaDados> = Object.fromEntries(
+  Object.entries(MODULOS_SALAS).map(([caminho, dados]) => [idDoCaminho(caminho), dados]),
+)
 
 function clonar(sala: SalaDados): SalaDados {
   return JSON.parse(JSON.stringify(sala)) as SalaDados
 }
 
-export function salaDaFonte(): SalaDados {
-  return clonar(salaFonte as SalaDados)
+// Todos os ids descobertos, em ordem alfabética (pro menu entre salas
+// não pular de posição toda vez que alguém adiciona um arquivo).
+export function idsDasSalas(): string[] {
+  return Object.keys(SALAS_DA_FONTE).sort()
 }
 
-export function lerRascunho(): SalaDados | null {
+export function existeSala(id: string): boolean {
+  return id in SALAS_DA_FONTE
+}
+
+export function salaDaFonte(id: string): SalaDados {
+  const dados = SALAS_DA_FONTE[id]
+  if (!dados) throw new Error(`sala "${id}" não existe em salas/`)
+  return clonar(dados)
+}
+
+// Todas de uma vez, pra conferência entre salas (agente único no
+// conjunto inteiro, porta apontando pra sala que existe) — vem depois.
+export function todasAsSalasDaFonte(): Record<string, SalaDados> {
+  return Object.fromEntries(Object.entries(SALAS_DA_FONTE).map(([id, s]) => [id, clonar(s)]))
+}
+
+// ---------------------------------------------------------------
+// AS TRÊS CAMADAS (por sala)
+//
+//   fonte    — o JSON versionado no git. O layout oficial.
+//   rascunho — localStorage. Sobrevive ao reload, só nesta máquina.
+//   sessão   — só na memória da Maquete: some ao recarregar.
+//
+// Cada sala tem seu PRÓPRIO rascunho. Sem isso, editar a cozinha e
+// recarregar traria o rascunho da cozinha pra dentro do escritório —
+// as duas competindo pela mesma chave.
+//
+// A regra que importa continua a mesma: o código NUNCA adivinha se
+// uma mudança é definitiva. Quem decide é o chefe, apertando um botão.
+// ---------------------------------------------------------------
+
+// A versão entra na CHAVE, não no conteúdo: um rascunho de formato
+// antigo simplesmente não é encontrado, em vez de lido e interpretado
+// errado. Suba este número sempre que SalaDados mudar de forma
+// incompatível — aqui já subiu uma vez, quando a paleta passou a ser
+// obrigatória (passo 1) e o formato ganhou multi-sala (este passo).
+const VERSAO_RASCUNHO = 'v2'
+
+function chaveRascunho(idSala: string): string {
+  return `escritorio:rascunho:${VERSAO_RASCUNHO}:${idSala}`
+}
+
+export type Camada = 'fonte' | 'rascunho'
+
+export function lerRascunho(idSala: string): SalaDados | null {
   try {
-    const bruto = localStorage.getItem(CHAVE_RASCUNHO)
+    const bruto = localStorage.getItem(chaveRascunho(idSala))
     if (!bruto) return null
     const sala = JSON.parse(bruto) as SalaDados
     // rascunho corrompido não pode derrubar o app — melhor cair na
@@ -44,25 +95,48 @@ export function lerRascunho(): SalaDados | null {
   }
 }
 
-export function temRascunho(): boolean {
-  return lerRascunho() !== null
+export function temRascunho(idSala: string): boolean {
+  return lerRascunho(idSala) !== null
 }
 
-export function salvarRascunho(sala: SalaDados): void {
-  localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(sala))
+export function salvarRascunho(idSala: string, sala: SalaDados): void {
+  localStorage.setItem(chaveRascunho(idSala), JSON.stringify(sala))
 }
 
-export function descartarRascunho(): void {
-  localStorage.removeItem(CHAVE_RASCUNHO)
+export function descartarRascunho(idSala: string): void {
+  localStorage.removeItem(chaveRascunho(idSala))
+}
+
+// ---------------------------------------------------------------
+// QUAL SALA ESTÁ ABERTA
+//
+// Persistido pra sobreviver ao reload — sem isso, gravar na fonte
+// (que recarrega a página) sempre voltaria pra primeira sala.
+// ---------------------------------------------------------------
+
+const CHAVE_SALA_ATUAL = 'escritorio:sala-atual'
+
+export function idSalaAtual(): string {
+  const ids = idsDasSalas()
+  const salvo = localStorage.getItem(CHAVE_SALA_ATUAL)
+  if (salvo && ids.includes(salvo)) return salvo
+  // sala default: "escritorio" se existir (é a original), senão a
+  // primeira em ordem alfabética
+  return ids.includes('escritorio') ? 'escritorio' : ids[0]
+}
+
+export function definirSalaAtual(id: string): void {
+  localStorage.setItem(CHAVE_SALA_ATUAL, id)
 }
 
 // O rascunho tem prioridade: se existe, foi o chefe que pediu pra
 // guardar. A camada fica visível no HUD pra nunca haver dúvida sobre
 // o que está na tela.
-export function carregarSala(): { sala: SalaDados; camada: Camada } {
-  const rascunho = lerRascunho()
-  if (rascunho) return { sala: rascunho, camada: 'rascunho' }
-  return { sala: salaDaFonte(), camada: 'fonte' }
+export function carregarSala(): { sala: SalaDados; camada: Camada; idSala: string } {
+  const idSala = idSalaAtual()
+  const rascunho = lerRascunho(idSala)
+  if (rascunho) return { sala: rascunho, camada: 'rascunho', idSala }
+  return { sala: salaDaFonte(idSala), camada: 'fonte', idSala }
 }
 
 // --- Gravar na fonte ---------------------------------------------
@@ -71,15 +145,14 @@ export function carregarSala(): { sala: SalaDados; camada: Camada } {
 // escreve (ver vite-plugin-salas.ts). Só existe em `npm run dev`: num
 // site publicado a rota não existe, então o botão some.
 
-const NOME_SALA = 'escritorio'
 const AVISO_POS_RELOAD = 'escritorio:gravou'
 
 export function podeGravarNaFonte(): boolean {
   return import.meta.env.DEV
 }
 
-export async function gravarNaFonte(sala: SalaDados): Promise<void> {
-  const resposta = await fetch(`/__salas/${NOME_SALA}`, {
+export async function gravarNaFonte(idSala: string, sala: SalaDados): Promise<void> {
+  const resposta = await fetch(`/__salas/${idSala}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(sala),
@@ -91,7 +164,7 @@ export async function gravarNaFonte(sala: SalaDados): Promise<void> {
   // gravou na fonte = o rascunho virou oficial, não há mais o que
   // guardar à parte. Sem isso o rascunho continuaria tendo prioridade
   // no carregamento e esconderia a fonte que acabou de ser escrita.
-  descartarRascunho()
+  descartarRascunho(idSala)
 }
 
 // Gravar altera um arquivo dentro de src/, então o Vite recarrega a

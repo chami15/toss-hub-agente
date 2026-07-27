@@ -30,7 +30,7 @@ export function Escritorio() {
       // a sala carrega ANTES do Pixi iniciar, pra pintar o fundo com a
       // cor certa desde o primeiro frame — cada sala tem sua própria
       // paleta agora, não existe mais uma cor de fundo global
-      const { sala } = carregarSala()
+      const { sala, idSala } = carregarSala()
       const corFundo = typeof sala.paleta?.vazio === 'number' ? sala.paleta.vazio : PALETAS.neutra.vazio
 
       const aplicacao = new Application()
@@ -60,8 +60,12 @@ export function Escritorio() {
       mundo.addChild(cena.raiz)
       setProblemas(cena.problemas)
 
-      const editor = criarEditor(cena, mundo, aplicacao.stage, () =>
-        setEstado(editorRef.current?.estado() ?? null),
+      const editor = criarEditor(
+        cena,
+        mundo,
+        aplicacao.stage,
+        () => setEstado(editorRef.current?.estado() ?? null),
+        idSala,
       )
       editorRef.current = editor
       setEstado(editor.estado())

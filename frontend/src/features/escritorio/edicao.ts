@@ -12,7 +12,6 @@ import {
   gravarNaFonte,
   marcarQueGravou,
   podeGravarNaFonte,
-  salaDaFonte,
   salvarRascunho,
   temRascunho,
   type Camada,
@@ -91,12 +90,13 @@ export function criarEditor(
   mundo: Container,
   palco: Container,
   aoMudar: () => void,
+  idSala: string,
 ): Editor {
   const maquete = cena.maquete
   let ativo = false
   let selecionadoId: string | null = null
   let indicePasso = 2
-  let camada: Camada = temRascunho() ? 'rascunho' : 'fonte'
+  let camada: Camada = temRascunho(idSala) ? 'rascunho' : 'fonte'
   let sujo = false
   let arrastando: string | null = null
   let ultimoPonto: { x: number; y: number } | null = null
@@ -418,7 +418,7 @@ export function criarEditor(
     },
 
     salvarRascunho() {
-      salvarRascunho(maquete.exportar())
+      salvarRascunho(idSala, maquete.exportar())
       camada = 'rascunho'
       referencia = JSON.stringify(maquete.exportar())
       sujo = false
@@ -440,7 +440,7 @@ export function criarEditor(
       gravando = true
       avisar('gravando…')
       notificar()
-      void gravarNaFonte(maquete.exportar())
+      void gravarNaFonte(idSala, maquete.exportar())
         .then(() => {
           marcarQueGravou()
           camada = 'fonte'
@@ -462,7 +462,7 @@ export function criarEditor(
     },
 
     voltarParaFonte() {
-      descartarRascunho()
+      descartarRascunho(idSala)
       camada = 'fonte'
       sujo = false
       // recarrega: é mais simples e mais confiável que desfazer
@@ -494,5 +494,3 @@ export function criarEditor(
     },
   }
 }
-
-export { salaDaFonte }
