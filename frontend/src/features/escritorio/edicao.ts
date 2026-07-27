@@ -5,6 +5,7 @@ import type { Cena } from './cena'
 import type { MovelSala } from './sala-dados'
 import { novoId } from './sala-dados'
 import type { Direcao } from './sala'
+import { AGENTES } from './agentes'
 import {
   descartarRascunho,
   salaDaFonte,
@@ -34,6 +35,10 @@ export interface EstadoEditor {
   camada: Camada
   sujo: boolean
   totalMoveis: number
+  // confirmação passageira das ações que não têm efeito visível na
+  // cena (salvar, copiar, atribuir agente) — sem isso o chefe clica e
+  // não sabe se aconteceu
+  mensagem: string | null
 }
 
 const PASSOS = [0.01, 0.025, 0.05, 0.1, 0.25]
@@ -65,7 +70,7 @@ export interface Editor {
   apoiarNoDeBaixo: () => void
   salvarRascunho: () => void
   voltarParaFonte: () => void
-  json: () => string
+  copiarJson: () => void
   destruir: () => void
 }
 
@@ -83,6 +88,8 @@ export function criarEditor(
   let sujo = false
   let arrastando: string | null = null
   let ultimoPonto: { x: number; y: number } | null = null
+  let mensagem: string | null = null
+  let timerMensagem: number | undefined
 
   // losango no chão marcando a peça selecionada — o mesmo formato do
   // tile, pra leitura na perspectiva ficar óbvia
@@ -93,6 +100,17 @@ export function criarEditor(
 
   function selecionado(): MovelSala | null {
     return selecionadoId ? (maquete.movel(selecionadoId) ?? null) : null
+  }
+
+  const DURACAO_MENSAGEM = 2200
+
+  function avisar(texto: string) {
+    mensagem = texto
+    window.clearTimeout(timerMensagem)
+    timerMensagem = window.setTimeout(() => {
+      mensagem = null
+      aoMudar()
+    }, DURACAO_MENSAGEM)
   }
 
   function redesenharMarca() {
@@ -186,6 +204,7 @@ export function criarEditor(
       camada,
       sujo,
       totalMoveis: maquete.moveis.length,
+      mensagem,
     }),
 
     alternar() {
@@ -256,12 +275,15 @@ export function criarEditor(
       if (!selecionadoId) return
       maquete.remover(selecionadoId)
       selecionadoId = null
+      avisar('peça removida')
       notificar(true)
     },
 
     atribuirAgente(agenteId) {
       if (!selecionadoId) return
       maquete.atribuirAgente(selecionadoId, agenteId)
+      const nome = AGENTES.find((a) => a.id === agenteId)?.nome
+      avisar(nome ? `${nome} atribuído a esta peça` : 'agente removido da peça')
       notificar(true)
     },
 
@@ -295,6 +317,13 @@ export function criarEditor(
       salvarRascunho(maquete.exportar())
       camada = 'rascunho'
       sujo = false
+      // sai da edição: salvar é o fim de uma sessão de trabalho, e
+      // deixar o modo ligado esconde a maquete atrás dos painéis
+      ativo = false
+      arrastando = null
+      selecionadoId = null
+      aplicarInteratividade()
+      avisar('rascunho salvo')
       notificar()
     },
 
@@ -307,9 +336,23 @@ export function criarEditor(
       window.location.reload()
     },
 
-    json: () => JSON.stringify(maquete.exportar(), null, 2),
+    copiarJson() {
+      const texto = JSON.stringify(maquete.exportar(), null, 2)
+      void navigator.clipboard
+        ?.writeText(texto)
+        .then(() => {
+          avisar('JSON copiado')
+          notificar()
+        })
+        .catch(() => {
+          avisar('não consegui copiar — veja o console')
+          console.log(texto)
+          notificar()
+        })
+    },
 
     destruir() {
+      window.clearTimeout(timerMensagem)
       palco.off('pointermove', aoMoverPonteiro)
       palco.off('pointerup', aoSoltar)
       palco.off('pointerupoutside', aoSoltar)

@@ -55,6 +55,29 @@ const BOTAO: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+// o popup nativo do <select> não herda estilo do pai — cada <option>
+// precisa da própria cor, senão a lista abre branca
+const OPCAO: React.CSSProperties = {
+  background: '#20232a',
+  color: '#e6e1d6',
+}
+
+const TOAST: React.CSSProperties = {
+  position: 'absolute',
+  left: '50%',
+  bottom: 32,
+  transform: 'translateX(-50%)',
+  fontFamily: MONO,
+  fontSize: 12.5,
+  color: '#0d1117',
+  background: '#4ade80',
+  borderRadius: 6,
+  padding: '9px 16px',
+  boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
+  pointerEvents: 'none',
+  userSelect: 'none',
+}
+
 const VERDE: React.CSSProperties = {
   ...BOTAO,
   background: 'rgba(74,222,128,0.16)',
@@ -82,18 +105,27 @@ export function PainelEdicao({
   aoVoltarParaFonte,
   aoCopiarJson,
 }: Props) {
+  // o toast vive fora do cartão: "salvar rascunho" desliga a edição, e
+  // a confirmação precisa sobreviver a isso
+  const toast = estado.mensagem ? <div style={TOAST}>{estado.mensagem}</div> : null
+
   if (!estado.ativo) {
     return (
-      <div style={DICA}>
-        <kbd>E</kbd> — modo de edição
-      </div>
+      <>
+        <div style={DICA}>
+          <kbd>E</kbd> — modo de edição
+        </div>
+        {toast}
+      </>
     )
   }
 
   const sel = estado.selecionado
 
   return (
-    <div style={CARTAO}>
+    <>
+      {toast}
+      <div style={CARTAO}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <strong style={{ color: '#4ade80', letterSpacing: '0.06em' }}>MODO EDIÇÃO</strong>
         <span style={ROTULO}>{estado.totalMoveis} móveis</span>
@@ -149,18 +181,24 @@ export function PainelEdicao({
               style={{
                 width: '100%',
                 marginTop: 4,
-                background: 'rgba(255,255,255,0.08)',
+                background: '#20232a',
                 border: '1px solid rgba(255,255,255,0.14)',
                 borderRadius: 5,
                 color: '#e6e1d6',
                 font: 'inherit',
                 fontSize: 11,
                 padding: '5px 6px',
+                // sem isto a LISTA aberta sai com fundo branco do
+                // sistema, ilegível com texto claro. O colorScheme é o
+                // que o navegador usa pra pintar o popup nativo.
+                colorScheme: 'dark',
               }}
             >
-              <option value="">— ninguém —</option>
+              <option value="" style={OPCAO}>
+                — ninguém —
+              </option>
               {AGENTES.map((a) => (
-                <option key={a.id} value={a.id}>
+                <option key={a.id} value={a.id} style={OPCAO}>
                   {a.nome}
                 </option>
               ))}
@@ -195,12 +233,13 @@ export function PainelEdicao({
         >
           <li>arrastar · mover livre</li>
           <li>setas · mover pelo passo</li>
-          <li>Q E · girar &nbsp; Tab · próxima</li>
-          <li>PgUp PgDn · altura</li>
+          <li>Q W · girar &nbsp; Tab · próxima</li>
+          <li>A Z · altura</li>
           <li>[ ] · passo &nbsp; Del · excluir</li>
           <li>E · sair</li>
         </ul>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

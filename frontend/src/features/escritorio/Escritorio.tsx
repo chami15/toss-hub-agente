@@ -130,10 +130,18 @@ export function Escritorio() {
         case 'W':
           editor.girar(1)
           break
+        // altura: A sobe, Z desce (logo abaixo no teclado — e
+        // presente em qualquer layout, ao contrário de PgUp/PgDn, que
+        // faltam em teclado compacto). PgUp/PgDn seguem valendo pra
+        // quem tiver.
+        case 'a':
+        case 'A':
         case 'PageUp':
           e.preventDefault()
           editor.mudarAltura(0.02)
           break
+        case 'z':
+        case 'Z':
         case 'PageDown':
           e.preventDefault()
           editor.mudarAltura(-0.02)
@@ -173,9 +181,7 @@ export function Escritorio() {
           aoAtribuirAgente={(id) => chamar((e) => e.atribuirAgente(id))}
           aoSalvarRascunho={() => chamar((e) => e.salvarRascunho())}
           aoVoltarParaFonte={() => chamar((e) => e.voltarParaFonte())}
-          aoCopiarJson={() =>
-            chamar((e) => void navigator.clipboard?.writeText(e.json()))
-          }
+          aoCopiarJson={() => chamar((e) => e.copiarJson())}
         />
       )}
       {estado?.ativo && (

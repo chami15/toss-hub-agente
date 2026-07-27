@@ -216,7 +216,17 @@ export class Maquete {
   }
 
   // Cópia limpa do estado, pra salvar em rascunho ou gravar na fonte.
+  //
+  // Arredonda em 3 casas: arrastar com o mouse gera número tipo
+  // 3.4749850261763258, que polui o JSON e faz qualquer diff ficar
+  // ilegível. 0.001 de casa é menos de 0,2px — não dá pra ver.
   exportar(): SalaDados {
-    return JSON.parse(JSON.stringify(this.dados)) as SalaDados
+    const copia = JSON.parse(JSON.stringify(this.dados)) as SalaDados
+    for (const m of copia.moveis) {
+      m.coluna = Number(m.coluna.toFixed(3))
+      m.linha = Number(m.linha.toFixed(3))
+      if (m.altura !== undefined) m.altura = Number(m.altura.toFixed(3))
+    }
+    return copia
   }
 }

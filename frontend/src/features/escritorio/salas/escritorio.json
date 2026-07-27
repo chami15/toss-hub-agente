@@ -14,24 +14,15 @@
       "id": "cifra-mesa",
       "peca": "desk",
       "direcao": "NW",
-      "coluna": 3.5,
-      "linha": 3.0
+      "coluna": 3.475,
+      "linha": 3.004
     },
     {
       "id": "cifra-monitor",
       "peca": "computerScreen",
       "direcao": "NW",
-      "coluna": 3.395,
-      "linha": 2.91,
-      "altura": 0.16,
-      "sobre": "cifra-mesa"
-    },
-    {
-      "id": "cifra-teclado",
-      "peca": "computerKeyboard",
-      "direcao": "NW",
-      "coluna": 3.405,
-      "linha": 2.9,
+      "coluna": 3.299,
+      "linha": 2.902,
       "altura": 0.16,
       "sobre": "cifra-mesa"
     },
@@ -39,8 +30,8 @@
       "id": "cifra-mouse",
       "peca": "computerMouse",
       "direcao": "NW",
-      "coluna": 3.535,
-      "linha": 2.77,
+      "coluna": 3.51,
+      "linha": 2.774,
       "altura": 0.16,
       "sobre": "cifra-mesa"
     },
@@ -48,32 +39,23 @@
       "id": "cifra-cadeira",
       "peca": "chairDesk",
       "direcao": "SW",
-      "coluna": 3.3,
-      "linha": 2.36,
+      "coluna": 3.505,
+      "linha": 2.405,
       "agente": "cifra"
     },
     {
       "id": "agenda-mesa",
       "peca": "desk",
       "direcao": "NW",
-      "coluna": 4.5,
-      "linha": 3.0
+      "coluna": 4.505,
+      "linha": 3.078
     },
     {
       "id": "agenda-monitor",
       "peca": "computerScreen",
       "direcao": "NW",
-      "coluna": 4.2,
-      "linha": 3.3,
-      "altura": 0.16,
-      "sobre": "agenda-mesa"
-    },
-    {
-      "id": "agenda-teclado",
-      "peca": "computerKeyboard",
-      "direcao": "NW",
-      "coluna": 4.35,
-      "linha": 3.45,
+      "coluna": 4.34,
+      "linha": 2.973,
       "altura": 0.16,
       "sobre": "agenda-mesa"
     },
@@ -81,8 +63,8 @@
       "id": "agenda-mouse",
       "peca": "computerMouse",
       "direcao": "NW",
-      "coluna": 4.48,
-      "linha": 3.32,
+      "coluna": 4.658,
+      "linha": 2.913,
       "altura": 0.16,
       "sobre": "agenda-mesa"
     },
@@ -90,8 +72,8 @@
       "id": "agenda-cadeira",
       "peca": "chairDesk",
       "direcao": "SW",
-      "coluna": 4.3,
-      "linha": 2.36,
+      "coluna": 4.459,
+      "linha": 2.534,
       "agente": "agenda"
     },
     {
@@ -99,7 +81,7 @@
       "peca": "desk",
       "direcao": "SW",
       "coluna": 3.5,
-      "linha": 4.0
+      "linha": 4
     },
     {
       "id": "vita-monitor",
@@ -115,7 +97,7 @@
       "peca": "computerKeyboard",
       "direcao": "SW",
       "coluna": 3.5,
-      "linha": 4.0,
+      "linha": 4,
       "altura": 0.16,
       "sobre": "vita-mesa"
     },
@@ -140,15 +122,15 @@
       "id": "norte-mesa",
       "peca": "desk",
       "direcao": "SW",
-      "coluna": 4.5,
-      "linha": 4.0
+      "coluna": 4.589,
+      "linha": 4.016
     },
     {
       "id": "norte-monitor",
       "peca": "computerScreen",
       "direcao": "SW",
-      "coluna": 4.4,
-      "linha": 4.01,
+      "coluna": 4.463,
+      "linha": 3.781,
       "altura": 0.16,
       "sobre": "norte-mesa"
     },
@@ -157,7 +139,7 @@
       "peca": "computerKeyboard",
       "direcao": "SW",
       "coluna": 4.5,
-      "linha": 4.0,
+      "linha": 4,
       "altura": 0.16,
       "sobre": "norte-mesa"
     },
@@ -165,8 +147,8 @@
       "id": "norte-mouse",
       "peca": "computerMouse",
       "direcao": "SW",
-      "coluna": 4.73,
-      "linha": 3.97,
+      "coluna": 4.751,
+      "linha": 3.991,
       "altura": 0.16,
       "sobre": "norte-mesa"
     },
@@ -177,6 +159,13 @@
       "coluna": 4.6,
       "linha": 4.74,
       "agente": "norte"
+    },
+    {
+      "id": "doorway-1",
+      "peca": "doorway",
+      "direcao": "NW",
+      "coluna": 5.765,
+      "linha": -0.539
     }
   ]
 }
