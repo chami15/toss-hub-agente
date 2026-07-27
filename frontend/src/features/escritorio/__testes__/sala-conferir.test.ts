@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { conferirSala, criariaCiclo } from '../sala-conferir'
+import { CHAVES_PALETA, conferirSala, criariaCiclo } from '../sala-conferir'
 
 // A conferência é a rede que pega os defeitos silenciosos. Se ELA
 // tiver um furo, o furo é invisível por definição — por isso cada
@@ -9,8 +9,13 @@ import { conferirSala, criariaCiclo } from '../sala-conferir'
 
 const AGENTES = ['cifra', 'agenda']
 
+// Uma paleta válida mínima, só pros testes de móveis não disparar o
+// aviso de "paleta incompleta" por acidente — quem testa isso
+// especificamente é o describe('geometria e paleta') mais abaixo.
+const PALETA_OK = Object.fromEntries(CHAVES_PALETA.map((c) => [c, 0x000000]))
+
 function sala(moveis: { id: string; sobre?: string; agente?: string }[]) {
-  return { moveis }
+  return { colunas: 7, linhas: 7, paleta: PALETA_OK, moveis }
 }
 
 describe('conferirSala', () => {
@@ -86,6 +91,45 @@ describe('conferirSala', () => {
       { id: 'c', agente: 'fantasma' },
     ])
     expect(conferirSala(s, AGENTES)).toHaveLength(3)
+  })
+})
+
+// Tamanho e cor eram constantes globais até pouco tempo atrás. O JSON
+// já dizia "colunas: 10" numa sala que continuava desenhando 7×7,
+// porque nada lia esse campo — exatamente o tipo de defeito que esta
+// rede existe pra pegar, só que desta vez no próprio dado da sala, não
+// nos móveis dentro dela.
+describe('conferirSala > geometria e paleta', () => {
+  it('não reclama de colunas/linhas/paleta válidos', () => {
+    expect(conferirSala(sala([]), AGENTES)).toEqual([])
+  })
+
+  it.each([undefined, 0, -1, '7', null])('pega colunas inválido: %s', (valor) => {
+    const s = { ...sala([]), colunas: valor }
+    expect(conferirSala(s, AGENTES)).toEqual([expect.stringContaining('colunas inválido')])
+  })
+
+  it.each([undefined, 0, -1, '7', null])('pega linhas inválido: %s', (valor) => {
+    const s = { ...sala([]), linhas: valor }
+    expect(conferirSala(s, AGENTES)).toEqual([expect.stringContaining('linhas inválido')])
+  })
+
+  it('pega sala totalmente sem paleta', () => {
+    const s = { ...sala([]), paleta: undefined }
+    expect(conferirSala(s, AGENTES)).toEqual([expect.stringContaining('sem paleta')])
+  })
+
+  it('pega paleta com um tom faltando', () => {
+    const { pisoClaro: _semUso, ...incompleta } = PALETA_OK
+    const s = { ...sala([]), paleta: incompleta }
+    const problemas = conferirSala(s, AGENTES)
+    expect(problemas).toHaveLength(1)
+    expect(problemas[0]).toContain('pisoClaro')
+  })
+
+  it('pega tom da paleta com o tipo errado (string em vez de número)', () => {
+    const s = { ...sala([]), paleta: { ...PALETA_OK, rodape: '#8f887a' } }
+    expect(conferirSala(s, AGENTES)).toEqual([expect.stringContaining('rodape')])
   })
 })
 

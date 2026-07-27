@@ -1,4 +1,4 @@
-import type { Direcao } from './sala'
+import type { Direcao, Paleta } from './sala'
 
 // ---------------------------------------------------------------
 // O FORMATO DA SALA
@@ -38,6 +38,10 @@ export interface SalaDados {
   nome: string
   colunas: number
   linhas: number
+  // baked, não uma referência a um preset — a sala é auto-contida:
+  // abrir o arquivo mostra a cor de verdade, sem precisar cruzar com
+  // outro lugar do código pra saber o que "corporativa" significa hoje
+  paleta: Paleta
   moveis: MovelSala[]
 }
 

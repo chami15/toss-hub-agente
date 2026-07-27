@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { conferirSala } from '../sala-conferir'
+import { CHAVES_PALETA, conferirSala } from '../sala-conferir'
 import { AGENTES } from '../agentes'
 import { ANCORAS } from '../ancoras'
 import type { SalaDados } from '../sala-dados'
@@ -45,6 +45,12 @@ describe.each(arquivos)('sala %s', (arquivo) => {
     expect(sala.colunas).toBeGreaterThan(0)
     expect(sala.linhas).toBeGreaterThan(0)
     expect(Array.isArray(sala.moveis)).toBe(true)
+  })
+
+  it('tem paleta completa — tamanho e cor não são mais globais', () => {
+    for (const chave of CHAVES_PALETA) {
+      expect(typeof sala.paleta?.[chave], `paleta.${chave}`).toBe('number')
+    }
   })
 
   it('só usa peças que existem no pack', () => {

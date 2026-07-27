@@ -1,19 +1,19 @@
 import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js'
 import { paraTela, TILE_W, TILE_H } from './iso'
 import {
-  COLUNAS,
-  LINHAS,
-  PALETA,
   ESPESSURA_LAJE,
   ALTURA_PAREDE,
   ESPESSURA_PAREDE,
   JANELA_BASE,
   JANELA_TOPO,
+  PALETAS,
   type Janela,
+  type Paleta,
 } from './sala'
 import { AGENTES, PASTA_AGENTES, RECORTES } from './agentes'
 import { Maquete } from './maquete'
 import { conferirSala, type SalaDados } from './sala-dados'
+import { CHAVES_PALETA } from './sala-conferir'
 
 // Abordagem combinada:
 //   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
@@ -82,17 +82,17 @@ function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: 
 // Os 4 cantos externos da planta. paraTela(c - 0.5, l - 0.5) devolve o
 // vértice de cima do tile (c, l), então meio tile em cada eixo chega
 // nas quinas do retângulo inteiro.
-function cantos() {
+function cantos(colunas: number, linhas: number) {
   return {
     norte: paraTela(-0.5, -0.5),
-    leste: paraTela(COLUNAS - 0.5, -0.5),
-    sul: paraTela(COLUNAS - 0.5, LINHAS - 0.5),
-    oeste: paraTela(-0.5, LINHAS - 0.5),
+    leste: paraTela(colunas - 0.5, -0.5),
+    sul: paraTela(colunas - 0.5, linhas - 0.5),
+    oeste: paraTela(-0.5, linhas - 0.5),
   }
 }
 
-function desenharLaje(): Graphics {
-  const { leste, sul, oeste } = cantos()
+function desenharLaje(colunas: number, linhas: number, paleta: Paleta): Graphics {
+  const { leste, sul, oeste } = cantos(colunas, linhas)
   const g = new Graphics()
 
   g.poly([
@@ -101,7 +101,7 @@ function desenharLaje(): Graphics {
     sul.x, sul.y + ESPESSURA_LAJE,
     oeste.x, oeste.y + ESPESSURA_LAJE,
   ])
-  g.fill(PALETA.lajeFrente)
+  g.fill(paleta.lajeFrente)
 
   g.poly([
     sul.x, sul.y,
@@ -109,22 +109,22 @@ function desenharLaje(): Graphics {
     leste.x, leste.y + ESPESSURA_LAJE,
     sul.x, sul.y + ESPESSURA_LAJE,
   ])
-  g.fill(PALETA.lajeLado)
+  g.fill(paleta.lajeLado)
 
   return g
 }
 
-function desenharPiso(): Graphics {
+function desenharPiso(colunas: number, linhas: number, paleta: Paleta): Graphics {
   const g = new Graphics()
   const hw = TILE_W / 2
   const hh = TILE_H / 2
 
-  for (let linha = 0; linha < LINHAS; linha++) {
-    for (let coluna = 0; coluna < COLUNAS; coluna++) {
+  for (let linha = 0; linha < linhas; linha++) {
+    for (let coluna = 0; coluna < colunas; coluna++) {
       const { x, y } = paraTela(coluna, linha)
       g.poly([x, y - hh, x + hw, y, x, y + hh, x - hw, y])
-      g.fill((coluna + linha) % 2 === 0 ? PALETA.pisoClaro : PALETA.pisoEscuro)
-      g.stroke({ width: 1, color: PALETA.pisoJunta, alignment: 0.5 })
+      g.fill((coluna + linha) % 2 === 0 ? paleta.pisoClaro : paleta.pisoEscuro)
+      g.stroke({ width: 1, color: paleta.pisoJunta, alignment: 0.5 })
     }
   }
 
@@ -169,7 +169,16 @@ function quadNaParede(
 // chapada — é a "textura" possível sem sair de Graphics: gradiente de
 // verdade (FillGradient do Pixi) simulando profundidade/céu, mais uma
 // faixa translúcida na diagonal simulando reflexo de vidro.
-function desenharVidro(g: Graphics, de: Ponto2, ate: Ponto2, t0: number, t1: number, h0: number, h1: number) {
+function desenharVidro(
+  g: Graphics,
+  de: Ponto2,
+  ate: Ponto2,
+  t0: number,
+  t1: number,
+  h0: number,
+  h1: number,
+  paleta: Paleta,
+) {
   const a = naParede(de, ate, t0, h1)
   const b = naParede(de, ate, t1, h1)
   const c = naParede(de, ate, t1, h0)
@@ -181,9 +190,9 @@ function desenharVidro(g: Graphics, de: Ponto2, ate: Ponto2, t0: number, t1: num
     end: { x: 0, y: 1 },
     textureSpace: 'local',
     colorStops: [
-      { offset: 0, color: PALETA.janelaBrilho },
-      { offset: 0.55, color: PALETA.janelaVidro },
-      { offset: 1, color: PALETA.janelaVidroBase },
+      { offset: 0, color: paleta.janelaBrilho },
+      { offset: 0.55, color: paleta.janelaVidro },
+      { offset: 1, color: paleta.janelaVidroBase },
     ],
   })
 
@@ -201,10 +210,10 @@ function desenharVidro(g: Graphics, de: Ponto2, ate: Ponto2, t0: number, t1: num
   g.fill({ color: 0xffffff, alpha: 0.22 })
 }
 
-function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela) {
+function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela, paleta: Paleta) {
   const { inicio, fim, base, topo } = janela
   // moldura por fora, vidro por dentro
-  quadNaParede(g, de, ate, inicio, fim, base, topo, PALETA.janelaMoldura)
+  quadNaParede(g, de, ate, inicio, fim, base, topo, paleta.janelaMoldura)
 
   const margemT = (fim - inicio) * 0.12
   const margemH = (topo - base) * 0.1
@@ -213,14 +222,14 @@ function desenharJanela(g: Graphics, de: Ponto2, ate: Ponto2, janela: Janela) {
   const vh0 = base + margemH
   const vh1 = topo - margemH
 
-  desenharVidro(g, de, ate, vt0, vt1, vh0, vh1)
+  desenharVidro(g, de, ate, vt0, vt1, vh0, vh1, paleta)
 
   // caixilho central, dividindo em duas folhas
   const meio = (vt0 + vt1) / 2
   const larguraCaixilho = (fim - inicio) * 0.035
-  quadNaParede(g, de, ate, meio - larguraCaixilho, meio + larguraCaixilho, vh0, vh1, PALETA.janelaMoldura)
+  quadNaParede(g, de, ate, meio - larguraCaixilho, meio + larguraCaixilho, vh0, vh1, paleta.janelaMoldura)
   // peitoril, uma faixa fina logo abaixo da janela
-  quadNaParede(g, de, ate, inicio - margemT, fim + margemT, base - 0.035, base, PALETA.paredeTopo)
+  quadNaParede(g, de, ate, inicio - margemT, fim + margemT, base - 0.035, base, paleta.paredeTopo)
 }
 
 // Espessura lateral, vista na ponta externa da parede (a quina da
@@ -234,7 +243,7 @@ function normalizarParaEspessura(v: Ponto2): Ponto2 {
   return { x: v.x * escala, y: v.y * escala }
 }
 
-function desenharPontaLateral(g: Graphics, ponta: Ponto2, fora: Ponto2, cor: number) {
+function desenharPontaLateral(g: Graphics, ponta: Ponto2, fora: Ponto2, cor: number, paleta: Paleta) {
   const p2 = { x: ponta.x + fora.x, y: ponta.y + fora.y }
 
   g.poly([ponta.x, ponta.y, p2.x, p2.y, p2.x, p2.y - ALTURA_PAREDE, ponta.x, ponta.y - ALTURA_PAREDE])
@@ -246,7 +255,7 @@ function desenharPontaLateral(g: Graphics, ponta: Ponto2, fora: Ponto2, cor: num
     p2.x, p2.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
     ponta.x, ponta.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
   ])
-  g.fill(PALETA.paredeTopo)
+  g.fill(paleta.paredeTopo)
 }
 
 function desenharParede(
@@ -255,6 +264,7 @@ function desenharParede(
   cor: number,
   janelas: Janela[],
   foraNaPonta: Ponto2,
+  paleta: Paleta,
 ): Graphics {
   const g = new Graphics()
   const alturaRodape = 12
@@ -263,9 +273,9 @@ function desenharParede(
   g.fill(cor)
 
   g.poly([de.x, de.y, ate.x, ate.y, ate.x, ate.y - alturaRodape, de.x, de.y - alturaRodape])
-  g.fill(PALETA.rodape)
+  g.fill(paleta.rodape)
 
-  for (const janela of janelas) desenharJanela(g, de, ate, janela)
+  for (const janela of janelas) desenharJanela(g, de, ate, janela, paleta)
 
   // topo da parede por último, pra cobrir qualquer sobra da janela e
   // fechar a espessura
@@ -275,11 +285,11 @@ function desenharParede(
     ate.x, ate.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
     de.x, de.y - ALTURA_PAREDE - ESPESSURA_PAREDE,
   ])
-  g.fill(PALETA.paredeTopo)
+  g.fill(paleta.paredeTopo)
 
   // espessura lateral, só na ponta externa (a ponta interna encosta na
   // outra parede e fica escondida)
-  desenharPontaLateral(g, ate, foraNaPonta, cor)
+  desenharPontaLateral(g, ate, foraNaPonta, cor, paleta)
 
   return g
 }
@@ -294,6 +304,15 @@ export interface Cena {
   // defeitos do JSON que não impedem de rodar — quem exibe é a
   // interface, porque console.warn se ignora
   problemas: string[]
+  // a cor de fundo desta sala (pro app pintar o canvas antes do
+  // primeiro frame, e pro menu entre salas usar como amostra)
+  paleta: Paleta
+}
+
+function paletaValida(p: unknown): p is Paleta {
+  if (typeof p !== 'object' || p === null) return false
+  const registro = p as Record<string, unknown>
+  return CHAVES_PALETA.every((chave) => typeof registro[chave] === 'number')
 }
 
 export async function criarCena(dados: SalaDados): Promise<Cena> {
@@ -303,13 +322,20 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
   const problemas = conferirSala(dados, AGENTES.map((a) => a.id))
   for (const problema of problemas) console.warn(`[sala] ${problema}`)
 
+  // Tamanho/cor inválidos já foram denunciados acima — aqui só evitam
+  // que a cena quebre por completo (NaN de tile, undefined de cor) e
+  // o painel de aviso nem chegue a aparecer na tela.
+  const colunas = typeof dados.colunas === 'number' && dados.colunas > 0 ? dados.colunas : 7
+  const linhas = typeof dados.linhas === 'number' && dados.linhas > 0 ? dados.linhas : 7
+  const paleta = paletaValida(dados.paleta) ? dados.paleta : PALETAS.neutra
+
   const maquete = new Maquete(dados)
   const [retratos] = await Promise.all([carregarRetratos(), maquete.montar()])
 
   const cena = new Container()
   const camadaMoveis = maquete.camada
 
-  const { norte, leste, oeste } = cantos()
+  const { norte, leste, oeste } = cantos(colunas, linhas)
 
   // aprovada — a mesma janela nas duas paredes, mesma posição relativa
   const janelaEsquerda: Janela[] = [
@@ -325,10 +351,10 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
   const foraDireita = normalizarParaEspessura({ x: TILE_W / 2, y: -TILE_H / 2 })
 
   cena.addChild(
-    desenharParede(norte, oeste, PALETA.paredeEsquerda, janelaEsquerda, foraEsquerda),
-    desenharParede(norte, leste, PALETA.paredeDireita, janelaDireita, foraDireita),
-    desenharLaje(),
-    desenharPiso(),
+    desenharParede(norte, oeste, paleta.paredeEsquerda, janelaEsquerda, foraEsquerda, paleta),
+    desenharParede(norte, leste, paleta.paredeDireita, janelaDireita, foraDireita, paleta),
+    desenharLaje(colunas, linhas, paleta),
+    desenharPiso(colunas, linhas, paleta),
   )
 
   cena.addChild(camadaMoveis)
@@ -371,5 +397,5 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
 
   redesenharAgentes()
 
-  return { raiz: cena, maquete, redesenharAgentes, problemas }
+  return { raiz: cena, maquete, redesenharAgentes, problemas, paleta }
 }

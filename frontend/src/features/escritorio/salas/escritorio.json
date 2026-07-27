@@ -2,6 +2,23 @@
   "nome": "Escritório",
   "colunas": 7,
   "linhas": 7,
+  "paleta": {
+    "nome": "neutra",
+    "vazio": 1776931,
+    "pisoClaro": 14209734,
+    "pisoEscuro": 13683132,
+    "pisoJunta": 12432806,
+    "lajeFrente": 10261895,
+    "lajeLado": 9209207,
+    "paredeEsquerda": 13090994,
+    "paredeDireita": 12169892,
+    "paredeTopo": 14341320,
+    "rodape": 9406586,
+    "janelaMoldura": 15789284,
+    "janelaVidro": 10470614,
+    "janelaVidroBase": 7315384,
+    "janelaBrilho": 14084851
+  },
   "moveis": [
     {
       "id": "chefe-mesa",

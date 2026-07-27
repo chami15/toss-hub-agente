@@ -3,7 +3,7 @@ import { Application, Container } from 'pixi.js'
 import { criarCena } from './cena'
 import { criarEditor, type Editor, type EstadoEditor } from './edicao'
 import { carregarSala } from './persistencia'
-import { PALETA } from './sala'
+import { PALETAS } from './sala'
 import { PainelEdicao } from './PainelEdicao'
 import { PainelCatalogo } from './PainelCatalogo'
 import { PainelProblemas } from './PainelProblemas'
@@ -27,9 +27,15 @@ export function Escritorio() {
     let app: Application | null = null
 
     async function montar() {
+      // a sala carrega ANTES do Pixi iniciar, pra pintar o fundo com a
+      // cor certa desde o primeiro frame — cada sala tem sua própria
+      // paleta agora, não existe mais uma cor de fundo global
+      const { sala } = carregarSala()
+      const corFundo = typeof sala.paleta?.vazio === 'number' ? sala.paleta.vazio : PALETAS.neutra.vazio
+
       const aplicacao = new Application()
       await aplicacao.init({
-        background: PALETA.vazio,
+        background: corFundo,
         resizeTo: hospedeiro!,
         antialias: true,
         resolution: window.devicePixelRatio || 1,
@@ -49,7 +55,6 @@ export function Escritorio() {
       aplicacao.stage.addChild(mundo)
 
       // as texturas do pack são carregadas antes da cena existir
-      const { sala } = carregarSala()
       const cena = await criarCena(sala)
       if (desmontado) return
       mundo.addChild(cena.raiz)

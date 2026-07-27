@@ -17,8 +17,32 @@ export interface MovelConferivel {
 }
 
 export interface SalaConferivel {
+  colunas?: unknown
+  linhas?: unknown
+  paleta?: unknown
   moveis: MovelConferivel[]
 }
+
+// As 14 chaves de Paleta, repetidas aqui como dado (não como import de
+// tipo — isto tem que continuar sem imports). Se a interface Paleta
+// ganhar um campo novo, esta lista precisa acompanhar. Exportada pra
+// cena.ts reusar na hora de decidir o fallback de uma paleta inválida.
+export const CHAVES_PALETA = [
+  'vazio',
+  'pisoClaro',
+  'pisoEscuro',
+  'pisoJunta',
+  'lajeFrente',
+  'lajeLado',
+  'paredeEsquerda',
+  'paredeDireita',
+  'paredeTopo',
+  'rodape',
+  'janelaMoldura',
+  'janelaVidro',
+  'janelaVidroBase',
+  'janelaBrilho',
+] as const
 
 // Apoiar `idPeca` em `idSuporte` fecharia um ciclo?
 //
@@ -55,6 +79,31 @@ export function criariaCiclo(
 // torto é como se cria um problema pior que o original.
 export function conferirSala(sala: SalaConferivel, agentesConhecidos: string[]): string[] {
   const problemas: string[] = []
+
+  // Tamanho e cor eram constantes globais até pouco tempo atrás — o
+  // JSON já dizia "colunas: 10" numa sala que continuava desenhando
+  // 7×7, porque nada lia esse campo. Agora que leem, um valor ausente
+  // ou zerado quebra silenciosamente do mesmo jeito (piso de tamanho
+  // 0, ou undefined virando NaN na conta de posição).
+  if (typeof sala.colunas !== 'number' || !(sala.colunas > 0)) {
+    problemas.push(`colunas inválido: ${JSON.stringify(sala.colunas)}`)
+  }
+  if (typeof sala.linhas !== 'number' || !(sala.linhas > 0)) {
+    problemas.push(`linhas inválido: ${JSON.stringify(sala.linhas)}`)
+  }
+
+  if (typeof sala.paleta !== 'object' || sala.paleta === null) {
+    problemas.push('sala sem paleta — piso e paredes não têm cor pra desenhar')
+  } else {
+    const paleta = sala.paleta as Record<string, unknown>
+    const faltando = CHAVES_PALETA.filter((chave) => typeof paleta[chave] !== 'number')
+    if (faltando.length > 0) {
+      // cada tom faltando é um Graphics.fill(undefined) — em alguns
+      // casos isso pinta preto sem avisar, em outros nem desenha
+      problemas.push(`paleta incompleta: faltando ${faltando.join(', ')}`)
+    }
+  }
+
   const vistos = new Set<string>()
   const ids = new Set(sala.moveis.map((m) => m.id))
   const donoDoAgente = new Map<string, string>()
