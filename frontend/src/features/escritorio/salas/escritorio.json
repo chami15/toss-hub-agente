@@ -182,7 +182,8 @@
       "peca": "doorway",
       "direcao": "NW",
       "coluna": 5.765,
-      "linha": -0.539
+      "linha": -0.539,
+      "leva": "sala-de-reuniao"
     },
     {
       "id": "pottedPlant-1",
