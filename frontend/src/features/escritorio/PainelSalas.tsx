@@ -138,7 +138,14 @@ export function PainelSalas() {
   const [criando, setCriando] = useState(false)
   const [excluindo, setExcluindo] = useState<string | null>(null)
 
-  if (!podeGravar) return null
+  // trocar de sala não precisa do servidor de dev (é só localStorage +
+  // reload) — funciona até num site publicado. Só criar/excluir
+  // precisa (escreve arquivo), por isso só essa parte é condicional.
+  function trocar(id: string) {
+    if (id === atual) return
+    definirSalaAtual(id)
+    window.location.reload()
+  }
 
   function validar(): string | null {
     const nomeLimpo = nome.trim()
@@ -208,32 +215,50 @@ export function PainelSalas() {
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {salas.map((s) => (
           <li key={s.id} style={ITEM}>
-            <span style={{ opacity: s.id === atual ? 1 : 0.7 }}>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                font: 'inherit',
+                color: '#e6e1d6',
+                textAlign: 'left',
+                opacity: s.id === atual ? 1 : 0.7,
+                cursor: s.id === atual ? 'default' : 'pointer',
+                textDecoration: s.id === atual ? 'none' : 'underline',
+                textDecorationColor: 'rgba(230,225,214,0.3)',
+              }}
+              disabled={s.id === atual}
+              onClick={() => trocar(s.id)}
+              title={s.id === atual ? undefined : `ir para "${s.nome}"`}
+            >
               {s.nome}
               {s.id === atual && ' · atual'}
-            </span>
-            <button
-              style={{ ...BOTAO_X, opacity: s.id === atual || s.ocupada || excluindo === s.id ? 0.35 : 1 }}
-              disabled={s.id === atual || s.ocupada || excluindo === s.id}
-              title={
-                s.id === atual
-                  ? 'saia desta sala antes de excluir'
-                  : s.ocupada
-                    ? 'tem agente dentro — desvincule antes de excluir'
-                    : 'excluir sala'
-              }
-              onClick={() => excluir(s.id, s.nome)}
-              aria-label={`excluir sala ${s.nome}`}
-            >
-              {excluindo === s.id ? '…' : '×'}
             </button>
+            {podeGravar && (
+              <button
+                style={{ ...BOTAO_X, opacity: s.id === atual || s.ocupada || excluindo === s.id ? 0.35 : 1 }}
+                disabled={s.id === atual || s.ocupada || excluindo === s.id}
+                title={
+                  s.id === atual
+                    ? 'saia desta sala antes de excluir'
+                    : s.ocupada
+                      ? 'tem agente dentro — desvincule antes de excluir'
+                      : 'excluir sala'
+                }
+                onClick={() => excluir(s.id, s.nome)}
+                aria-label={`excluir sala ${s.nome}`}
+              >
+                {excluindo === s.id ? '…' : '×'}
+              </button>
+            )}
           </li>
         ))}
       </ul>
 
       {erro && <div style={ERRO}>{erro}</div>}
 
-      {aberto ? (
+      {podeGravar && (aberto ? (
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -308,7 +333,7 @@ export function PainelSalas() {
         <button style={BOTAO} onClick={() => setAberto(true)}>
           + criar sala
         </button>
-      )}
+      ))}
     </div>
   )
 }

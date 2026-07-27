@@ -239,6 +239,17 @@ export class Maquete {
     }
   }
 
+  // Pra onde esta peça leva. Ao contrário do agente, não tem
+  // exclusividade nenhuma — várias peças podem cada uma levar pra um
+  // lugar diferente (a cozinha com porta pro escritório E pra sala de
+  // reunião, por exemplo).
+  atribuirPorta(id: string, salaDestino: string | null): void {
+    const m = this.porId.get(id)
+    if (!m) return
+    if (salaDestino) m.leva = salaDestino
+    else delete m.leva
+  }
+
   // Cópia limpa do estado, pra salvar em rascunho ou gravar na fonte.
   //
   // Arredonda em 3 casas: arrastar com o mouse gera número tipo

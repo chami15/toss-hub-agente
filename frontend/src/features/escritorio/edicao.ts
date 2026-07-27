@@ -1,4 +1,4 @@
-import type { Container, FederatedPointerEvent } from 'pixi.js'
+import type { Container, FederatedPointerEvent, Sprite } from 'pixi.js'
 import { Graphics } from 'pixi.js'
 import { paraTela, TILE_W, TILE_H } from './iso'
 import type { Cena } from './cena'
@@ -6,14 +6,18 @@ import type { MovelSala, SalaDados } from './sala-dados'
 import { novoId } from './sala-dados'
 import type { Direcao } from './sala'
 import { AGENTES } from './agentes'
+import { criarPortaEspelhada } from './porta-espelho'
 import {
   consumirAvisoDeGravacao,
+  definirSalaAtual,
   descartarRascunho,
+  existeSala,
   gravarNaFonte,
   marcarQueGravou,
   podeGravarNaFonte,
   salvarRascunho,
   temRascunho,
+  todasAsSalasDaFonte,
   type Camada,
 } from './persistencia'
 
@@ -47,6 +51,14 @@ export interface EstadoEditor {
   // cena (salvar, copiar, atribuir agente) — sem isso o chefe clica e
   // não sabe se aconteceu
   mensagem: string | null
+  // id da sala aberta — o painel usa isso pra tirar ELA MESMA da
+  // lista de destinos possíveis de porta (sem isso o chefe poderia
+  // escolher a própria sala, que a conferência recusaria de qualquer
+  // jeito, só que só na hora de gravar)
+  idSala: string
+  // porta sob o mouse, fora do modo de edição — null quando nenhuma.
+  // x/y já em coordenada de tela, pro popup em cima do sprite
+  popupPorta: { texto: string; x: number; y: number } | null
 }
 
 const PASSOS = [0.01, 0.025, 0.05, 0.1, 0.25]
@@ -77,6 +89,7 @@ export interface Editor {
   adicionar: (peca: string) => void
   remover: () => void
   atribuirAgente: (agenteId: string | null) => void
+  atribuirPorta: (salaDestino: string | null) => void
   apoiarNoDeBaixo: () => void
   salvarRascunho: () => void
   gravarNaFonte: () => void
@@ -103,6 +116,7 @@ export function criarEditor(
   let mensagem: string | null = null
   let timerMensagem: number | undefined
   let gravando = false
+  let popupPorta: { texto: string; x: number; y: number } | null = null
 
   // --- Desfazer ---------------------------------------------------
   // Guarda o estado ANTES de cada gesto. Um instantâneo da sala é
@@ -216,17 +230,65 @@ export function criarEditor(
     aoMudar()
   }
 
+  // Só é "botão" clicável quando leva pra uma sala que existe de
+  // verdade — sem isso a peça é decoração comum, do jeito que
+  // qualquer outro móvel é. Também não conta a própria sala: isso a
+  // conferência recusaria de qualquer jeito, só que só na hora de
+  // gravar — mais barato nunca deixar o botão nascer.
+  function portaValida(m: MovelSala): boolean {
+    return typeof m.leva === 'string' && m.leva !== idSala && existeSala(m.leva)
+  }
+
+  function mostrarPopup(m: MovelSala, sprite: Sprite) {
+    if (!m.leva) return
+    const destino = todasAsSalasDaFonte()[m.leva]
+    if (!destino) return
+    const pos = sprite.getGlobalPosition()
+    popupPorta = { texto: `→ ${destino.nome}`, x: pos.x, y: pos.y }
+    aoMudar()
+  }
+
+  function esconderPopup() {
+    if (!popupPorta) return
+    popupPorta = null
+    aoMudar()
+  }
+
+  // Troca de sala é um teleporte simbólico, não uma câmera andando —
+  // recarregar é o jeito mais simples e mais confiável de garantir que
+  // tudo (Pixi, editor, painéis) reinicia coerente com a sala nova.
+  function irPara(destino: string) {
+    definirSalaAtual(destino)
+    window.location.reload()
+  }
+
+  // Só interativo em modo de edição (arrastar) OU, fora dele, se for
+  // uma porta válida (clicar navega). Nunca as duas coisas ao mesmo
+  // tempo — em edição, toda peça se comporta como móvel comum, mesmo
+  // as que têm `leva`, senão um clique pra mover viraria sem querer um
+  // clique pra sair da sala.
   function aplicarInteratividade() {
     for (const m of maquete.moveis) {
       const sprite = maquete.spriteDe(m.id)
       if (!sprite) continue
-      sprite.eventMode = ativo ? 'static' : 'none'
-      sprite.cursor = ativo ? 'move' : 'default'
+      if (ativo) {
+        sprite.eventMode = 'static'
+        sprite.cursor = 'move'
+      } else if (portaValida(m)) {
+        sprite.eventMode = 'static'
+        sprite.cursor = 'pointer'
+      } else {
+        sprite.eventMode = 'none'
+        sprite.cursor = 'default'
+      }
     }
   }
 
   // Liga o clique de um sprite. Chamado de novo a cada peça
   // adicionada, senão a peça nova nasceria sem poder ser selecionada.
+  // Os handlers ficam ligados pra sempre e decidem sozinhos se agem,
+  // olhando `ativo` na hora — o mesmo padrão do pointerdown de
+  // arrastar, que já fazia isso antes da porta existir.
   function ligarClique(id: string) {
     const sprite = maquete.spriteDe(id)
     if (!sprite) return
@@ -241,9 +303,28 @@ export function criarEditor(
       ultimoPonto = mundo.toLocal(e.global)
       notificar()
     })
+    sprite.on('pointerover', () => {
+      if (ativo) return
+      const m = maquete.movel(id)
+      if (m && portaValida(m)) mostrarPopup(m, sprite)
+    })
+    sprite.on('pointerout', () => {
+      if (ativo) return
+      esconderPopup()
+    })
+    sprite.on('pointertap', () => {
+      if (ativo) return
+      const m = maquete.movel(id)
+      if (m && portaValida(m)) irPara(m.leva!)
+    })
   }
 
   for (const m of maquete.moveis) ligarClique(m.id)
+  // sem isto, a sala abriria com toda peça no estado padrão do Pixi —
+  // nem porta clicável, nem móvel arrastável — até o chefe apertar E
+  // uma vez. A sala já nasce em modo de visualização (ativo = false),
+  // então é ISSO que precisa estar correto desde o primeiro frame.
+  aplicarInteratividade()
 
   // se a página recarregou logo após uma gravação, mostra a
   // confirmação que ficou pendente do outro lado
@@ -290,6 +371,8 @@ export function criarEditor(
       podeDesfazer: pilha.length > 0,
       podeRefazer: pilhaRefazer.length > 0,
       mensagem,
+      idSala,
+      popupPorta,
     }),
 
     alternar() {
@@ -372,6 +455,14 @@ export function criarEditor(
 
     remover() {
       if (!selecionadoId) return
+      const m = selecionado()
+      if (m?.leva) {
+        // apagar a peça apagaria a porta junto, e quem estivesse na
+        // outra sala perderia o caminho de volta sem perceber
+        avisar('esta peça é uma porta — desvincule antes de excluir')
+        notificar()
+        return
+      }
       lembrar(`remover:${selecionadoId}`)
       maquete.remover(selecionadoId)
       selecionadoId = null
@@ -385,6 +476,21 @@ export function criarEditor(
       maquete.atribuirAgente(selecionadoId, agenteId)
       const nome = AGENTES.find((a) => a.id === agenteId)?.nome
       avisar(nome ? `${nome} atribuído a esta peça` : 'agente removido da peça')
+      notificar()
+    },
+
+    atribuirPorta(salaDestino) {
+      if (!selecionadoId) return
+      const antes = selecionado()
+      if (!antes || antes.leva === salaDestino) return
+      lembrar(`porta:${selecionadoId}`)
+      maquete.atribuirPorta(selecionadoId, salaDestino)
+      if (salaDestino) {
+        const atual = maquete.movel(selecionadoId)
+        if (atual) criarPortaEspelhada(idSala, maquete.sala, atual, salaDestino)
+      }
+      const nome = salaDestino ? todasAsSalasDaFonte()[salaDestino]?.nome : undefined
+      avisar(salaDestino ? `porta criada — confira em "${nome ?? salaDestino}"` : 'porta desfeita')
       notificar()
     },
 

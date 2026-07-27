@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import type { EstadoEditor } from './edicao'
 import { rotuloDe } from './catalogo'
 import { AGENTES } from './agentes'
+import { idsDasSalas, todasAsSalasDaFonte } from './persistencia'
 
 // HUD do modo de edição. Some quando o modo está desligado — só sobra
 // a dica da tecla, pra não poluir a maquete.
@@ -62,6 +64,22 @@ const OPCAO: React.CSSProperties = {
   color: '#e6e1d6',
 }
 
+const CAMPO: React.CSSProperties = {
+  width: '100%',
+  marginTop: 4,
+  background: '#20232a',
+  border: '1px solid rgba(255,255,255,0.14)',
+  borderRadius: 5,
+  color: '#e6e1d6',
+  font: 'inherit',
+  fontSize: 11,
+  padding: '5px 6px',
+  // sem isto a LISTA aberta sai com fundo branco do sistema, ilegível
+  // com texto claro. O colorScheme é o que o navegador usa pra pintar
+  // o popup nativo.
+  colorScheme: 'dark',
+}
+
 const TOAST: React.CSSProperties = {
   position: 'absolute',
   left: '50%',
@@ -92,6 +110,7 @@ interface Props {
   aoRefazer: () => void
   aoApoiar: () => void
   aoAtribuirAgente: (id: string | null) => void
+  aoAtribuirPorta: (salaDestino: string | null) => void
   aoSalvarRascunho: () => void
   aoGravarNaFonte: () => void
   aoVoltarParaFonte: () => void
@@ -106,6 +125,7 @@ export function PainelEdicao({
   aoRefazer,
   aoApoiar,
   aoAtribuirAgente,
+  aoAtribuirPorta,
   aoSalvarRascunho,
   aoGravarNaFonte,
   aoVoltarParaFonte,
@@ -114,6 +134,16 @@ export function PainelEdicao({
   // o toast vive fora do cartão: "salvar rascunho" desliga a edição, e
   // a confirmação precisa sobreviver a isso
   const toast = estado.mensagem ? <div style={TOAST}>{estado.mensagem}</div> : null
+
+  // outras salas possíveis como destino de porta — nunca a própria
+  // (a conferência recusaria de qualquer jeito, só que só na hora de
+  // gravar; mais barato não deixar nem escolher)
+  const outrasSalas = useMemo(() => {
+    const todas = todasAsSalasDaFonte()
+    return idsDasSalas()
+      .filter((id) => id !== estado.idSala)
+      .map((id) => ({ id, nome: todas[id].nome }))
+  }, [estado.idSala])
 
   if (!estado.ativo) {
     return (
@@ -174,38 +204,39 @@ export function PainelEdicao({
             <button style={BOTAO} onClick={aoApoiar}>
               {sel.sobre ? 'soltar' : 'apoiar'}
             </button>
-            <button style={{ ...BOTAO, flex: 0.7 }} onClick={aoRemover}>
+            <button
+              style={{ ...BOTAO, flex: 0.7, opacity: sel.leva ? 0.4 : 1 }}
+              onClick={aoRemover}
+              disabled={!!sel.leva}
+              title={sel.leva ? 'esta peça é uma porta — desvincule antes de excluir' : undefined}
+            >
               excluir
             </button>
           </div>
 
           <div>
             <div style={ROTULO}>agente nesta peça</div>
-            <select
-              value={sel.agente ?? ''}
-              onChange={(e) => aoAtribuirAgente(e.target.value || null)}
-              style={{
-                width: '100%',
-                marginTop: 4,
-                background: '#20232a',
-                border: '1px solid rgba(255,255,255,0.14)',
-                borderRadius: 5,
-                color: '#e6e1d6',
-                font: 'inherit',
-                fontSize: 11,
-                padding: '5px 6px',
-                // sem isto a LISTA aberta sai com fundo branco do
-                // sistema, ilegível com texto claro. O colorScheme é o
-                // que o navegador usa pra pintar o popup nativo.
-                colorScheme: 'dark',
-              }}
-            >
+            <select value={sel.agente ?? ''} onChange={(e) => aoAtribuirAgente(e.target.value || null)} style={CAMPO}>
               <option value="" style={OPCAO}>
                 — ninguém —
               </option>
               {AGENTES.map((a) => (
                 <option key={a.id} value={a.id} style={OPCAO}>
                   {a.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div style={ROTULO}>esta peça leva para</div>
+            <select value={sel.leva ?? ''} onChange={(e) => aoAtribuirPorta(e.target.value || null)} style={CAMPO}>
+              <option value="" style={OPCAO}>
+                — nenhuma —
+              </option>
+              {outrasSalas.map((s) => (
+                <option key={s.id} value={s.id} style={OPCAO}>
+                  {s.nome}
                 </option>
               ))}
             </select>
@@ -246,7 +277,7 @@ export function PainelEdicao({
           style={{ ...VERDE, opacity: estado.gravando ? 0.6 : 1 }}
           onClick={aoGravarNaFonte}
           disabled={estado.gravando}
-          title="escreve em salas/escritorio.json — depois é só commitar"
+          title={`escreve em salas/${estado.idSala}.json — depois é só commitar`}
         >
           {estado.gravando ? 'gravando…' : 'gravar na fonte (git)'}
         </button>

@@ -9,6 +9,7 @@ import { PainelEdicao } from './PainelEdicao'
 import { PainelCatalogo } from './PainelCatalogo'
 import { PainelProblemas } from './PainelProblemas'
 import { PainelSalas } from './PainelSalas'
+import { PopupPorta } from './PopupPorta'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -219,6 +220,7 @@ export function Escritorio() {
           aoApoiar={() => chamar((e) => e.apoiarNoDeBaixo())}
           aoRemover={() => chamar((e) => e.remover())}
           aoAtribuirAgente={(id) => chamar((e) => e.atribuirAgente(id))}
+          aoAtribuirPorta={(idSala) => chamar((e) => e.atribuirPorta(idSala))}
           aoSalvarRascunho={() => chamar((e) => e.salvarRascunho())}
           aoGravarNaFonte={() => chamar((e) => e.gravarNaFonte())}
           aoVoltarParaFonte={() => chamar((e) => e.voltarParaFonte())}
@@ -227,6 +229,7 @@ export function Escritorio() {
       )}
       <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
       {!estado?.ativo && <PainelSalas />}
+      {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}
