@@ -11,6 +11,7 @@ import {
   salaDaFonte,
   salvarRascunho,
   temRascunho,
+  todasAsSalasComRascunho,
   todasAsSalasDaFonte,
 } from '../persistencia'
 
@@ -124,6 +125,21 @@ describe('rascunho — isolado por sala', () => {
   it('rascunho corrompido não derruba o app — cai como se não existisse', () => {
     localStorage.setItem('escritorio:rascunho:v2:escritorio', '{ isso não é json')
     expect(lerRascunho('escritorio')).toBeNull()
+  })
+})
+
+describe('todasAsSalasComRascunho', () => {
+  it('sem rascunho nenhum, é igual a todasAsSalasDaFonte', () => {
+    expect(todasAsSalasComRascunho().escritorio.nome).toBe(todasAsSalasDaFonte().escritorio.nome)
+  })
+
+  it('usa o rascunho de uma sala em vez da fonte dela, quando existe', () => {
+    const sala = salaDaFonte('escritorio')
+    sala.nome = 'Rascunho Vale Mais'
+    salvarRascunho('escritorio', sala)
+    expect(todasAsSalasComRascunho().escritorio.nome).toBe('Rascunho Vale Mais')
+    // a fonte de verdade continua intocada
+    expect(todasAsSalasDaFonte().escritorio.nome).not.toBe('Rascunho Vale Mais')
   })
 })
 

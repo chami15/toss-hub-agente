@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { EstadoEditor } from './edicao'
 import { rotuloDe } from './catalogo'
 import { AGENTES } from './agentes'
-import { idsDasSalas, todasAsSalasDaFonte } from './persistencia'
+import { idsDasSalas, todasAsSalasComRascunho, todasAsSalasDaFonte } from './persistencia'
 
 // HUD do modo de edição. Some quando o modo está desligado — só sobra
 // a dica da tecla, pra não poluir a maquete.
@@ -145,6 +145,23 @@ export function PainelEdicao({
       .map((id) => ({ id, nome: todas[id].nome }))
   }, [estado.idSala])
 
+  // onde cada agente já está, em QUALQUER OUTRA sala — pra não deixar
+  // escolher no dropdown quem já está ocupado alhures. Ignora a sala
+  // atual de propósito: reatribuir um agente de OUTRA peça pra esta,
+  // dentro da mesma sala, é o roubo silencioso de sempre (já suportado
+  // por maquete.atribuirAgente), não uma duplicata entre salas.
+  const agenteEmOutraSala = useMemo(() => {
+    const mapa = new Map<string, string>()
+    const todas = todasAsSalasComRascunho()
+    for (const [id, sala] of Object.entries(todas)) {
+      if (id === estado.idSala) continue
+      for (const m of sala.moveis) {
+        if (m.agente) mapa.set(m.agente, sala.nome)
+      }
+    }
+    return mapa
+  }, [estado.idSala])
+
   if (!estado.ativo) {
     return (
       <>
@@ -220,11 +237,15 @@ export function PainelEdicao({
               <option value="" style={OPCAO}>
                 — ninguém —
               </option>
-              {AGENTES.map((a) => (
-                <option key={a.id} value={a.id} style={OPCAO}>
-                  {a.nome}
-                </option>
-              ))}
+              {AGENTES.map((a) => {
+                const outraSala = agenteEmOutraSala.get(a.id)
+                return (
+                  <option key={a.id} value={a.id} disabled={!!outraSala} style={OPCAO}>
+                    {a.nome}
+                    {outraSala ? ` (em ${outraSala})` : ''}
+                  </option>
+                )
+              })}
             </select>
           </div>
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Application, Container } from 'pixi.js'
 import { criarCena } from './cena'
 import { criarEditor, type Editor, type EstadoEditor } from './edicao'
-import { carregarSala, todasAsSalasDaFonte } from './persistencia'
+import { carregarSala, todasAsSalasComRascunho } from './persistencia'
 import { PALETAS } from './sala'
 import { conferirConjuntoDeSalas } from './sala-conferir'
 import { PainelEdicao } from './PainelEdicao'
@@ -64,13 +64,11 @@ export function Escritorio() {
 
       // defeitos da sala sozinha (cena.problemas) + defeitos que só
       // aparecem olhando o conjunto — nome duplicado, agente já usado
-      // em outra sala, porta pra sala que não existe. A sala ATUAL
-      // entra com o que está de fato carregado (rascunho, se houver),
-      // não com a fonte — senão um defeito já corrigido no rascunho
+      // em outra sala, porta pra sala que não existe. Cada sala entra
+      // com o próprio rascunho quando existe (não com a fonte crua) —
+      // senão um defeito já corrigido em algum rascunho local
       // apareceria denunciado mesmo assim.
-      const todas = todasAsSalasDaFonte()
-      todas[idSala] = sala
-      const problemasConjunto = conferirConjuntoDeSalas(todas)
+      const problemasConjunto = conferirConjuntoDeSalas(todasAsSalasComRascunho())
       setProblemas([...cena.problemas, ...problemasConjunto])
 
       const editor = criarEditor(

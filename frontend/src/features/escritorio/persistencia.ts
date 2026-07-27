@@ -107,6 +107,20 @@ export function descartarRascunho(idSala: string): void {
   localStorage.removeItem(chaveRascunho(idSala))
 }
 
+// Como todasAsSalasDaFonte, mas cada sala usa o PRÓPRIO rascunho (se
+// houver um, neste navegador) em vez da fonte — a visão mais atual
+// disponível sem precisar abrir a sala. É o que permite saber se um
+// agente já está em outro lugar (pra não deixar duplicar) sem exigir
+// que o chefe tenha ido lá conferir na mão.
+export function todasAsSalasComRascunho(): Record<string, SalaDados> {
+  const todas = todasAsSalasDaFonte()
+  for (const id of Object.keys(todas)) {
+    const rascunho = lerRascunho(id)
+    if (rascunho) todas[id] = rascunho
+  }
+  return todas
+}
+
 // ---------------------------------------------------------------
 // QUAL SALA ESTÁ ABERTA
 //
