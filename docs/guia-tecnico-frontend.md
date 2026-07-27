@@ -430,13 +430,22 @@ arquivo; nenhum é produzido pelo editor:
 | `sobre` apontando pra id inexistente | `baseNoChao` devolve a própria peça; profundidade errada, pode desenhar atrás do que deveria cobrir |
 | `sobre` apontando pra si mesmo | idem |
 | `agente` desconhecido | o crachá some e nada explica por quê |
+| mesmo agente em duas peças | o índice por agente é um `Map`: um dos crachás some |
+| ciclo de apoio | a profundidade vira arbitrária, dependendo de qual peça foi consultada primeiro |
 
 Defesa em **quatro camadas**, da que pega mais cedo pra que pega mais
 tarde:
 
 1. **o editor não consegue criar nenhum deles** — `novoId` evita id
    repetido, remover limpa o `sobre` dos filhos, atribuir agente tira
-   ele de onde estava
+   ele de onde estava, e `criariaCiclo()` recusa fechar um laço de
+   apoio
+
+   > A guarda contra ciclo mora na `Maquete`, junto do dado, e **não**
+   > na interface. Antes o que impedia ciclo era o editor só oferecer
+   > como suporte peças que estão no chão — proteção que ninguém
+   > escreveu de propósito e que sumiria em silêncio no dia em que
+   > empilhar mais de um nível for permitido.
 2. **o plugin recusa gravar** sala inconsistente (422 + motivo). É a
    camada que mais importa: o que não entra no arquivo versionado não
    vira problema de outro dia sem ninguém lembrar de onde veio
@@ -446,6 +455,11 @@ tarde:
 
 **Nenhuma camada corrige nada** — adivinhar a intenção de um dado
 torto é como se cria um problema pior que o original.
+
+Se um defeito aparecer mesmo assim (só chega aí por edição à mão), os
+dois mais prováveis se resolvem **dentro do editor**, sem tocar no
+JSON: agente repetido → selecione a peça errada e escolha
+`— ninguém —`; ciclo de apoio → selecione a peça e clique **soltar**.
 
 `conferirSala()` mora em `sala-conferir.ts`, **um arquivo sem nenhum
 import**. É usado pelo app (resolução `bundler`), pelo plugin do Vite
