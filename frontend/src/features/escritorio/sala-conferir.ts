@@ -20,6 +20,33 @@ export interface SalaConferivel {
   moveis: MovelConferivel[]
 }
 
+// Apoiar `idPeca` em `idSuporte` fecharia um ciclo?
+//
+// Existe pra impedir o defeito NA ORIGEM, e não só denunciar depois.
+// Hoje o editor já não consegue criar ciclo, mas por acidente: ele só
+// oferece como suporte peças que estão no chão. No dia em que empilhar
+// mais de um nível for permitido, essa proteção sumiria em silêncio —
+// então a regra mora aqui, junto do dado, e não na interface.
+export function criariaCiclo(
+  idPeca: string,
+  idSuporte: string,
+  moveis: MovelConferivel[],
+): boolean {
+  if (idPeca === idSuporte) return true
+  const porId = new Map(moveis.map((m) => [m.id, m]))
+  const visitados = new Set<string>()
+  // sobe a cadeia a partir do suporte: se ela leva de volta à própria
+  // peça, apoiar fecharia o laço
+  let atual = porId.get(idSuporte)
+  while (atual) {
+    if (atual.id === idPeca) return true
+    if (visitados.has(atual.id)) return true // já havia ciclo antes
+    visitados.add(atual.id)
+    atual = atual.sobre === undefined ? undefined : porId.get(atual.sobre)
+  }
+  return false
+}
+
 // Defeitos que NÃO dão erro em lugar nenhum — a sala carrega, parece
 // certa, e só está sutilmente errada. Todos vêm de edição à mão do
 // arquivo; o modo de edição não produz nenhum deles.

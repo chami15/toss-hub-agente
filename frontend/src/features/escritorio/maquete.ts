@@ -2,6 +2,7 @@ import { Assets, Container, Sprite, type Texture } from 'pixi.js'
 import { paraTela, profundidade } from './iso'
 import { caminhoSprite, type Direcao } from './sala'
 import { ancoraDe } from './ancoras'
+import { criariaCiclo } from './sala-conferir'
 import {
   baseNoChao,
   indexarPorAgente,
@@ -204,12 +205,23 @@ export class Maquete {
   }
 
   // Marca que uma peça está apoiada em outra (ou tira do apoio).
-  apoiarEm(id: string, suporteId: string | null): void {
+  // Devolve false se recusou — quem chama avisa o chefe.
+  apoiarEm(id: string, suporteId: string | null): boolean {
     const m = this.porId.get(id)
-    if (!m) return
-    if (suporteId && suporteId !== id) m.sobre = suporteId
-    else delete m.sobre
+    if (!m) return false
+    if (suporteId === null) {
+      delete m.sobre
+      this.posicionar(id)
+      return true
+    }
+    // Ciclo de apoio não trava nada na hora (baseNoChao tem controle de
+    // visitados), mas deixa a profundidade arbitrária — quem desenha na
+    // frente passa a depender de qual peça foi consultada primeiro.
+    // Barrar aqui é mais barato que descobrir depois.
+    if (criariaCiclo(id, suporteId, this.dados.moveis)) return false
+    m.sobre = suporteId
     this.posicionar(id)
+    return true
   }
 
   // Um agente ocupa no máximo um móvel por sala — atribuir aqui tira

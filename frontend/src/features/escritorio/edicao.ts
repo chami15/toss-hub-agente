@@ -411,7 +411,9 @@ export function criarEditor(
           melhor = outro
         }
       }
-      if (melhor) maquete.apoiarEm(m.id, melhor.id)
+      if (melhor && !maquete.apoiarEm(m.id, melhor.id)) {
+        avisar('não dá: isso criaria um apoio circular')
+      }
       notificar()
     },
 

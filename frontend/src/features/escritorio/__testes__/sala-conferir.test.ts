@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { conferirSala } from '../sala-conferir'
+import { conferirSala, criariaCiclo } from '../sala-conferir'
 
 // A conferência é a rede que pega os defeitos silenciosos. Se ELA
 // tiver um furo, o furo é invisível por definição — por isso cada
@@ -86,5 +86,51 @@ describe('conferirSala', () => {
       { id: 'c', agente: 'fantasma' },
     ])
     expect(conferirSala(s, AGENTES)).toHaveLength(3)
+  })
+})
+
+// A guarda que impede o ciclo NA ORIGEM. Vale testar o caso de
+// empilhamento profundo mesmo ele não sendo possível pela interface de
+// hoje: a proteção atual do editor (só oferecer suporte que está no
+// chão) é acidental, e o dia em que ela mudar é justamente o dia em
+// que ninguém vai lembrar de conferir isto.
+describe('criariaCiclo', () => {
+  const empilhado = [
+    { id: 'mesa' },
+    { id: 'estrado', sobre: 'mesa' },
+    { id: 'abajur', sobre: 'estrado' },
+  ]
+
+  it('deixa apoiar numa peça que está no chão', () => {
+    expect(criariaCiclo('abajur', 'mesa', [{ id: 'mesa' }, { id: 'abajur' }])).toBe(false)
+  })
+
+  it('deixa empilhar mais de um nível', () => {
+    expect(criariaCiclo('livro', 'abajur', [...empilhado, { id: 'livro' }])).toBe(false)
+  })
+
+  it('barra apoiar em si mesmo', () => {
+    expect(criariaCiclo('mesa', 'mesa', empilhado)).toBe(true)
+  })
+
+  it('barra o laço curto (A sobre B, B sobre A)', () => {
+    expect(criariaCiclo('mesa', 'estrado', empilhado)).toBe(true)
+  })
+
+  it('barra o laço longo (fechar uma cadeia de 3)', () => {
+    expect(criariaCiclo('mesa', 'abajur', empilhado)).toBe(true)
+  })
+
+  it('não trava se a sala JÁ tiver um ciclo', () => {
+    const doente = [
+      { id: 'a', sobre: 'b' },
+      { id: 'b', sobre: 'a' },
+      { id: 'c' },
+    ]
+    expect(criariaCiclo('c', 'a', doente)).toBe(true)
+  })
+
+  it('aceita suporte que não existe (quem barra isso é conferirSala)', () => {
+    expect(criariaCiclo('a', 'fantasma', [{ id: 'a' }])).toBe(false)
   })
 })
