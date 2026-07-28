@@ -641,6 +641,44 @@ comparar id numérico do backend contra o id string do escritório
 diretamente — eles não têm relação nenhuma entre si, só via
 `especialidade`.
 
+Cada entrada de `AGENTES` declara a própria `especialidade`, em vez de
+existir uma tabela de-para à parte: assim a ponte fica visível pra quem
+lê o registro e é impossível esquecer dela ao adicionar um agente novo.
+
+**`especialidade` e `funcao` são campos diferentes de propósito.**
+`especialidade` é chave de junção — o valor TEM que bater com o banco.
+`funcao` (`"compromissos e calendário"`) é texto de tela. Se a barra do
+painel mostrasse a especialidade crua, apareceria "agenda" embaixo do
+nome "Agenda", que não informa nada. Misturar os dois faria uma mudança
+de redação virar uma quebra de integração.
+
+## Erro de rede vira frase, num lugar só
+
+`mensagemDeErro()` mora em `api/client.ts` — a porta pro backend é onde
+a *forma* do erro é assunto. Traduz erro de axios em algo mostrável
+(RNF03), e trata "sem resposta" (backend desligado) como caso próprio,
+porque "Network Error" não ajuda ninguém a entender que basta subir o
+servidor.
+
+## Duas armadilhas encontradas construindo o painel do Agenda
+
+1. **O atalho `E` continuava ligado por baixo do painel.** Com um painel
+   aberto, um "e" digitado fora do campo de texto entrava no modo de
+   edição *atrás* dele — dois modos ativos ao mesmo tempo. O handler de
+   teclado do `Escritorio.tsx` agora ignora tudo enquanto há painel
+   aberto, e `Esc` fecha (checado ANTES do filtro de campo de texto,
+   porque é dentro do campo que a mão está).
+2. **`StrictMode` roda o efeito duas vezes em dev.** A consulta de
+   pendência ao abrir o painel aparecia duplicada na conversa. Resolvido
+   com um `ref` de guarda — o mesmo cuidado vale pra qualquer efeito que
+   dispare requisição com efeito visível na tela.
+
+> **Ao testar painel com Playwright:** ancore o `page.route` no host do
+> backend (`http://localhost:8000/agenda/**`), nunca em `**/agenda/**`.
+> O padrão largo intercepta os próprios módulos que o Vite serve
+> (`src/features/agenda/...`) e derruba o app com erro de MIME type —
+> custou uma rodada de teste falso-negativo.
+
 ## Onde o painel vive
 
 Painel de agente é **overlay DOM comum (React)**, nunca desenhado

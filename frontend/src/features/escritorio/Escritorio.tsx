@@ -10,6 +10,7 @@ import { PainelCatalogo } from './PainelCatalogo'
 import { PainelProblemas } from './PainelProblemas'
 import { PainelSalas } from './PainelSalas'
 import { PopupPorta } from './PopupPorta'
+import { PainelDoAgente } from '../agentes/PainelDoAgente'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -21,6 +22,10 @@ export function Escritorio() {
   const [estado, setEstado] = useState<EstadoEditor | null>(null)
   const [catalogoAberto, setCatalogoAberto] = useState(false)
   const [problemas, setProblemas] = useState<string[]>([])
+  // qual painel de agente está aberto (id local: cifra/agenda/vita/norte).
+  // Um por vez: abrir outro troca o conteúdo, nunca empilha. Não persiste
+  // entre reloads de propósito — é estado de tela, não dado.
+  const [agenteAberto, setAgenteAberto] = useState<string | null>(null)
 
   useEffect(() => {
     const hospedeiro = hospedeiroRef.current
@@ -58,7 +63,7 @@ export function Escritorio() {
       aplicacao.stage.addChild(mundo)
 
       // as texturas do pack são carregadas antes da cena existir
-      const cena = await criarCena(sala)
+      const cena = await criarCena(sala, { aoClicarAgente: setAgenteAberto })
       if (desmontado) return
       mundo.addChild(cena.raiz)
 
@@ -75,7 +80,14 @@ export function Escritorio() {
         cena,
         mundo,
         aplicacao.stage,
-        () => setEstado(editorRef.current?.estado() ?? null),
+        () => {
+          const atual = editorRef.current?.estado() ?? null
+          setEstado(atual)
+          // em edição o crachá deixa de ser botão e o clique passa
+          // pro móvel embaixo — senão a cadeira do agente ficaria
+          // impossível de arrastar
+          cena.definirAgentesClicaveis(!atual?.ativo)
+        },
         idSala,
       )
       editorRef.current = editor
@@ -112,6 +124,18 @@ export function Escritorio() {
 
   useEffect(() => {
     function aoTeclar(e: KeyboardEvent) {
+      // Esc fecha o painel aberto — checado ANTES do filtro de campo de
+      // texto logo abaixo, porque é justamente dentro do campo que a mão
+      // está quando se quer fechar
+      if (e.key === 'Escape' && agenteAberto) {
+        setAgenteAberto(null)
+        return
+      }
+      // com um painel de agente aberto o teclado é dele: sem isso, um
+      // "e" digitado fora do campo ligaria o modo de edição por baixo
+      // do painel, deixando os dois modos ativos ao mesmo tempo
+      if (agenteAberto) return
+
       const editor = editorRef.current
       if (!editor) return
       // não sequestrar o teclado enquanto o chefe digita num campo
@@ -199,7 +223,9 @@ export function Escritorio() {
 
     window.addEventListener('keydown', aoTeclar)
     return () => window.removeEventListener('keydown', aoTeclar)
-  }, [])
+    // re-registra ao abrir/fechar painel: o atalho precisa enxergar o
+    // valor atual de `agenteAberto`, não o da montagem
+  }, [agenteAberto])
 
   const chamar = useCallback((f: (e: Editor) => void) => {
     const editor = editorRef.current
@@ -226,8 +252,12 @@ export function Escritorio() {
         />
       )}
       <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
-      {!estado?.ativo && <PainelSalas />}
+      {/* o menu de salas some com um agente aberto: trocar de sala no
+          meio de uma conversa não faz sentido, mesma regra que já vale
+          pro modo de edição */}
+      {!estado?.ativo && !agenteAberto && <PainelSalas />}
       {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
+      {agenteAberto && <PainelDoAgente agenteId={agenteAberto} aoFechar={() => setAgenteAberto(null)} />}
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}

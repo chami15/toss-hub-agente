@@ -307,6 +307,14 @@ export interface Cena {
   // a cor de fundo desta sala (pro app pintar o canvas antes do
   // primeiro frame, e pro menu entre salas usar como amostra)
   paleta: Paleta
+  // liga/desliga o clique no crachá. Desligado em modo de edição: lá o
+  // crachá tem que deixar o clique PASSAR pro móvel embaixo, senão a
+  // cadeira em que o agente senta viraria impossível de arrastar.
+  definirAgentesClicaveis: (podem: boolean) => void
+}
+
+export interface OpcoesCena {
+  aoClicarAgente?: (agenteId: string) => void
 }
 
 function paletaValida(p: unknown): p is Paleta {
@@ -315,7 +323,7 @@ function paletaValida(p: unknown): p is Paleta {
   return CHAVES_PALETA.every((chave) => typeof registro[chave] === 'number')
 }
 
-export async function criarCena(dados: SalaDados): Promise<Cena> {
+export async function criarCena(dados: SalaDados, opcoes: OpcoesCena = {}): Promise<Cena> {
   // Falhas silenciosas são levantadas antes de desenhar qualquer
   // coisa. Vão pro console E pra tela: todas fazem a sala carregar
   // "quase certa", que é o pior tipo de defeito pra deixar escondido.
@@ -372,6 +380,9 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
   // mesa da frente.
   const ALTURA_CRACHA = 0.62
   let crachas: Container[] = []
+  // Começa clicável porque a sala nasce fora do modo de edição — o
+  // editor desliga isso ao entrar em edição.
+  let agentesClicaveis = true
 
   function redesenharAgentes() {
     for (const c of crachas) c.destroy({ children: true })
@@ -387,6 +398,19 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
       const avatar = criarAvatar(retrato, recorte, agente.cor)
       avatar.x = x
       avatar.y = y
+
+      // O crachá é recriado a cada redesenho, então o handler é ligado
+      // aqui e não uma vez só. Ele consulta `agentesClicaveis` na HORA
+      // do clique (em vez de ser montado/desmontado a cada troca de
+      // modo) — mesmo padrão dos handlers de porta em edicao.ts.
+      if (opcoes.aoClicarAgente) {
+        avatar.eventMode = agentesClicaveis ? 'static' : 'none'
+        avatar.cursor = agentesClicaveis ? 'pointer' : 'default'
+        avatar.on('pointertap', () => {
+          if (!agentesClicaveis) return
+          opcoes.aoClicarAgente?.(agenteId)
+        })
+      }
       // logo à frente do móvel que o agente ocupa, pra ficar por cima
       // do encosto da cadeira
       avatar.zIndex = (maquete.spriteDe(movel.id)?.zIndex ?? 0) + 50
@@ -395,7 +419,15 @@ export async function criarCena(dados: SalaDados): Promise<Cena> {
     }
   }
 
+  function definirAgentesClicaveis(podem: boolean) {
+    agentesClicaveis = podem
+    for (const cracha of crachas) {
+      cracha.eventMode = podem && opcoes.aoClicarAgente ? 'static' : 'none'
+      cracha.cursor = podem && opcoes.aoClicarAgente ? 'pointer' : 'default'
+    }
+  }
+
   redesenharAgentes()
 
-  return { raiz: cena, maquete, redesenharAgentes, problemas, paleta }
+  return { raiz: cena, maquete, redesenharAgentes, problemas, paleta, definirAgentesClicaveis }
 }

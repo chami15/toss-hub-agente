@@ -6,15 +6,56 @@ export interface AgenteVisual {
   nome: string
   cor: number
   arquivo: string
+  // Com qual agente do BACKEND este crachá corresponde.
+  //
+  // O agente do backend tem id NUMÉRICO (GET /agentes), que não tem
+  // relação nenhuma com o id string daqui — a única chave que liga os
+  // dois é a especialidade. Declarar isso no próprio registro (em vez
+  // de uma tabela de-para solta) deixa a ponte visível pra quem lê, e
+  // impossível de esquecer ao adicionar um agente novo.
+  especialidade: string
+  // O que o agente FAZ, em português, pra barra do painel. Separado da
+  // especialidade de propósito: aquela é chave de junção (tem que bater
+  // com o banco), esta é texto de tela — mostrar "agenda" embaixo do
+  // nome "Agenda" não informaria nada a ninguém.
+  funcao: string
 }
 
 export const PASTA_AGENTES = '/agentes'
 
 export const AGENTES: AgenteVisual[] = [
-  { id: 'cifra', nome: 'Cifra', cor: 0x16a34a, arquivo: 'cifra2dSemfundo.png' },
-  { id: 'agenda', nome: 'Agenda', cor: 0x2563eb, arquivo: 'agenda2dSemfundo.png' },
-  { id: 'vita', nome: 'Vita', cor: 0xf97316, arquivo: 'vita2dSemfundo.png' },
-  { id: 'norte', nome: 'Norte', cor: 0x0891b2, arquivo: 'norte2dSemfundo.png' },
+  {
+    id: 'cifra',
+    nome: 'Cifra',
+    cor: 0x16a34a,
+    arquivo: 'cifra2dSemfundo.png',
+    especialidade: 'financeiro',
+    funcao: 'finanças e extratos',
+  },
+  {
+    id: 'agenda',
+    nome: 'Agenda',
+    cor: 0x2563eb,
+    arquivo: 'agenda2dSemfundo.png',
+    especialidade: 'agenda',
+    funcao: 'compromissos e calendário',
+  },
+  {
+    id: 'vita',
+    nome: 'Vita',
+    cor: 0xf97316,
+    arquivo: 'vita2dSemfundo.png',
+    especialidade: 'saude',
+    funcao: 'saúde e rotina',
+  },
+  {
+    id: 'norte',
+    nome: 'Norte',
+    cor: 0x0891b2,
+    arquivo: 'norte2dSemfundo.png',
+    especialidade: 'norte',
+    funcao: 'projetos e código',
+  },
 ]
 
 // Recorte circular do retrato de cada agente: centro (fração da

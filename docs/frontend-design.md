@@ -73,9 +73,31 @@ palavra-chave — não é um LLM em chat livre de verdade).
   (`POST /agenda/acoes/{id}/confirmar|rejeitar`) — não precisa
   necessariamente depender do usuário digitar "sim"/"não" de novo.
 - Existe uma consulta determinística de "qual pendência está em aberto"
-  (frase-gatilho no texto) — o frontend poderia (ver decisão em aberto)
-  chamar isso proativamente pra mostrar um indicador, em vez de depender
-  do chefe lembrar de perguntar.
+  (frase-gatilho no texto).
+
+**Construído (painel do Agenda) — decisões que estavam em aberto e foram
+resolvidas na prática:**
+
+- **Confirmar/rejeitar tem OS DOIS caminhos: botão e texto.** O backend
+  já aceita ambos (regex de "sim/confirma/pode" e "não/cancela" + endpoint
+  por id), então restringir a UI a um só seria jogar fora capacidade que
+  já existe. Os botões evitam a ambiguidade de digitação; o texto continua
+  valendo porque é ele que permite **ajustar** a proposta ("pode ser, mas
+  às 10h") em vez de só aceitar ou recusar em bloco. O painel deixa isso
+  explícito com uma linha abaixo dos botões.
+- **A pendência É consultada proativamente ao abrir o painel.** O que
+  destravou a dúvida foi notar que essa frase-gatilho é interceptada por
+  regex ANTES de qualquer chamada de modelo (`_PADRAO_CONSULTAR_PENDENCIA`
+  em `resolvers/agenda.py`) — ou seja, custa zero de LLM e não viola o
+  RNF01. Se não há nada pendente, o painel fica em silêncio: anunciar
+  "você não tem pendências" toda vez que abre é ruído.
+- **O histórico do chat é de SESSÃO, não de banco.** A tabela `mensagens`
+  é da camada social entre agentes, não deste chat — fechar e reabrir o
+  painel começa a conversa limpa. O que é recuperado do servidor ao abrir
+  é só a *pendência*, que é o que de fato não pode se perder.
+- **Uma proposta já resolvida perde o destaque** e vira mensagem comum no
+  histórico. Manter o alerta aceso em algo já decidido ensina a ignorar o
+  destaque — que é o mesmo que não ter destaque.
 
 ### Saúde (Vita)
 
@@ -426,13 +448,6 @@ são o que a API já suporta e o frontend precisa cobrir.
 
 ## Decisões em aberto (resolver quando o frontend começar de verdade)
 
-- **Confirmar/rejeitar do Agenda via botão ou só texto?** O backend aceita
-  os dois (regex cobre "sim/confirma/pode" e "não/cancela", e existe
-  endpoint dedicado por id). Botões evitam ambiguidade de digitação, mas
-  não foi decidido se a UI vai ter os dois caminhos ou só um.
-- **Indicador de pendência em aberto:** vale a UI perguntar
-  proativamente "qual pendência em aberto" ao carregar a tela do Agenda
-  (pra mostrar um badge), em vez de esperar o chefe lembrar de perguntar?
 - **Visão geral de projetos do Norte:** lista simples de cartões, ou algo
   mais visual tipo um quadro/kanban por projeto? Ainda não desenhado.
 - **Como sinalizar "estagnado" visualmente:** cor diferente no card do
