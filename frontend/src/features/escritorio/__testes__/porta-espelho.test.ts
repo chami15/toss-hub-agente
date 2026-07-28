@@ -33,18 +33,42 @@ function porta(coluna: number, linha: number, direcao: MovelSala['direcao'] = 'N
 }
 
 describe('criarPortaEspelhada', () => {
-  it('coloca o espelho numa posição proporcional, mesmo com tamanhos diferentes', () => {
+  it('TROCA os eixos: coluna da origem vira linha do destino', () => {
     salvarRascunho('destino', { nome: 'Destino', colunas: 5, linhas: 5, paleta: {} as never, moveis: [] })
 
-    // porta na última coluna de uma sala 11×11 (fração 1.0 no eixo coluna)
+    // o caso que o chefe descreveu: porta na última COLUNA de um lado
+    // tem que reaparecer na última LINHA do outro
+    criarPortaEspelhada('origem', { colunas: 5, linhas: 5 }, porta(4, 0), 'destino')
+
+    const espelho = lerRascunho('destino')?.moveis[0]
+    expect(espelho).toBeDefined()
+    expect(espelho?.coluna).toBe(0)
+    expect(espelho?.linha).toBe(4)
+  })
+
+  it('a troca de eixos continua proporcional entre salas de tamanhos diferentes', () => {
+    salvarRascunho('destino', { nome: 'Destino', colunas: 5, linhas: 5, paleta: {} as never, moveis: [] })
+
+    // última coluna de uma sala 11×11 (fração 1.0) → última LINHA de uma
+    // 5×5, que é 4. Sem a proporção, o 10 viraria uma linha fora da grade.
     criarPortaEspelhada('origem', { colunas: 11, linhas: 11 }, porta(10, 0), 'destino')
 
-    const destino = lerRascunho('destino')
-    const espelho = destino?.moveis[0]
-    expect(espelho).toBeDefined()
-    // fração 1.0 numa sala 5×5 (colunas-1 = 4) cai em coluna 4 — a última
-    expect(espelho?.coluna).toBe(4)
-    expect(espelho?.linha).toBe(0)
+    const espelho = lerRascunho('destino')?.moveis[0]
+    expect(espelho?.linha).toBe(4)
+    expect(espelho?.coluna).toBe(0)
+  })
+
+  it('o espelho nunca cai fora da grade da sala de destino', () => {
+    // a regressão que o eixo trocado poderia introduzir: uma sala larga
+    // e baixa espelhada numa estreita e alta, e vice-versa
+    salvarRascunho('destino', { nome: 'Destino', colunas: 4, linhas: 12, paleta: {} as never, moveis: [] })
+    criarPortaEspelhada('origem', { colunas: 12, linhas: 4 }, porta(11, 3), 'destino')
+
+    const espelho = lerRascunho('destino')?.moveis[0]
+    expect(espelho!.coluna).toBeGreaterThanOrEqual(0)
+    expect(espelho!.coluna).toBeLessThanOrEqual(3)
+    expect(espelho!.linha).toBeGreaterThanOrEqual(0)
+    expect(espelho!.linha).toBeLessThanOrEqual(11)
   })
 
   it('inverte a direção como se fosse vista de fora (N/S troca, L/O mantém)', () => {

@@ -10,11 +10,15 @@ import { lerRascunho, salaDaFonte, salvarRascunho } from './persistencia'
 // deixaria a sala de destino sem volta, a menos que o chefe entrasse
 // no modo de edição LÁ e criasse a porta na mão.
 //
-// A posição é PROPORCIONAL ao tamanho de cada sala (fração do
-// caminho ao longo de colunas/linhas), não uma coordenada absoluta
-// copiada — assim funciona não importa o quanto A e B forem
-// diferentes de tamanho, e o chefe continua livre pra arrastar a
-// porta de origem pra qualquer lugar, sem posição fixa nenhuma.
+// O espelhamento tem DUAS partes, e as duas importam:
+//   1. os EIXOS trocam (coluna da origem → linha do destino), que é o
+//      que faz a porta reaparecer do lado correspondente e não no mesmo
+//      lado;
+//   2. a posição é PROPORCIONAL ao tamanho de cada sala (fração do
+//      caminho no eixo), não uma coordenada copiada — assim funciona
+//      não importa o quanto A e B forem diferentes de tamanho, e o
+//      chefe continua livre pra arrastar a porta de origem pra
+//      qualquer lugar, sem posição fixa nenhuma.
 //
 // Depois de criado, o espelho é um móvel independente: mexer na porta
 // de A não move a de B. As duas só continuam ligadas pelo `leva` de
@@ -54,8 +58,16 @@ export function criarPortaEspelhada(
     id: novoId(`${movel.peca}-espelho`, existentes),
     peca: movel.peca,
     direcao: INVERTER_DIRECAO[movel.direcao],
-    coluna: daFracao(paraFracao(movel.coluna, salaOrigem.colunas), destino.colunas),
-    linha: daFracao(paraFracao(movel.linha, salaOrigem.linhas), destino.linhas),
+    // OS EIXOS TROCAM: a fração no eixo das COLUNAS da origem vira a
+    // fração no eixo das LINHAS do destino, e vice-versa. É o que faz o
+    // espelho ser um espelho de verdade — uma porta na penúltima coluna
+    // de uma sala reaparece na penúltima LINHA da outra.
+    //
+    // A proporção continua entrando por cima da troca, pra funcionar
+    // entre salas de tamanhos diferentes: o que se espelha é "quão longe
+    // no eixo", não a coordenada crua.
+    coluna: daFracao(paraFracao(movel.linha, salaOrigem.linhas), destino.colunas),
+    linha: daFracao(paraFracao(movel.coluna, salaOrigem.colunas), destino.linhas),
     leva: idOrigem,
   }
 
