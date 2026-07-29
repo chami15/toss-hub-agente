@@ -1,6 +1,7 @@
 import { AGENTES, type AgenteVisual } from '../escritorio/agentes'
 import { useAgentes } from '../../hooks/useAgentes'
 import { PainelAgenda } from '../agenda/PainelAgenda'
+import { PainelSaude } from '../saude/PainelSaude'
 import { PainelAgente, type LarguraPainel } from './PainelAgente'
 
 // Escolhe QUAL painel abrir pra cada agente. Existe porque não há um
@@ -39,7 +40,9 @@ export function PainelDoAgente({ agenteId, aoFechar }: Props) {
       largura={LARGURA_POR_AGENTE[agenteId] ?? 'estreito'}
       aoFechar={aoFechar}
     >
-      {agenteId === 'agenda' ? <PainelAgenda agente={agente} /> : <AindaNaoTem agente={agente} />}
+      {agenteId === 'agenda' && <PainelAgenda agente={agente} />}
+      {agenteId === 'vita' && <PainelSaude />}
+      {agenteId !== 'agenda' && agenteId !== 'vita' && <AindaNaoTem agente={agente} />}
     </PainelAgente>
   )
 }

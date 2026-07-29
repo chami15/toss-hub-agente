@@ -127,6 +127,40 @@ resolvidas na prática:**
 - Plano de dieta e relatório semanal são ações deliberadas (botão
   "Gerar"), igual o relatório do Financeiro — nunca automáticas.
 
+**Construído (painel da Vita):**
+
+- Painel **largo** com backdrop, conforme a regra de largura por tipo de
+  conteúdo — a ficha de treino é formulário tabular e não caberia na
+  faixa estreita.
+- **A entrevista inicial bloqueia o painel inteiro** enquanto não houver
+  perfil: sem ele o backend recusa refeição/dieta/relatório com um erro
+  que não explicaria nada pro chefe. Entrevista e "editar perfil" são o
+  MESMO formulário (o endpoint é upsert) — o que muda é o enquadramento.
+- **KPIs no topo do menu** (`GET /saude/dashboard`): peso, kcal de hoje,
+  água de hoje, atividades na semana. Consulta agregada sem LLM, então
+  pode carregar ao abrir sem ferir o RNF01.
+- **Ficha de treino:** o botão "+ exercício" fica DENTRO do cartão do
+  dia e diz o nome do dia ("+ exercício em segunda"), e a contagem
+  aparece no cabeçalho ("3 exercícios"). É a resposta direta à confusão
+  registrada no teste manual da API — o botão genérico fora do cartão
+  não deixava claro em qual dia o exercício entraria.
+- **Refeição:** os dois caminhos ficam como abas lado a lado, ambas
+  sempre visíveis. Esconder um atrás do outro faria o chefe achar que só
+  existe o que está na frente. O resultado mostra a **confiança da
+  estimativa** — uma foto ruim gera número fraco, e exibir como se fosse
+  medido seria mentira.
+- **404 não é erro** em três endpoints (perfil, plano, relatório): é
+  "ainda não existe". A camada de api traduz pra `null`, senão um estado
+  esperado viraria alerta vermelho — e alerta que aparece à toa ensina a
+  ignorar alerta.
+- **Peso nunca vem pré-preenchido** (decisão original mantida) e o campo
+  limpa depois de registrar.
+
+**Pendente do que foi especificado (RF19):** os atalhos de peso e
+hidratação estão no topo do painel, não na bolha do avatar. A versão da
+bolha — popup ancorado no crachá, sem abrir o painel — ainda não foi
+construída.
+
 ### Norte (Projetos)
 
 **Padrão de interação:** um card por vez, por projeto — **sem chat, sem
