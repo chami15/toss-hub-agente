@@ -143,6 +143,26 @@ export function definirSalaAtual(id: string): void {
   localStorage.setItem(CHAVE_SALA_ATUAL, id)
 }
 
+// --- Sair da página: nosso ou do chefe? ------------------------------
+//
+// Trocar de sala, gravar na fonte e descartar rascunho TODOS recarregam
+// a página. Sem distinguir isso de um fechar-a-aba, o aviso de "você tem
+// alterações" apareceria a cada troca de sala — e um aviso que aparece
+// à toa é um aviso que se aprende a ignorar.
+//
+// Quem recarrega de propósito passa por aqui e marca a intenção antes.
+
+let intencional = false
+
+export function saidaEhIntencional(): boolean {
+  return intencional
+}
+
+export function recarregarDeProposito(): void {
+  intencional = true
+  window.location.reload()
+}
+
 // O rascunho tem prioridade: se existe, foi o chefe que pediu pra
 // guardar. A camada fica visível no HUD pra nunca haver dúvida sobre
 // o que está na tela.

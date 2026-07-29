@@ -162,6 +162,20 @@ export function Escritorio() {
         return
       }
 
+      // Ctrl+C / Ctrl+V da peça selecionada. Só chega aqui fora de campo
+      // de texto (filtrado lá em cima), então copiar texto de um input
+      // continua funcionando normalmente.
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault()
+        editor.copiar()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault()
+        editor.colar()
+        return
+      }
+
       // as setas andam nas 4 direções nomeadas: a tela sobe = fundo da
       // sala = PARA_TRAS (−1,−1); desce = PARA_FRENTE (1,1); direita =
       // PARA_DIREITA (1,−1); esquerda = PARA_ESQUERDA (−1,1)

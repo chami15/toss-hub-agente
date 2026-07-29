@@ -7,6 +7,7 @@ import {
   idSalaAtual,
   idsDasSalas,
   podeGravarNaFonte,
+  recarregarDeProposito,
   todasAsSalasDaFonte,
 } from './persistencia'
 import { gerarPaletaDeCor } from './sala'
@@ -144,7 +145,7 @@ export function PainelSalas() {
   function trocar(id: string) {
     if (id === atual) return
     definirSalaAtual(id)
-    window.location.reload()
+    recarregarDeProposito()
   }
 
   function validar(): string | null {
@@ -186,7 +187,7 @@ export function PainelSalas() {
     try {
       await gravarNaFonte(id, sala)
       definirSalaAtual(id)
-      window.location.reload()
+      recarregarDeProposito()
     } catch (e) {
       setCriando(false)
       setErro(e instanceof Error ? e.message : 'falha ao criar a sala')
@@ -201,7 +202,7 @@ export function PainelSalas() {
     setErro(null)
     try {
       await excluirSalaNaFonte(id)
-      window.location.reload()
+      recarregarDeProposito()
     } catch (e) {
       setExcluindo(null)
       setErro(e instanceof Error ? e.message : 'falha ao excluir')

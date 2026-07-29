@@ -475,6 +475,64 @@ sempre que `SalaDados` mudar de forma incompatível** — o rascunho
 velho é abandonado e o chefe cai na fonte, que é o comportamento
 seguro.
 
+## Rascunho automático (e o que "alterado" passou a significar)
+
+Trocar de sala recarrega a página, e o que estava só na memória
+evaporava — foi assim que se perdeu trabalho num teste real: uma porta
+criada na sala A sumiu ao navegar, enquanto o espelho dela (que já era
+rascunho) sobreviveu na sala B. A assimetria fazia parecer que a peça
+tinha *pulado de sala*.
+
+Hoje toda mudança agenda uma gravação no rascunho (600ms de espera —
+`notificar()` roda a cada pixel de arraste, e gravar em todos seria
+escrever no localStorage centenas de vezes por gesto). O
+`beforeunload` grava de novo, síncrono, cobrindo qualquer saída:
+trocar de sala, fechar aba, recarregar.
+
+**Com isso, "· alterado" mudou de significado.** A referência de
+comparação passou a ser a **fonte** (o `.json` versionado), não o
+estado em que a tela abriu. Antes queria dizer "mexi em algo desde que
+abri"; agora quer dizer **"existe trabalho que ainda não está no
+arquivo do projeto"** — que é a pergunta que importa na hora de fechar
+a aba. Consequência visível: abrir uma sala que já tinha rascunho
+pendente mostra "alterado" de cara, e isso é a informação certa.
+Por isso "salvar rascunho" **não** zera mais o indicador; só gravar na
+fonte zera.
+
+Duas armadilhas que isso criou, ambas com guarda no código:
+
+1. **O aviso de saída dispararia nas nossas próprias navegações.**
+   Trocar de sala, criar/excluir sala e descartar rascunho recarregam a
+   página de propósito. Todas passam por `recarregarDeProposito()`, que
+   marca a intenção — o `beforeunload` só interrompe quando a saída
+   *não* foi pedida por nós. Um aviso que aparece à toa é um aviso que
+   se aprende a ignorar.
+2. **"Descartar e voltar à fonte" seria ressuscitado.** A gravação de
+   última hora do `beforeunload` regravaria exatamente o que o chefe
+   acabou de mandar jogar fora, porque a maquete em memória ainda está
+   suja. Daí a trava `descartado`.
+
+## Copiar e colar peça (Ctrl+C / Ctrl+V)
+
+A área de transferência é da sessão do editor — não vai pro
+localStorage de propósito: uma peça copiada semanas atrás reaparecendo
+sem contexto seria pior que ter que copiar de novo. Não sobrevive à
+troca de sala, e isso é limitação conhecida, não esquecimento.
+
+**A cópia não leva `agente` nem `leva`**, e isso não é detalhe de
+conveniência:
+
+- `agente` é exclusivo no conjunto INTEIRO de salas. Colar duplicaria
+  alguém que só pode estar num lugar — exatamente o defeito que a
+  conferência entre salas existe pra pegar.
+- `leva` colado nasceria como uma porta **sem espelho do outro lado**:
+  um vínculo quebrado que ninguém pediu, e do tipo silencioso.
+
+O resto vem junto (direção, altura, apoio), porque é o que faz a cópia
+ser útil — dois monitores na mesma mesa, por exemplo. Colagens
+seguidas afastam mais a cada vez, senão colar três vezes daria uma
+pilha de três peças no mesmo pixel.
+
 ## Gravar na fonte (só em dev)
 
 O navegador não escreve em disco, mas o servidor de dev do Vite
@@ -506,6 +564,7 @@ gravada.
 | `PgUp` / `PgDn` | altura |
 | `Tab` | próxima peça · `[` `]` passo · `Del` excluir |
 | `Ctrl+Z` | desfazer (sem sair da edição) |
+| `Ctrl+C` / `Ctrl+V` | copiar e colar a peça selecionada |
 | `E` | entra e sai |
 
 O desfazer guarda o estado inteiro da sala antes de cada gesto —

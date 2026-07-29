@@ -15,6 +15,9 @@ import {
   gravarNaFonte,
   marcarQueGravou,
   podeGravarNaFonte,
+  recarregarDeProposito,
+  saidaEhIntencional,
+  salaDaFonte,
   salvarRascunho,
   temRascunho,
   todasAsSalasDaFonte,
@@ -64,6 +67,19 @@ export interface EstadoEditor {
 const PASSOS = [0.01, 0.025, 0.05, 0.1, 0.25]
 const COR_MARCA = 0x4ade80
 
+// Quanto a peça colada nasce deslocada da original, por colagem. Meia
+// casa é o bastante pra ela não sumir exatamente atrás da original, e
+// pouco o bastante pra continuar por perto de onde se quer.
+const DESLOCAMENTO_COLAGEM = 0.5
+
+// nome legível da peça pro aviso ("chair desk" em vez de "chairDesk").
+// A mesma regra de catalogo.ts, repetida aqui em vez de importada:
+// edicao.ts não depende do catálogo hoje, e uma linha não justifica
+// criar esse acoplamento.
+function rotuloDaPeca(peca: string): string {
+  return peca.replace(/([a-z])([A-Z0-9])/g, '$1 $2').toLowerCase()
+}
+
 // Movimento na tela → movimento no tabuleiro. Inversa de paraTela():
 //   x = (c − l)·TILE_W/2   →   c − l = 2x/TILE_W
 //   y = (c + l)·TILE_H/2   →   c + l = 2y/TILE_H
@@ -87,6 +103,8 @@ export interface Editor {
   desfazer: () => void
   refazer: () => void
   adicionar: (peca: string) => void
+  copiar: () => void
+  colar: () => void
   remover: () => void
   atribuirAgente: (agenteId: string | null) => void
   atribuirPorta: (salaDestino: string | null) => void
@@ -117,6 +135,12 @@ export function criarEditor(
   let timerMensagem: number | undefined
   let gravando = false
   let popupPorta: { texto: string; x: number; y: number } | null = null
+  // área de transferência do editor — só desta sessão, e de propósito:
+  // guardar em localStorage faria uma peça copiada semanas atrás
+  // reaparecer sem contexto. Sobrevive à troca de sala? Não — e isso é
+  // uma limitação conhecida, não um esquecimento (ver o guia).
+  let copiado: MovelSala | null = null
+  let colagens = 0
 
   // --- Desfazer ---------------------------------------------------
   // Guarda o estado ANTES de cada gesto. Um instantâneo da sala é
@@ -173,11 +197,67 @@ export function criarEditor(
   // Referência pra saber se há mudança pendente. Comparar o estado
   // atual com ela mantém o "· alterado" do HUD honesto inclusive
   // depois de desfazer tudo de volta ao ponto de partida.
-  let referencia = JSON.stringify(maquete.exportar())
+  //
+  // A referência é a FONTE (o .json versionado), não o estado em que a
+  // tela abriu. Desde que o rascunho é salvo sozinho, "alterado" só é
+  // útil se significar "existe trabalho que ainda NÃO está no arquivo
+  // do projeto" — que é a pergunta que importa na hora de fechar a aba.
+  // Abrir uma sala que já tinha rascunho pendente por isso já mostra
+  // "alterado" de cara, e isso é a informação certa.
+  let referencia = JSON.stringify(salaDaFonte(idSala))
 
   function estaSujo(): boolean {
     return JSON.stringify(maquete.exportar()) !== referencia
   }
+
+  // --- Rascunho automático -------------------------------------------
+  //
+  // Trocar de sala recarrega a página, e o que estava só na memória
+  // evaporava — foi assim que se perdeu trabalho de verdade em teste.
+  // Agora toda mudança agenda uma gravação no rascunho local.
+  //
+  // Com espera porque `notificar()` roda a cada pixel de arraste:
+  // gravar em cada um seria escrever no localStorage centenas de vezes
+  // por gesto, sem nenhum ganho.
+  const ESPERA_AUTO_RASCUNHO = 600
+  let timerAutoRascunho: number | undefined
+  // "descartar e voltar à fonte" apaga o rascunho e recarrega. Sem esta
+  // trava, a gravação de última hora do beforeunload ressuscitaria
+  // exatamente o que o chefe mandou jogar fora.
+  let descartado = false
+
+  function guardarRascunhoAgora() {
+    window.clearTimeout(timerAutoRascunho)
+    if (descartado) return
+    if (!estaSujo()) return
+    salvarRascunho(idSala, maquete.exportar())
+    camada = 'rascunho'
+  }
+
+  function agendarAutoRascunho() {
+    window.clearTimeout(timerAutoRascunho)
+    timerAutoRascunho = window.setTimeout(() => {
+      const antes = camada
+      guardarRascunhoAgora()
+      // só repinta o HUD se a camada mudou — evitar um render por
+      // gravação, que aconteceria a cada pausa de digitação
+      if (camada !== antes) aoMudar()
+    }, ESPERA_AUTO_RASCUNHO)
+  }
+
+  // Última chance antes da página morrer. Vale pra QUALQUER saída
+  // (trocar de sala, fechar aba, recarregar), então cobre também o
+  // trabalho dos últimos milissegundos que a espera acima ainda não
+  // gravou. localStorage é síncrono, então dá tempo.
+  function aoSair(e: BeforeUnloadEvent) {
+    guardarRascunhoAgora()
+    // avisa só quando a saída NÃO foi pedida por nós: trocar de sala e
+    // gravar na fonte recarregam de propósito e não podem virar um
+    // "tem certeza?" a cada clique
+    if (estaSujo() && !saidaEhIntencional()) e.preventDefault()
+  }
+
+  window.addEventListener('beforeunload', aoSair)
 
   // losango no chão marcando a peça selecionada — o mesmo formato do
   // tile, pra leitura na perspectiva ficar óbvia
@@ -225,6 +305,7 @@ export function criarEditor(
 
   function notificar() {
     sujo = estaSujo()
+    agendarAutoRascunho()
     redesenharMarca()
     cena.redesenharAgentes()
     aoMudar()
@@ -258,8 +339,11 @@ export function criarEditor(
   // recarregar é o jeito mais simples e mais confiável de garantir que
   // tudo (Pixi, editor, painéis) reinicia coerente com a sala nova.
   function irPara(destino: string) {
+    // grava antes de sair: a troca de sala é o caminho por onde o
+    // trabalho não salvo sumia
+    guardarRascunhoAgora()
     definirSalaAtual(destino)
-    window.location.reload()
+    recarregarDeProposito()
   }
 
   // Só interativo em modo de edição (arrastar) OU, fora dele, se for
@@ -453,6 +537,61 @@ export function criarEditor(
       })
     },
 
+    copiar() {
+      const m = selecionado()
+      if (!m) {
+        avisar('nada selecionado pra copiar')
+        notificar()
+        return
+      }
+      // guarda uma CÓPIA do dado, não a referência: senão continuar
+      // arrastando a peça original mudaria o que vai ser colado
+      copiado = JSON.parse(JSON.stringify(m)) as MovelSala
+      colagens = 0
+      avisar(`${rotuloDaPeca(m.peca)} copiada`)
+      notificar()
+    },
+
+    colar() {
+      if (!copiado) {
+        avisar('nada copiado ainda')
+        notificar()
+        return
+      }
+      lembrar(`colar:${Date.now()}`)
+      colagens++
+      const existentes = new Set(maquete.moveis.map((m) => m.id))
+      // O agente e a porta NÃO vêm junto de propósito:
+      //   - agente é exclusivo no conjunto todo de salas; colar
+      //     duplicaria alguém que só pode estar num lugar
+      //   - uma porta colada nasceria sem espelho do outro lado, ou
+      //     seja, um vínculo quebrado que ninguém pediu
+      // O resto (direção, altura, apoio) vem, porque é o que faz a
+      // cópia ser útil — dois monitores na mesma mesa, por exemplo.
+      const { agente: _semAgente, leva: _semPorta, ...resto } = copiado
+      const novo: MovelSala = {
+        ...resto,
+        id: novoId(copiado.peca, existentes),
+        // desloca um pouco, e mais a cada colagem seguida: colar três
+        // vezes tem que dar três peças visíveis, não uma pilha
+        coluna: Number((copiado.coluna + DESLOCAMENTO_COLAGEM * colagens).toFixed(3)),
+        linha: Number((copiado.linha + DESLOCAMENTO_COLAGEM * colagens).toFixed(3)),
+      }
+      void maquete.adicionar(novo).then(() => {
+        ligarClique(novo.id)
+        const sprite = maquete.spriteDe(novo.id)
+        if (sprite) {
+          sprite.eventMode = ativo ? 'static' : 'none'
+          sprite.cursor = ativo ? 'move' : 'default'
+        }
+        // já seleciona a cópia: quase sempre o próximo gesto é arrastar
+        // ela pro lugar
+        selecionadoId = novo.id
+        avisar('peça colada')
+        notificar()
+      })
+    },
+
     remover() {
       if (!selecionadoId) return
       const m = selecionado()
@@ -526,8 +665,10 @@ export function criarEditor(
     salvarRascunho() {
       salvarRascunho(idSala, maquete.exportar())
       camada = 'rascunho'
-      referencia = JSON.stringify(maquete.exportar())
-      sujo = false
+      // NÃO zera o "alterado": rascunho é local, o arquivo do projeto
+      // continua sem essas mudanças. Quem zera é gravar na fonte.
+      // (o botão continua existindo pra guardar na hora, sem esperar
+      // os 600ms do automático)
       // sai da edição: salvar é o fim de uma sessão de trabalho, e
       // deixar o modo ligado esconde a maquete atrás dos painéis
       ativo = false
@@ -568,12 +709,17 @@ export function criarEditor(
     },
 
     voltarParaFonte() {
+      // trava o auto-rascunho: sem isso, o que está na tela seria
+      // regravado no caminho da saída e ressuscitaria justamente o que
+      // o chefe acabou de mandar descartar
+      descartado = true
+      window.clearTimeout(timerAutoRascunho)
       descartarRascunho(idSala)
       camada = 'fonte'
       sujo = false
       // recarrega: é mais simples e mais confiável que desfazer
       // móvel por móvel, e o chefe já confirmou que quer descartar
-      window.location.reload()
+      recarregarDeProposito()
     },
 
     copiarJson() {
@@ -593,6 +739,8 @@ export function criarEditor(
 
     destruir() {
       window.clearTimeout(timerMensagem)
+      window.clearTimeout(timerAutoRascunho)
+      window.removeEventListener('beforeunload', aoSair)
       palco.off('pointermove', aoMoverPonteiro)
       palco.off('pointerup', aoSoltar)
       palco.off('pointerupoutside', aoSoltar)
