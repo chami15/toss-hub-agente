@@ -1,6 +1,7 @@
 import { AGENTES, type AgenteVisual } from '../escritorio/agentes'
 import { useAgentes } from '../../hooks/useAgentes'
 import { PainelAgenda } from '../agenda/PainelAgenda'
+import { PainelNorte } from '../norte/PainelNorte'
 import { PainelSaude } from '../saude/PainelSaude'
 import { PainelAgente, type LarguraPainel } from './PainelAgente'
 
@@ -15,7 +16,7 @@ const LARGURA_POR_AGENTE: Record<string, LarguraPainel> = {
   agenda: 'estreito',
   cifra: 'largo',
   vita: 'largo',
-  norte: 'estreito',
+  norte: 'largo',
 }
 
 interface Props {
@@ -42,7 +43,8 @@ export function PainelDoAgente({ agenteId, aoFechar }: Props) {
     >
       {agenteId === 'agenda' && <PainelAgenda agente={agente} />}
       {agenteId === 'vita' && <PainelSaude />}
-      {agenteId !== 'agenda' && agenteId !== 'vita' && <AindaNaoTem agente={agente} />}
+      {agenteId === 'norte' && <PainelNorte />}
+      {agenteId === 'cifra' && <AindaNaoTem agente={agente} />}
     </PainelAgente>
   )
 }

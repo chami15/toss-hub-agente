@@ -202,6 +202,36 @@ repositório real; frontend ainda por desenhar.
   não um status fixo) — é aqui que mora o "ficar de olho" que motivou o
   agente.
 
+**Construído (painel do Norte):**
+
+- Painel **largo**, e não estreito como a regra de largura previa. O que
+  mudou a conta foram os `arquivos_afetados`: caminho de projeto real
+  passa de 50 caracteres e quebraria em três linhas na faixa estreita,
+  justamente no dado que torna o card acionável.
+- Duas vistas: lista de projetos e projeto aberto (identidade do scan +
+  card ativo + histórico). Sem chat, sem lista de tarefas.
+- **Cadastro:** o link é colado, o `blur` do campo dispara a busca das
+  branches reais, e a branch vira um `select` — nunca um campo de texto.
+  Buscar a cada tecla digitada seria uma chamada ao GitHub por caractere.
+- **Botões mudam com o status:** `sugerido` mostra aceitar/rejeitar (é
+  uma decisão), `aceito` mostra "marcar como feito" (já é trabalho em
+  andamento).
+- **Rejeitar/finalizar não pedem card novo** — o próximo já vem na
+  resposta e entra direto no cache. Verificado no teste: resolver um card
+  não dispara nenhuma chamada extra a `/cards/gerar`.
+- **O `aviso` do encadeamento é exibido.** Quando o próximo card falha ao
+  ser gerado, o card resolvido continua resolvido e o backend manda um
+  aviso — escondê-lo deixaria a tela sem card e sem explicação.
+- **Histórico:** rejeitado aparece apagado e riscado, finalizado com ✓.
+  Registro do que NÃO aconteceu não pode competir visualmente com o que
+  foi feito.
+
+**Pendente:** a sinalização de "estagnado" na lista de projetos. O
+cálculo existe no backend (`projetos:listar_estagnados`), mas só é usado
+pela proatividade do tick — `GET /norte/projetos` não devolve esse campo.
+Por enquanto a lista mostra só "última atividade" (de `atualizado_em`),
+que **não** é a mesma regra. Fechar isso exige expor o dado na API.
+
 ---
 
 ## Módulo de interação (motor de tick — Etapas 1, 2 e 3 prontas)
