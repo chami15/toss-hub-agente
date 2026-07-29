@@ -443,3 +443,60 @@ viraria um teto sobre a soma). Nada de criação de sala, formato, paleta
 ou fundo é afetado.
 
 **Status:** não iniciado, decisão de teto pendente com o chefe.
+
+---
+
+## Pontas soltas dos painéis de agente — Frontend
+
+As quatro telas de agente (Agenda, Vita, Norte, Cifra) estão construídas
+e verificadas em navegador com backend simulado. Isto é a lista do que
+ficou faltando em cada uma, pra ser varrido depois — nenhum é
+desconhecido, todos foram decisões conscientes de adiar.
+
+**Vita — atalho de peso/hidratação na bolha do avatar (RF19).**
+A especificação pede os dois campos como atalho **na bolha do crachá,
+sem abrir o painel**. Hoje eles estão no topo do painel: resolve o
+atrito de navegar por menus, mas ainda exige abrir a tela. Falta o
+popup ancorado no crachá — o mecanismo visual já existe
+(`PopupPorta`), o que falta é ele aceitar conteúdo interativo (o popup
+de porta é `pointerEvents: none`) e um gesto de abertura que não
+conflite com o clique que abre o painel.
+
+**Norte — sinalização de "estagnado" na lista de projetos.**
+O cálculo existe e está testado no backend
+(`projetos:listar_estagnados` — tempo desde o último card resolvido, ou
+desde o cadastro), mas só é consumido pela proatividade do tick:
+`GET /norte/projetos` não devolve esse campo. A lista hoje mostra só
+"última atividade" (de `atualizado_em`), que **não** é a mesma regra.
+Fechar exige expor o dado na API primeiro — é trabalho de backend, não
+de tela.
+
+**Cifra — KPI de saldo do último extrato.**
+`saldo_ultimo_extrato` é sempre `null`: extrair saldo de fechamento não
+está implementado nos parsers (TODO declarado em
+`resolvers/financeiro.py`). O KPI foi **omitido** da tela em vez de
+mostrar um "—" permanente, que seria ruído. Quando o parser passar a
+extrair, é só voltar a exibir.
+
+**Cifra — upload de extrato com arquivo real.**
+O caminho foi verificado com um PDF sintético via Playwright (o
+multipart monta e o resultado é exibido), mas nunca com um extrato de
+verdade do Itaú/Nubank. É o primeiro teste a fazer quando o Postgres
+subir — o risco não está no upload, está no parser.
+
+**Vita — upload de foto de refeição com imagem real.**
+Mesma situação: o caminho de texto foi verificado ponta a ponta, o de
+foto só na montagem do multipart. Vale testar com foto de verdade.
+
+**Editor — Ctrl+C/Ctrl+V não sobrevive à troca de sala.**
+A área de transferência é da sessão do editor, de propósito (guardar em
+localStorage faria uma peça copiada semanas atrás reaparecer sem
+contexto). Mas copiar um móvel de uma sala e colar em outra é um desejo
+razoável que hoje não é atendido. Se virar necessidade, o caminho é uma
+"área de transferência entre salas" explícita, com validade curta.
+
+**Aviso de saída ao fechar a aba — não verificado em navegador.**
+A lógica está coberta pelos outros testes (o rascunho grava, e as
+navegações internas suprimem o aviso), mas o diálogo nativo do
+`beforeunload` não dispara de forma confiável em fechamento
+programático do Playwright. Só validação manual fecha esse.

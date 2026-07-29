@@ -1,6 +1,7 @@
-import { AGENTES, type AgenteVisual } from '../escritorio/agentes'
+import { AGENTES } from '../escritorio/agentes'
 import { useAgentes } from '../../hooks/useAgentes'
 import { PainelAgenda } from '../agenda/PainelAgenda'
+import { PainelFinanceiro } from '../financeiro/PainelFinanceiro'
 import { PainelNorte } from '../norte/PainelNorte'
 import { PainelSaude } from '../saude/PainelSaude'
 import { PainelAgente, type LarguraPainel } from './PainelAgente'
@@ -44,20 +45,7 @@ export function PainelDoAgente({ agenteId, aoFechar }: Props) {
       {agenteId === 'agenda' && <PainelAgenda agente={agente} />}
       {agenteId === 'vita' && <PainelSaude />}
       {agenteId === 'norte' && <PainelNorte />}
-      {agenteId === 'cifra' && <AindaNaoTem agente={agente} />}
+      {agenteId === 'cifra' && <PainelFinanceiro />}
     </PainelAgente>
-  )
-}
-
-// Clicar num agente sem painel não pode simplesmente não fazer nada —
-// isso se lê como bug. Melhor abrir e dizer que ainda não existe.
-function AindaNaoTem({ agente }: { agente: AgenteVisual }) {
-  return (
-    <div style={{ padding: '18px 16px', color: '#8d8779', fontSize: 12, lineHeight: 1.7 }}>
-      O painel de {agente.nome} ainda não foi construído.
-      <br />
-      <br />
-      O backend já existe — falta só esta tela.
-    </div>
   )
 }
