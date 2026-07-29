@@ -375,3 +375,71 @@ mesmo processo de debate.
 
 **Status:** não iniciado. Pré-requisito: Sabor A rodando de forma
 estável e observado na prática.
+
+---
+
+## Escala global das salas (mobília do mesmo tamanho em qualquer ambiente) — Frontend
+
+**Prioridade: alta.** Não é ideia solta — é um defeito conhecido, com a
+solução já desenhada e validada visualmente. Só foi adiada pra não travar
+outras frentes.
+
+**O problema:** hoje a escala do mundo é calculada pra CADA sala caber na
+tela, então ela muda conforme o tamanho da sala. O mesmo `bench` aparece
+com tamanhos bem diferentes dependendo do ambiente:
+
+| sala | escala do mundo (tela 1440×900) |
+|---|---|
+| 6×6 | 0,76 |
+| 7×7 | 0,66 |
+| 10×10 | 0,49 |
+| 20×20 | 0,26 |
+
+Ou seja: até 66% de diferença de tamanho pro mesmo móvel. Quebra a ideia
+de "um mundo só" — atravessar uma porta não deveria redimensionar a
+mobília.
+
+**Caminhos descartados (com o porquê):**
+- *Escalar só o objeto espelhado pra compensar:* não existe escala por
+  objeto, só do mundo inteiro. Compensar deixaria uma porta mais alta que
+  a própria parede, ao lado de uma mesa em escala normal.
+- *Zoom fixo + câmera (pan/zoom):* testado e **rejeitado visualmente**.
+  Em sala grande o fundo preto some, as paredes ficam cortadas e a sala
+  deixa de parecer maquete vista de fora — que é a ideia fundadora do
+  projeto. E como pra ver uma sala grande inteira ela precisa ser pequena
+  na tela, dar zoom out chega exatamente na imagem de hoje: a câmera não
+  elimina o compromisso, só muda o momento em que ele aparece.
+
+**A solução escolhida (validada em print, aprovada como conceito):** uma
+escala ÚNICA e global, derivada não do tamanho da sala atual, mas do
+**maior tamanho de sala que o sistema permite**. Se a maior cabe, todas
+cabem — e como a escala é a mesma pra todas, o móvel nunca muda de
+tamanho. Sala pequena passa a sobrar fundo em volta, que é a leitura
+correta de uma sala pequena.
+
+**Detalhe geométrico que importa:** a área que a sala ocupa na tela
+depende SÓ da soma `colunas + linhas` (largura = (c+l)×104, altura =
+(c+l)×73 + parede). Uma 10×10 e uma 14×6 ocupam exatamente a mesma área.
+Então o teto deve ser sobre a SOMA, não sobre cada lado — assim salas
+compridas e estreitas continuam possíveis.
+
+**A decisão que ficou em aberto:** qual teto, já que ele define quanto
+tudo encolhe em relação a hoje.
+
+| teto (soma) | maior sala | escritório encolhe |
+|---|---|---|
+| 16 | 8×8, 10×6, 12×4 | 11% |
+| 20 | 10×10, 14×6, 16×4 | 27% |
+| 24 | 12×12, 16×8 | 38% |
+
+Não existe versão em que o escritório fica igual a hoje E a mobília é
+consistente entre salas: "igual a hoje" é justamente a escala que só
+serve pro 7×7.
+
+**O que muda quando for retomado:** só a conta da escala em
+`Escritorio.tsx` (`centralizar`) e o limite do formulário em
+`PainelSalas.tsx` (hoje 3–20 por lado, chute que nunca foi pedido —
+viraria um teto sobre a soma). Nada de criação de sala, formato, paleta
+ou fundo é afetado.
+
+**Status:** não iniciado, decisão de teto pendente com o chefe.
