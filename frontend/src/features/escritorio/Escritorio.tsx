@@ -11,6 +11,7 @@ import { PainelProblemas } from './PainelProblemas'
 import { PainelSalas } from './PainelSalas'
 import { PopupPorta } from './PopupPorta'
 import { PainelDoAgente } from '../agentes/PainelDoAgente'
+import { PainelRelogio } from './PainelRelogio'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -266,6 +267,8 @@ export function Escritorio() {
         />
       )}
       <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
+      {/* sempre visível, em qualquer modo — ver comentário no arquivo */}
+      <PainelRelogio />
       {/* o menu de salas some com um agente aberto: trocar de sala no
           meio de uma conversa não faz sentido, mesma regra que já vale
           pro modo de edição */}

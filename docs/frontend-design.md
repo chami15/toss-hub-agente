@@ -258,6 +258,31 @@ frontend, pra não ficar refazendo depois:
   fica pra depois, com visão de um botão + contador regressivo na UI
   em vez do disparo manual atual.
 
+**Construído (HUD do relógio) — decisões tomadas na prática:**
+
+- **Vive num canto próprio, fora dos canto já ocupados.** Edição usa o
+  canto superior esquerdo, salas o superior direito, catálogo a lateral
+  — o relógio ficou no **inferior esquerdo**, livre e sem disputar
+  espaço com nenhum painel contextual.
+- **Fica visível mesmo com um painel "largo" aberto por cima** (Cifra/
+  Vita/Norte escurecem o escritório com um backdrop). O relógio do
+  mundo continua marcando por cima, com `zIndex` acima do backdrop —
+  mesma lógica de HUD de jogo, que não some quando um menu abre.
+- **"Conferir" e "avançar de verdade" são dois botões, nunca um só com
+  checkbox.** São ações fundamentalmente diferentes — uma nunca grava
+  nada, a outra sempre grava — e um botão que muda de comportamento
+  conforme um estado escondido (o checkbox) é o tipo de UI que engana
+  por design. O resultado do "conferir" aparece como um aviso
+  transitório, e some assim que um avanço de verdade acontece (ele
+  era sobre o tick anterior).
+- **Orçamento em USD, não BRL.** É custo de LLM, não dinheiro do
+  chefe — o Cifra (BRL) é sobre o extrato bancário dele; aqui é sobre
+  quanto o motor de tick gastou com o provedor. Mesmo hub, duas moedas
+  representando coisas genuinamente diferentes, não inconsistência.
+- **Backend fora do ar degrada em silêncio**, mesmo padrão do estado
+  do agente em `PainelAgente`: o cartão continua ali, só troca o
+  conteúdo por uma frase de erro, em vez de derrubar o HUD inteiro.
+
 **Mensagens entre agentes (mural/social e trabalho)**
 - Toda mensagem trocada fica em `mensagens`, sempre associada a um
   tick, gerada por `POST /interacao/tick/processar` (renomeado de
