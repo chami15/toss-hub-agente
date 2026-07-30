@@ -283,6 +283,32 @@ frontend, pra não ficar refazendo depois:
   do agente em `PainelAgente`: o cartão continua ali, só troca o
   conteúdo por uma frase de erro, em vez de derrubar o HUD inteiro.
 
+**Construído (processar a rodada) — decisões tomadas na prática:**
+
+- **Mora no MESMO cartão do relógio, atrás de um toggle** (`▸ rodada do
+  tick`), em vez de virar um painel à parte. O fluxo real é sempre
+  "avancei o tempo → o que aconteceu?" — abrir outra janela pra ver a
+  resposta da pergunta que acabou de fazer seria fricção sem propósito.
+  O cartão alarga (236px → 320px) só quando a seção abre, pra caber
+  mensagem gerada por LLM sem espremer.
+- **"Conferir"/"processar" repetem o par conferir/avançar do relógio**,
+  mesma razão: uma nunca grava, a outra sempre grava, e são ações
+  diferentes demais pra virar um clique só com checkbox.
+- **Toda entrada tem cor por `tipo`**: `trabalho` usa a MESMA cor da
+  proposta pendente do painel da Agenda (`#dbb15f`) — é o mesmo "isto é
+  oficial, o chefe precisa ver" nos dois lugares. `social` usa um tom
+  mais frio (`#7fb8de`). Sem ação nenhuma fica neutro.
+- **Todo colaborador aparece, mesmo sem ação.** O motor é
+  probabilístico (chance de falar por extroversão + cooldown), e ver só
+  quem falou esconderia a rolagem que decidiu quem NÃO falou — que é
+  informação útil de debug/curiosidade, sobretudo no dry_run. Quando o
+  agente rolou e não puxou papo, a % da chance aparece na própria linha.
+- **O texto muda de forma entre dry_run e real, nunca reaproveita a
+  mesma frase.** Em dry_run nunca existe `mensagem` (só tipo e
+  destinatário são decididos) — dizer "avisou o chefe: ..." sobre algo
+  que não foi executado seria mentira. "Dispararia trabalho" e "falaria
+  com fulano" existem só pra separar bem intenção de execução.
+
 **Mensagens entre agentes (mural/social e trabalho)**
 - Toda mensagem trocada fica em `mensagens`, sempre associada a um
   tick, gerada por `POST /interacao/tick/processar` (renomeado de
