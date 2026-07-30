@@ -6,7 +6,7 @@ import type { MovelSala, SalaDados } from './sala-dados'
 import { novoId } from './sala-dados'
 import type { Direcao } from './sala'
 import { AGENTES } from './agentes'
-import { criarPortaEspelhada } from './porta-espelho'
+import { criarPortaEspelhada, desvincularDoOutroLado, removerEspelhos } from './porta-espelho'
 import {
   consumirAvisoDeGravacao,
   definirSalaAtual,
@@ -141,6 +141,11 @@ export function criarEditor(
   // uma limitação conhecida, não um esquecimento (ver o guia).
   let copiado: MovelSala | null = null
   let colagens = 0
+  // Espelhos que ESTA sessão criou em outras salas. "Descartar e voltar
+  // à fonte" apaga o rascunho desta sala — e sem esta lista a metade da
+  // porta que nasceu do outro lado sobreviveria ao descarte, virando
+  // uma porta órfã numa sala que o chefe nem abriu.
+  const espelhosCriados: { sala: string; id: string }[] = []
 
   // --- Desfazer ---------------------------------------------------
   // Guarda o estado ANTES de cada gesto. Um instantâneo da sala é
@@ -622,14 +627,40 @@ export function criarEditor(
       if (!selecionadoId) return
       const antes = selecionado()
       if (!antes || antes.leva === salaDestino) return
+      // guardado antes da troca: é a sala pra onde esta peça levava até
+      // agora, e é lá que mora a outra metade da porta
+      const destinoAnterior = antes.leva
       lembrar(`porta:${selecionadoId}`)
       maquete.atribuirPorta(selecionadoId, salaDestino)
+
       if (salaDestino) {
         const atual = maquete.movel(selecionadoId)
-        if (atual) criarPortaEspelhada(idSala, maquete.sala, atual, salaDestino)
+        if (atual) {
+          const id = criarPortaEspelhada(idSala, maquete.sala, atual, salaDestino)
+          espelhosCriados.push({ sala: salaDestino, id })
+        }
+        const nome = todasAsSalasDaFonte()[salaDestino]?.nome ?? salaDestino
+        avisar(`porta criada — confira em "${nome}"`)
+        notificar()
+        return
       }
-      const nome = salaDestino ? todasAsSalasDaFonte()[salaDestino]?.nome : undefined
-      avisar(salaDestino ? `porta criada — confira em "${nome ?? salaDestino}"` : 'porta desfeita')
+
+      // Desvincular tem que sair dos DOIS lados: uma passagem de mão
+      // única (a outra porta ainda apontando pra cá) é justamente o que
+      // não se quer.
+      const nomeAnterior = destinoAnterior
+        ? (todasAsSalasDaFonte()[destinoAnterior]?.nome ?? destinoAnterior)
+        : undefined
+      const doOutroLado = destinoAnterior ? desvincularDoOutroLado(idSala, destinoAnterior) : 'nenhum'
+      if (doOutroLado === 'ambiguo') {
+        // mais de uma porta voltando pra cá: escolher uma no chute
+        // desvincularia a errada, então não se escolhe — se diz.
+        avisar(`porta desfeita aqui — há mais de uma porta de "${nomeAnterior}" pra cá, desfaça a outra lá`)
+      } else if (doOutroLado === 'desfeito') {
+        avisar(`porta desfeita dos dois lados`)
+      } else {
+        avisar('porta desfeita')
+      }
       notificar()
     },
 
@@ -715,6 +746,9 @@ export function criarEditor(
       descartado = true
       window.clearTimeout(timerAutoRascunho)
       descartarRascunho(idSala)
+      // e as metades que esta sessão plantou nas OUTRAS salas vão junto
+      // — senão sobra uma porta apontando pra cá que não tem mais par
+      removerEspelhos(espelhosCriados)
       camada = 'fonte'
       sujo = false
       // recarrega: é mais simples e mais confiável que desfazer

@@ -11,6 +11,11 @@ export type Objetivo = 'emagrecer' | 'ganhar_massa' | 'manter_peso' | 'saude_ger
 export type TipoRefeicao = 'cafe_da_manha' | 'almoco' | 'cafe_da_tarde' | 'jantar' | 'outro'
 export type TipoAtividade = 'corrida' | 'academia' | 'esporte' | 'caminhada' | 'outro'
 export type QualidadeSono = 'ruim' | 'regular' | 'boa'
+// O quanto o modelo confia na estimativa de macros. É um NÍVEL, não um
+// número: o backend guarda TEXT com CHECK IN ('alta','media','baixa')
+// (005_saude.sql) e o agente devolve um Literal com os mesmos três
+// valores. Tratar isso como 0..1 é o que produzia "NaN%" na tela.
+export type NivelConfianca = 'alta' | 'media' | 'baixa'
 export type DiaSemana = 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | 'domingo'
 
 export interface PerfilSaude {
@@ -57,9 +62,9 @@ export interface RefeicaoRegistrada {
   carboidratos_g: number
   proteinas_g: number
   gorduras_g: number
-  // 0..1 — o quanto o modelo confia na estimativa. Vale mostrar: uma
-  // estimativa de foto ruim não pode passar por número exato.
-  confianca_estimativa: number
+  // Vale mostrar: uma estimativa de foto ruim não pode passar por
+  // número exato.
+  confianca_estimativa: NivelConfianca
   registrado_em: string
 }
 

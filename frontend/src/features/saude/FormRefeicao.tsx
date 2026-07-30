@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useRegistrarRefeicaoFoto, useRegistrarRefeicaoTexto } from '../../hooks/useSaude'
-import type { RefeicaoRegistrada, TipoRefeicao } from '../../types/saude'
+import type { NivelConfianca, RefeicaoRegistrada, TipoRefeicao } from '../../types/saude'
 import { AVISO_ERRO, BOTAO, BOTAO_PRINCIPAL, CAMPO, CARTAO, CORPO, OPCAO, ROTULO } from './estilos'
 
 // Registrar refeição tem DOIS caminhos visíveis (RF15) — foto e texto —
@@ -146,10 +146,18 @@ export function FormRefeicao() {
   )
 }
 
+// A confiança vem do modelo e importa: uma foto ruim gera estimativa
+// fraca, e mostrar isso como se fosse medido seria mentira. São três
+// NÍVEIS, não uma porcentagem — inventar um "78%" a partir de "alta"
+// daria ao número uma precisão que ele não tem.
+const CONFIANCA: Record<NivelConfianca, { texto: string; cor: string }> = {
+  alta: { texto: 'confiança alta', cor: '#8d8779' },
+  media: { texto: 'confiança média — confira se algo ficou de fora', cor: '#a89f8c' },
+  baixa: { texto: 'confiança baixa — trate como chute', cor: '#dbb15f' },
+}
+
 function ResultadoRefeicao({ refeicao }: { refeicao: RefeicaoRegistrada }) {
-  // a confiança vem do modelo e importa: uma foto ruim gera estimativa
-  // fraca, e mostrar o número como se fosse medido seria mentira
-  const confianca = Math.round(refeicao.confianca_estimativa * 100)
+  const confianca = CONFIANCA[refeicao.confianca_estimativa]
 
   return (
     <div style={CARTAO}>
@@ -160,8 +168,10 @@ function ResultadoRefeicao({ refeicao }: { refeicao: RefeicaoRegistrada }) {
         <Macro rotulo="prot" valor={refeicao.proteinas_g} sufixo="g" />
         <Macro rotulo="gord" valor={refeicao.gorduras_g} sufixo="g" />
       </div>
-      <div style={{ color: '#8d8779', fontSize: 10.5, marginTop: 10 }}>
-        estimativa · confiança {confianca}%
+      {/* nível desconhecido não vira "NaN" nem some caladinho: se um dia
+          o backend mandar um quarto valor, ele aparece cru na tela */}
+      <div style={{ color: confianca?.cor ?? '#dbb15f', fontSize: 10.5, marginTop: 10 }}>
+        estimativa · {confianca?.texto ?? `confiança "${refeicao.confianca_estimativa}"`}
       </div>
     </div>
   )

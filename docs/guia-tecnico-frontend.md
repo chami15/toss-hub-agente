@@ -268,6 +268,31 @@ Ex.: `desk_NE.png`, `chairDesk_SW.png`.
 > funciona: **renderizar as 4 rotações no lugar real e comparar lado a
 > lado**, deixando o chefe escolher pelo número.
 
+**O que os rótulos significam de fato.** Quando o espelhamento de porta
+precisou de uma resposta exata (qual direção vira qual num espelho
+horizontal), deduzir pelo nome deu errado de novo — a primeira tabela
+fazia `NE↔SE` / `NW↔SW`, que não é reflexão nenhuma: é um giro de 180°,
+e deixava a peça no **mesmo plano de parede** quando ela tinha acabado
+de mudar de parede. Na tela: posição certa, peça atravessada.
+
+A resposta veio de **medir**, não de deduzir: espelhando horizontalmente
+a silhueta (o canal alfa, que é imune a sombreamento) de cada sprite e
+comparando com as outras três direções, o casamento é inequívoco —
+0,95–0,99 de sobreposição, o mesmo par pra toda peça com frente definida
+(`chairDesk`, `desk`, `computerScreen`):
+
+```
+espelho horizontal:   NE ↔ NW      SE ↔ SW
+```
+
+Peças quase simétricas (`doorway`, `pottedPlant`) casam com duas
+direções ao mesmo tempo e por isso **não** servem de referência — é
+preciso medir numa peça que tenha frente.
+
+Corolário útil: `{NE, SE}` ficam num plano de parede e `{NW, SW}` no
+perpendicular. Qualquer transformação que mande uma peça de uma parede
+pra outra tem que trocar de conjunto.
+
 ## Âncoras dos sprites
 
 Cada PNG é cortado justo (sem padding transparente), então cada peça
@@ -511,6 +536,33 @@ Duas armadilhas que isso criou, ambas com guarda no código:
    última hora do `beforeunload` regravaria exatamente o que o chefe
    acabou de mandar jogar fora, porque a maquete em memória ainda está
    suja. Daí a trava `descartado`.
+3. **O descarte parava na metade.** Descartar apaga o rascunho *desta*
+   sala — mas uma porta criada na sessão tem uma segunda metade, que
+   nasceu no rascunho de *outra* sala. Ela sobrevivia ao descarte e
+   virava uma porta órfã numa sala que o chefe nem tinha aberto (foi
+   visto em teste). O editor guarda os espelhos que criou
+   (`espelhosCriados`) e `removerEspelhos()` os apaga junto. Só os
+   **desta sessão**: se o chefe já foi lá e gravou aquela sala na
+   fonte, a peça virou decisão dele e não lixo nosso.
+
+## Desfazer o vínculo de uma porta sai dos DOIS lados
+
+Tirar o `leva` só do lado aberto deixava a outra porta apontando pra cá
+pra sempre — uma passagem de mão única que ninguém pediu.
+
+O par **não é gravado em lugar nenhum**: desde que o espelho nasce, as
+duas peças são móveis independentes (decisão de projeto — é o que deixa
+o chefe arrastar cada uma livremente). Então a contrapartida é achada
+pela própria relação: é a peça da sala B que leva de volta pra A.
+
+Isso é exato enquanto houver **uma**. Havendo mais de uma porta de B
+pra A, `desvincularDoOutroLado()` devolve `'ambiguo'` e **não mexe em
+nada** — escolher no chute desvincularia a porta errada, que é o tipo
+de erro silencioso que este projeto inteiro tenta não cometer. O editor
+diz a situação ao chefe em vez de adivinhar.
+
+A peça em si **continua existindo**: some o vínculo, não a mobília. Um
+vão de porta pode perfeitamente virar decoração.
 
 ## Copiar e colar peça (Ctrl+C / Ctrl+V)
 

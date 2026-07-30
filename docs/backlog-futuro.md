@@ -500,3 +500,73 @@ A lógica está coberta pelos outros testes (o rascunho grava, e as
 navegações internas suprimem o aviso), mas o diálogo nativo do
 `beforeunload` não dispara de forma confiável em fechamento
 programático do Playwright. Só validação manual fecha esse.
+
+---
+
+## Ler de volta o que já foi registrado (histórico) — Backend + Frontend
+
+Levantado na primeira bateria de testes com o Postgres de verdade. Três
+sintomas diferentes, uma causa comum: **o dado é gravado, mas não existe
+endpoint que o leia de volta.** Nada está sendo perdido.
+
+**Vita — refeição, sono e atividade somem da tela.**
+`POST /saude/refeicao/*`, `/sono` e `/atividade` gravam e devolvem o
+registro, que a tela mostra ali mesmo. Ao trocar de aba, some. As
+queries de leitura **já existem** (`refeicoes:historico`,
+`sono_historico:historico`, `atividades_fisicas:historico`) — o que
+falta é `GET` pra cada uma no router e uma lista na tela. É a menor das
+três e a mais visível.
+
+**Agenda — a conversa não sobrevive ao reload.**
+Aqui é diferente das outras duas: o chat **não é gravado em lugar
+nenhum**. `resolvers/agenda.py` persiste só a `acao_pendente` (com o
+`pedido_original`, que é o que reconstrói o contexto da negociação); as
+bolhas vivem no estado do React e morrem com ele. A tabela `mensagens`
+existe e é usada pelo módulo de interação (agente↔agente), não pelo
+chat com o chefe.
+Decidir primeiro **se** deve persistir: o agente é de negociação curta
+("marca dentista quinta"), não um assistente de conversa longa, e
+histórico eterno tem custo de contexto. Se for persistir, o par é
+gravar em `mensagens` no resolver + `GET /agenda/conversa`.
+
+**Cifra — extrato importado que "não aparece".**
+O dashboard é estritamente por mês (`data >= mes AND data < mes+1mês`,
+em `sql/transacoes.sql`) e abre no mês CORRENTE. Extrato de mês passado
+importa certo e não aparece até trocar o seletor. O upload já devolve
+`periodo_inicio`/`periodo_fim`; o conserto barato é o painel oferecer
+pular pro mês do extrato recém-importado em vez de deixar o chefe
+descobrir sozinho. Confirmar antes com `SELECT DISTINCT
+date_trunc('month', data) FROM transacoes` que é isso mesmo.
+
+---
+
+## Teto de tool calls do agente de Agenda é só instrução, não trava — Backend
+
+Em teste, responder "sexta" a uma pergunta do agente fez ele chamar
+`listar_eventos_periodo` seis vezes seguidas até estourar o
+`recursion_limit` (12). O `recursion_limit` fez o trabalho dele — a
+falha é graciosa, vira uma pergunta educada e nunca 500 —, mas
+`MAX_TOOL_CALLS` aparece no SYSTEM_PROMPT como texto ("Máximo de {N}
+chamadas de tool"), e instrução em prompt não é limite: é sugestão.
+
+O certo é um middleware que conte as chamadas e corte na N-ésima,
+devolvendo o controle ao modelo com "chega de tool, responda agora".
+Aí o `recursion_limit` volta a ser o que deve ser: rede de segurança
+que nunca é tocada, e não o mecanismo de parada de todo dia.
+
+---
+
+## Aviso de saída contradiz o auto-rascunho — Frontend (decisão do chefe)
+
+O comportamento pedido está implementado e funciona: mudança na sala
+vira rascunho local sozinho (600ms), e fechar a aba com trabalho fora
+do arquivo do projeto dispara o aviso do navegador. O problema é o
+TEXTO: o diálogo nativo diz que as alterações podem ser perdidas — e
+elas não são. Recarregar sem salvar mantém tudo, que é justamente o que
+foi pedido ("igual funciona no excel").
+
+O navegador não deixa escolher a frase do diálogo, então as saídas são:
+tirar o aviso e confiar no auto-rascunho; manter e deixar o HUD dizer
+claramente "rascunho local · fora do arquivo do projeto"; ou trocar o
+aviso do navegador por um do próprio app na troca de sala. É decisão de
+UX — fica com o chefe.
