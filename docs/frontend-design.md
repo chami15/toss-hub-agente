@@ -225,12 +225,25 @@ repositório real; frontend ainda por desenhar.
 - **Histórico:** rejeitado aparece apagado e riscado, finalizado com ✓.
   Registro do que NÃO aconteceu não pode competir visualmente com o que
   foi feito.
+- **Visão geral em kanban, agrupado por STATUS DO PROJETO** (ativo/
+  pausado/concluído/abandonado) — decidido pelo chefe entre isso e uma
+  lista simples. A coluna é o status do PROJETO (decisão deliberada,
+  muda raro), não o status do CARD (sugerido/aceito/..., muda toda
+  hora e já tem tela própria em `CardAtivo`) — confundir os dois
+  status dentro do mesmo quadro contaria duas histórias diferentes na
+  mesma grade.
+- **`estagnado` fechado**: `GET /norte/projetos` agora devolve o campo
+  (mesma regra de `projetos:listar_estagnados`, calculada pra TODO
+  projeto — antes só existia pra achar o mais parado, um só, pra
+  proatividade do tick). Card estagnado fica apagado (opacidade
+  reduzida) com rótulo "estagnado" e um botão **retomar**, que chama o
+  mesmo `POST /cards/gerar` de sempre — é seguro chamar direto porque
+  `estagnado` já garante que não existe card aberto.
 
-**Pendente:** a sinalização de "estagnado" na lista de projetos. O
-cálculo existe no backend (`projetos:listar_estagnados`), mas só é usado
-pela proatividade do tick — `GET /norte/projetos` não devolve esse campo.
-Por enquanto a lista mostra só "última atividade" (de `atualizado_em`),
-que **não** é a mesma regra. Fechar isso exige expor o dado na API.
+**Pendente:** nada de Norte fica pendente nesta leva. As duas próximas
+perguntas (ver "Decisões em aberto") — sinalizar afinidade entre agentes
+na UI, e como visualizar o mural geral — não são deste agente
+especificamente.
 
 ---
 
@@ -382,7 +395,7 @@ frontend, pra não ficar refazendo depois:
   "não lida") — hoje o campo `lida_pelo_chefe` já existe em
   `mensagens` mas não é usado por nenhum endpoint ainda.
 
-**Construído (caixa de entrada) — decisões tomadas na prática:**
+**Construído (mensagens — caixa de entrada + mural) — decisões tomadas na prática:**
 
 - **NÃO usa `GET /mensagens/caixa-de-entrada`.** Esse endpoint filtra
   por `destinatario_id = chefe`, então devolve só o que CHEGA — a
@@ -396,12 +409,22 @@ frontend, pra não ficar refazendo depois:
   paginação ou um endpoint de thread dedicado.
 - **Toggle no canto superior esquerdo**, livre quando não em edição
   (mesmo canto que `PainelEdicao` ocupa só durante a edição). Fecha
-  sozinho (some o botão) quando a caixa abre — o próprio painel já tem
-  X, Esc e clique no backdrop pra fechar; manter os dois seria
-  redundância.
-- **Mutuamente exclusiva com o painel de agente**, mesma regra que já
-  valia só entre agentes ("um painel de cada vez"): abrir a caixa fecha
-  um agente aberto, e clicar num crachá fecha a caixa.
+  sozinho (some o botão) quando o painel abre — ele já tem X, Esc e
+  clique no backdrop pra fechar; manter os dois seria redundância.
+- **Mutuamente exclusivo com o painel de agente**, mesma regra que já
+  valia só entre agentes ("um painel de cada vez"): abrir mensagens
+  fecha um agente aberto, e clicar num crachá fecha as mensagens.
+- **O mural (RF22) vive no MESMO painel, numa segunda aba — não em
+  outro toggle.** As duas telas partem exatamente do mesmo fetch
+  (`GET /mensagens`); a diferença é só o agrupamento (thread-com-o-chefe
+  vs. tudo, cronológico). Um quinto botão flutuando no escritório só
+  pra trocar de agrupamento do MESMO dado seria chrome sem propósito.
+- **O mural usa o mesmo visual de balão de fala**, sem alternar lado
+  esquerdo/direito — alternar lado representa uma relação de duas
+  pontas (o "eu" de uma conversa), e o mural mistura pares diferentes
+  na mesma lista (inclusive agente↔agente, que nunca toca o chefe). A
+  cor por identidade do remetente já resolve "quem falou" numa lista
+  vertical só, sem precisar fingir um "eu" que não existe ali.
 - **Uma thread por colega, accordion — não duas colunas.** Só 4
   interlocutores possíveis (os 4 agentes), então uma lista vertical que
   expande/recolhe cobre o "clica no agente, vê o histórico" do jeito
@@ -614,18 +637,23 @@ são o que a API já suporta e o frontend precisa cobrir.
 
 ## Decisões em aberto (resolver quando o frontend começar de verdade)
 
-- **Visão geral de projetos do Norte:** lista simples de cartões, ou algo
-  mais visual tipo um quadro/kanban por projeto? Ainda não desenhado.
-- **Como sinalizar "estagnado" visualmente:** cor diferente no card do
-  projeto, badge, ordenação por tempo parado no topo da lista? A regra
-  (tempo desde o último card resolvido) já existe, falta o tratamento
-  visual.
+- ~~Visão geral de projetos do Norte~~ — **resolvido: kanban**, agrupado
+  por status do projeto. Ver "Construído (painel do Norte)".
+- ~~Como sinalizar "estagnado" visualmente~~ — **resolvido:** card
+  apagado (opacidade reduzida) + rótulo "estagnado" + botão "retomar".
+  Ver "Construído (painel do Norte)".
+- ~~Como visualizar o mural de mensagens~~ — **resolvido:** aba dentro
+  do mesmo painel de mensagens, feed cronológico com balão de fala por
+  remetente (sem lado fixo esquerdo/direito). Ver "Construído
+  (mensagens — caixa de entrada + mural)". A ideia de balão saindo do
+  AVATAR no escritório 2D (mais espacial) segue não implementada — o
+  que foi construído é o painel/log, não algo sobre a cena isométrica.
 - **Afinidade entre agentes aparece na UI ou fica só interna?** Ainda
   não decidido se o "escritório vivo" mostra de alguma forma visual
   (proximidade dos avatares, indicador de relação) o quanto dois
   agentes se dão bem, ou se isso só molda comportamento (quem fala com
-  quem) sem nunca virar informação exposta ao chefe.
-- **Como visualizar o mural de mensagens:** feed único tipo timeline,
-  separado por tick, ou algo mais espacial (balão de fala saindo do
-  avatar no escritório 2D)? Ainda não desenhado — depende de como o
-  motor de tick (Etapa 2) for implementado de verdade.
+  quem) sem nunca virar informação exposta ao chefe. Proposta em
+  avaliação: painel compacto (mesmo estilo do de eventos do mundo) com
+  uma barra −100..100 por par de agentes (6 pares), colorida
+  vermelho/cinza/verde, sem número exposto — ambiente, não dashboard
+  preciso. Aguardando confirmação antes de construir.

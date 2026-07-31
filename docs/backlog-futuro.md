@@ -573,26 +573,31 @@ UX — fica com o chefe.
 
 ---
 
-## Caixa de entrada monta a thread filtrando o mural no cliente — Frontend/Backend
+## Painel de mensagens busca até 500 linhas do mural pra tudo — Frontend/Backend
 
-`GET /mensagens/caixa-de-entrada` filtra por `destinatario_id = chefe`,
-então só devolve o que CHEGA a ele — a resposta que o próprio chefe
-manda (`POST /mensagens/{id}/responder`) grava com `destinatario_id` =
-o AGENTE, e por isso fica de fora dessa consulta. Uma thread montada só
-com esse endpoint mostraria o agente falando sozinho.
+`PainelMensagens.tsx` (as duas abas — "minhas conversas" e "mural")
+parte do MESMO fetch: `GET /mensagens` com `limite=500` (o teto do
+endpoint), sem filtro nenhum no servidor. A aba de conversas filtra no
+CLIENTE pra só o que toca o chefe; a aba de mural usa tudo. Funciona,
+mas busca sempre o máximo permitido mesmo quando só uma fração interessa
+(a aba de conversas, por exemplo, ignora todo papo agente↔agente). Se o
+volume de mensagens crescer, duas coisas quebram: (1) a conversa do
+chefe pode sair da janela de 500 antes de aparecer na aba de conversas;
+(2) o próprio mural, que hoje mostra tudo sem paginação, vira uma lista
+que só cresce dentro do painel.
 
-O painel (`PainelCaixaDeEntrada.tsx`) contorna isso usando `GET
-/mensagens` (o mural, sem filtro de participante) e filtrando no
-CLIENTE por `remetente_id === chefeId || destinatario_id === chefeId`,
-com `limite=500` (o teto do endpoint). Funciona, mas built errado sobre
-o endpoint errado: busca até 500 mensagens de TODOS os pares (incluindo
-papo agente↔agente que não interessa aqui) só pra achar as poucas que
-envolvem o chefe. Se o volume de mensagens social crescer, a conversa
-do chefe pode sair da janela de 500 antes de aparecer.
+Por que não `GET /mensagens/caixa-de-entrada` pra aba de conversas: esse
+endpoint filtra por `destinatario_id = chefe`, então só devolve o que
+CHEGA a ele — a resposta que o próprio chefe manda
+(`POST /mensagens/{id}/responder`) grava com `destinatario_id` = o
+AGENTE, e por isso fica de fora dessa consulta. Uma thread montada só
+com ele mostraria o agente falando sozinho.
 
 Consertos possíveis (escolha do chefe, é decisão de arquitetura visível
 na tela): (a) um endpoint novo tipo `GET
-/mensagens/conversa/{agente_id}` que já traga as duas pontas; ou (b)
-`GET /mensagens/caixa-de-entrada` passar a incluir também o que o chefe
-enviou, não só o que recebeu (mudaria o significado do endpoint pra
-quem mais o consome hoje — nenhum outro lugar por enquanto).
+/mensagens/conversa/{agente_id}` que já traga as duas pontas pra
+alimentar só a aba de conversas; (b) paginação de verdade em
+`GET /mensagens` pro mural (hoje é "os 500 mais recentes", sem
+"carregar mais"); ou (c) `GET /mensagens/caixa-de-entrada` passar a
+incluir também o que o chefe enviou (mudaria o significado do endpoint
+pra quem mais o consome hoje — nenhum outro lugar por enquanto).
