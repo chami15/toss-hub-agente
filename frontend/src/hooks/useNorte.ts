@@ -48,7 +48,15 @@ export function useGerarCard(projetoId: number) {
   const cliente = useQueryClient()
   return useMutation({
     mutationFn: () => apiNorte.gerarCard(projetoId),
-    onSuccess: (card) => cliente.setQueryData(chaveCardAtivo(projetoId), card),
+    onSuccess: (card) => {
+      cliente.setQueryData(chaveCardAtivo(projetoId), card)
+      // `estagnado` (GET /norte/projetos) depende de existir card aberto —
+      // gerar um agora é exatamente o que zera essa condição, e é o botão
+      // "retomar" do kanban que dispara isso a partir da LISTA, sem passar
+      // pela tela do projeto — sem invalidar aqui o card ficaria certo mas
+      // o badge "estagnado" continuaria aceso até um reload
+      void cliente.invalidateQueries({ queryKey: CHAVE_PROJETOS })
+    },
   })
 }
 

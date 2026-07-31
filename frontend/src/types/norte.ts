@@ -23,6 +23,10 @@ export interface Projeto {
   status: StatusProjeto
   criado_em: string
   atualizado_em: string
+  // calculado no servidor (mesma regra de projetos:listar_estagnados,
+  // usada pela proatividade do tick): ativo, sem card em aberto, parado
+  // há mais que o limite configurado. Nunca true fora de status='ativo'.
+  estagnado: boolean
 }
 
 export interface Card {
