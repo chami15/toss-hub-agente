@@ -13,6 +13,7 @@ import { PopupPorta } from './PopupPorta'
 import { PainelDoAgente } from '../agentes/PainelDoAgente'
 import { PainelCaixaDeEntrada } from '../agentes/PainelCaixaDeEntrada'
 import { PainelRelogio } from './PainelRelogio'
+import { PainelEventosMundo } from './PainelEventosMundo'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -286,6 +287,11 @@ export function Escritorio() {
           de sala no meio de uma conversa não faz sentido, mesma regra
           que já vale pro modo de edição */}
       {!estado?.ativo && !agenteAberto && !caixaAberta && <PainelSalas />}
+      {/* canto inferior direito — livre nas mesmas condições que o
+          menu de salas (top-right), pela mesma razão: um painel "largo"
+          de agente ou a caixa de entrada ocupam a lateral direita
+          inteira e cobririam este cartão */}
+      {!estado?.ativo && !agenteAberto && !caixaAberta && <PainelEventosMundo />}
       {!estado?.ativo && !caixaAberta && (
         <button
           onClick={() => {

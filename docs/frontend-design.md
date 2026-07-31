@@ -416,7 +416,7 @@ frontend, pra não ficar refazendo depois:
   próprio chefe.
 - **Cor por identidade do agente na bolha recebida** (a mesma do
   crachá), bolha do chefe sempre neutra — assim dá pra saber quem
-  falou o quê olhando de relance, mesmo com several threads abertas.
+  falou o quê olhando de relance, mesmo com várias threads abertas.
 
 **`eventos_mundo` (gancho de conversa social)**
 - Pool curado manualmente (clima, futebol, fim de semana, etc.), já
@@ -427,6 +427,21 @@ frontend, pra não ficar refazendo depois:
   precisa de mais campos).
 - Não precisa de tela de gestão elaborada (editar/remover) na primeira
   versão — só adicionar/listar é suficiente pra começar.
+
+**Construído (eventos do mundo) — decisões tomadas na prática:**
+
+- **Canto inferior direito, recolhido por padrão.** Curar o pool é raro
+  (ao contrário de avançar o relógio ou checar mensagens), então o
+  cartão começa fechado — mesmo padrão do toggle "rodada do tick" no
+  relógio. Some nas mesmas condições que o menu de salas (painel
+  "largo" de agente ou a caixa de entrada cobririam o canto).
+- **Nunca usado (`ultimo_uso_tick === null`) ganha um marcador visual**
+  na lista — é exatamente o critério que `sortear_menos_usado` usa pra
+  priorizar (`ORDER BY ultimo_uso_tick ASC NULLS FIRST`), então mostrar
+  isso ajuda o chefe a entender por que um evento novo tende a aparecer
+  primeiro na próxima rodada.
+- **Sem editar/remover, como o próprio doc já fechava** — só uma lista
+  rolável e um campo de texto curto.
 
 **Afinidade e relacionamento entre agentes**
 - `relacionamentos.afinidade` (-100 a 100) entre cada par — cresce por
