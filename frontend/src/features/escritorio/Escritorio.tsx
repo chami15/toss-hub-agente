@@ -11,6 +11,7 @@ import { PainelProblemas } from './PainelProblemas'
 import { PainelSalas } from './PainelSalas'
 import { PopupPorta } from './PopupPorta'
 import { PainelDoAgente } from '../agentes/PainelDoAgente'
+import { PainelCaixaDeEntrada } from '../agentes/PainelCaixaDeEntrada'
 import { PainelRelogio } from './PainelRelogio'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
@@ -27,6 +28,10 @@ export function Escritorio() {
   // Um por vez: abrir outro troca o conteúdo, nunca empilha. Não persiste
   // entre reloads de propósito — é estado de tela, não dado.
   const [agenteAberto, setAgenteAberto] = useState<string | null>(null)
+  // a caixa de entrada não é de nenhum agente — é do chefe, cruzando os
+  // quatro. Mutuamente exclusiva com o painel de agente (mesma regra de
+  // "um painel de cada vez" que já valia só entre agentes)
+  const [caixaAberta, setCaixaAberta] = useState(false)
 
   useEffect(() => {
     const hospedeiro = hospedeiroRef.current
@@ -64,7 +69,12 @@ export function Escritorio() {
       aplicacao.stage.addChild(mundo)
 
       // as texturas do pack são carregadas antes da cena existir
-      const cena = await criarCena(sala, { aoClicarAgente: setAgenteAberto })
+      const cena = await criarCena(sala, {
+        aoClicarAgente: (id) => {
+          setAgenteAberto(id)
+          setCaixaAberta(false)
+        },
+      })
       if (desmontado) return
       mundo.addChild(cena.raiz)
 
@@ -128,13 +138,16 @@ export function Escritorio() {
       // Esc fecha o painel aberto — checado ANTES do filtro de campo de
       // texto logo abaixo, porque é justamente dentro do campo que a mão
       // está quando se quer fechar
-      if (e.key === 'Escape' && agenteAberto) {
+      if (e.key === 'Escape' && (agenteAberto || caixaAberta)) {
         setAgenteAberto(null)
+        setCaixaAberta(false)
         return
       }
-      // com um painel de agente aberto o teclado é dele: sem isso, um
-      // "e" digitado fora do campo ligaria o modo de edição por baixo
-      // do painel, deixando os dois modos ativos ao mesmo tempo
+      // com um painel de agente (ou a caixa de entrada) aberto o teclado
+      // é dele: sem isso, um "e" digitado fora do campo ligaria o modo
+      // de edição por baixo do painel, deixando os dois modos ativos ao
+      // mesmo tempo
+      if (caixaAberta) return
       if (agenteAberto) return
 
       const editor = editorRef.current
@@ -239,8 +252,8 @@ export function Escritorio() {
     window.addEventListener('keydown', aoTeclar)
     return () => window.removeEventListener('keydown', aoTeclar)
     // re-registra ao abrir/fechar painel: o atalho precisa enxergar o
-    // valor atual de `agenteAberto`, não o da montagem
-  }, [agenteAberto])
+    // valor atual de `agenteAberto`/`caixaAberta`, não o da montagem
+  }, [agenteAberto, caixaAberta])
 
   const chamar = useCallback((f: (e: Editor) => void) => {
     const editor = editorRef.current
@@ -269,12 +282,36 @@ export function Escritorio() {
       <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
       {/* sempre visível, em qualquer modo — ver comentário no arquivo */}
       <PainelRelogio />
-      {/* o menu de salas some com um agente aberto: trocar de sala no
-          meio de uma conversa não faz sentido, mesma regra que já vale
-          pro modo de edição */}
-      {!estado?.ativo && !agenteAberto && <PainelSalas />}
+      {/* o menu de salas some com um agente (ou a caixa) aberto: trocar
+          de sala no meio de uma conversa não faz sentido, mesma regra
+          que já vale pro modo de edição */}
+      {!estado?.ativo && !agenteAberto && !caixaAberta && <PainelSalas />}
+      {!estado?.ativo && !caixaAberta && (
+        <button
+          onClick={() => {
+            setCaixaAberta(true)
+            setAgenteAberto(null)
+          }}
+          style={{
+            position: 'absolute',
+            left: 16,
+            top: 16,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontSize: 11,
+            color: '#e6e1d6',
+            background: 'rgba(20, 22, 27, 0.93)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            borderRadius: 6,
+            padding: '7px 11px',
+            cursor: 'pointer',
+          }}
+        >
+          ✉ caixa de entrada
+        </button>
+      )}
       {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
       {agenteAberto && <PainelDoAgente agenteId={agenteAberto} aoFechar={() => setAgenteAberto(null)} />}
+      {caixaAberta && <PainelCaixaDeEntrada aoFechar={() => setCaixaAberta(false)} />}
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}

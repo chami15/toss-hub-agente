@@ -382,6 +382,42 @@ frontend, pra não ficar refazendo depois:
   "não lida") — hoje o campo `lida_pelo_chefe` já existe em
   `mensagens` mas não é usado por nenhum endpoint ainda.
 
+**Construído (caixa de entrada) — decisões tomadas na prática:**
+
+- **NÃO usa `GET /mensagens/caixa-de-entrada`.** Esse endpoint filtra
+  por `destinatario_id = chefe`, então devolve só o que CHEGA — a
+  resposta que o próprio chefe manda (`destinatario_id` vira o AGENTE)
+  fica de fora, e sem ela a "conversa" mostraria só metade, como se o
+  agente estivesse falando sozinho. A tela usa `GET /mensagens` (o
+  mural, sem filtro de participante — tem as duas pontas) e filtra no
+  CLIENTE pra só o que envolve o chefe. Mais fetch do que seria
+  necessário, mas o único jeito de montar um balão de duas vias sem
+  inventar endpoint novo. Backlog: se o mural crescer muito, isso pede
+  paginação ou um endpoint de thread dedicado.
+- **Toggle no canto superior esquerdo**, livre quando não em edição
+  (mesmo canto que `PainelEdicao` ocupa só durante a edição). Fecha
+  sozinho (some o botão) quando a caixa abre — o próprio painel já tem
+  X, Esc e clique no backdrop pra fechar; manter os dois seria
+  redundância.
+- **Mutuamente exclusiva com o painel de agente**, mesma regra que já
+  valia só entre agentes ("um painel de cada vez"): abrir a caixa fecha
+  um agente aberto, e clicar num crachá fecha a caixa.
+- **Uma thread por colega, accordion — não duas colunas.** Só 4
+  interlocutores possíveis (os 4 agentes), então uma lista vertical que
+  expande/recolhe cobre o "clica no agente, vê o histórico" do jeito
+  mais simples, sem precisar de um layout mestre-detalhe.
+- **"Responder" fica em cada bolha do AGENTE, não numa caixa de texto
+  fixa no rodapé.** `POST /mensagens/{id}/responder` exige o id de UMA
+  mensagem específica (é o que vira `respondendo_a_id`) — não existe
+  "mandar uma mensagem nova pra essa thread" do lado do chefe, só
+  "responder a esta aqui". A UI segue exatamente essa forma em vez de
+  fingir um composer genérico que o backend não sustenta. Some quando a
+  mensagem é `tipo='trabalho'` (mesma regra do backend) ou já é do
+  próprio chefe.
+- **Cor por identidade do agente na bolha recebida** (a mesma do
+  crachá), bolha do chefe sempre neutra — assim dá pra saber quem
+  falou o quê olhando de relance, mesmo com several threads abertas.
+
 **`eventos_mundo` (gancho de conversa social)**
 - Pool curado manualmente (clima, futebol, fim de semana, etc.), já
   seedado (10 eventos iniciais) e sorteado de verdade a cada rodada
