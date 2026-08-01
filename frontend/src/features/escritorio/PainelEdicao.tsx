@@ -12,7 +12,12 @@ const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
 const DICA: React.CSSProperties = {
   position: 'absolute',
   left: 16,
-  top: 16,
+  // 16 seria o mesmo canto do toggle de mensagens (Escritorio.tsx) — os
+  // dois são visíveis ao mesmo tempo no estado normal (nenhum painel
+  // aberto), então empilham verticalmente em vez de competir pelo
+  // mesmo pixel. A tecla E é a ÚNICA porta pro modo de edição (não
+  // existe botão de clique pra isso), por isso a dica não pode só sumir.
+  top: 54,
   fontFamily: MONO,
   fontSize: 12,
   color: '#e6e1d6',
@@ -99,11 +104,16 @@ const TOAST: React.CSSProperties = {
 const VERDE: React.CSSProperties = {
   ...BOTAO,
   background: 'rgba(74,222,128,0.16)',
-  borderColor: 'rgba(74,222,128,0.4)',
+  border: '1px solid rgba(74,222,128,0.4)',
 }
 
 interface Props {
   estado: EstadoEditor
+  // o toggle de mensagens vive no MESMO canto (Escritorio.tsx) — sem
+  // isso a dica ficaria acesa por cima do botão, ou por baixo de um
+  // painel de agente com o teclado capturado, prometendo um atalho que
+  // não funciona ali (a tecla E é ignorada nos dois casos)
+  mostrarDica: boolean
   aoRemover: () => void
   aoGirar: () => void
   aoDesfazer: () => void
@@ -119,6 +129,7 @@ interface Props {
 
 export function PainelEdicao({
   estado,
+  mostrarDica,
   aoRemover,
   aoGirar,
   aoDesfazer,
@@ -165,9 +176,11 @@ export function PainelEdicao({
   if (!estado.ativo) {
     return (
       <>
-        <div style={DICA}>
-          <kbd>E</kbd> — modo de edição
-        </div>
+        {mostrarDica && (
+          <div style={DICA}>
+            <kbd>E</kbd> — modo de edição
+          </div>
+        )}
         {toast}
       </>
     )

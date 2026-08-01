@@ -103,7 +103,7 @@ const ABA: React.CSSProperties = {
 const ABA_ATIVA: React.CSSProperties = {
   ...ABA,
   background: 'rgba(255,255,255,0.1)',
-  borderColor: 'rgba(255,255,255,0.22)',
+  border: '1px solid rgba(255,255,255,0.22)',
   color: '#e6e1d6',
 }
 

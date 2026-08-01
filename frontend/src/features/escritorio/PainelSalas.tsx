@@ -63,7 +63,7 @@ const VERDE: React.CSSProperties = {
   ...BOTAO,
   flex: 1,
   background: 'rgba(74,222,128,0.16)',
-  borderColor: 'rgba(74,222,128,0.4)',
+  border: '1px solid rgba(74,222,128,0.4)',
 }
 
 const CAMPO: React.CSSProperties = {

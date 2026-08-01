@@ -72,7 +72,7 @@ const BOTAO: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const VERDE: React.CSSProperties = { ...BOTAO, flex: 1, background: 'rgba(74,222,128,0.16)', borderColor: 'rgba(74,222,128,0.4)' }
+const VERDE: React.CSSProperties = { ...BOTAO, flex: 1, background: 'rgba(74,222,128,0.16)', border: '1px solid rgba(74,222,128,0.4)' }
 
 const ERRO: React.CSSProperties = { color: '#f0b7ab', fontSize: 11, lineHeight: 1.5 }
 

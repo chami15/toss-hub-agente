@@ -47,8 +47,14 @@ export const BOTAO: React.CSSProperties = {
 
 // O botão de ação principal usa a cor do agente dono do painel — é o
 // que faz o painel se ler como continuação do crachá que foi clicado.
+//
+// `border` inteiro de novo (não só `borderColor` por cima do `border`
+// de BOTAO): misturar a forma curta com a longa pro mesmo valor é
+// exatamente o que o React avisa pra não fazer (falso positivo de
+// "removendo borderColor" a cada re-render, porque as duas properties
+// batem pela ordem de declaração do objeto, não pela intenção).
 export function botaoPrincipal(cor: string): React.CSSProperties {
-  return { ...BOTAO, background: `${cor}2e`, borderColor: `${cor}80` }
+  return { ...BOTAO, background: `${cor}2e`, border: `1px solid ${cor}80` }
 }
 
 export const CARTAO: React.CSSProperties = {

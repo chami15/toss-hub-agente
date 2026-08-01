@@ -268,6 +268,7 @@ export function Escritorio() {
       {estado && (
         <PainelEdicao
           estado={estado}
+          mostrarDica={!agenteAberto && !mensagensAbertas}
           aoGirar={() => chamar((e) => e.girar(1))}
           aoDesfazer={() => chamar((e) => e.desfazer())}
           aoRefazer={() => chamar((e) => e.refazer())}
