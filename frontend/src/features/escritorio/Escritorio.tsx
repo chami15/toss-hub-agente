@@ -12,8 +12,11 @@ import { PainelSalas } from './PainelSalas'
 import { PopupPorta } from './PopupPorta'
 import { PainelDoAgente } from '../agentes/PainelDoAgente'
 import { PainelMensagens } from '../agentes/PainelMensagens'
-import { PainelRelogio } from './PainelRelogio'
-import { PainelEventosMundo } from './PainelEventosMundo'
+import { PainelConfiguracoes } from './PainelConfiguracoes'
+import { IconeAvancarTick, IconeConfiguracoes, IconeMensagens } from './icones'
+import { useAvancarMundo, type ResultadoAvancoMundo } from '../../hooks/useMundo'
+import { useContagemNaoLidas } from '../../hooks/useMensagens'
+import { definirDryRunAtivo, dryRunEstaAtivo, lerPreviewSalva, salvarPreview } from './dry-run'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -34,6 +37,38 @@ export function Escritorio() {
   // de agente (mesma regra de "um painel de cada vez" que já valia só
   // entre agentes)
   const [mensagensAbertas, setMensagensAbertas] = useState(false)
+  // configurações (relógio/orçamento/dry_run/eventos do mundo) — mesma
+  // regra de exclusividade que mensagens, só que abre pela ESQUERDA
+  // (decisão do chefe: as duas em lados opostos, pra não parecerem "a
+  // mesma janela reaparecendo")
+  const [configuracoesAbertas, setConfiguracoesAbertas] = useState(false)
+  // dry_run é um MODO, não uma ação — liga/desliga e persiste (mesmo
+  // espírito do rascunho de sala): enquanto ligado, o ícone de avançar
+  // só confere, nunca gasta nem grava. Lazy init lê do localStorage uma
+  // vez só, na montagem (ver dry-run.ts)
+  const [dryRunAtivo, setDryRunAtivoState] = useState(dryRunEstaAtivo)
+  const [ultimoResultado, setUltimoResultado] = useState<ResultadoAvancoMundo | null>(() =>
+    dryRunEstaAtivo() ? lerPreviewSalva() : null,
+  )
+  const avancar = useAvancarMundo()
+  const contagemNaoLidas = useContagemNaoLidas()
+
+  function aoAlternarDryRun(ativo: boolean) {
+    definirDryRunAtivo(ativo)
+    setDryRunAtivoState(ativo)
+    // desligar é o "volta a como era antes": a prévia local some, e a
+    // tela volta a ler o estado real (que dry_run nunca tocou)
+    setUltimoResultado(ativo ? lerPreviewSalva() : null)
+  }
+
+  function aoClicarAvancar() {
+    avancar.mutate(dryRunAtivo, {
+      onSuccess: (resultado) => {
+        setUltimoResultado(resultado)
+        if (dryRunAtivo) salvarPreview(resultado)
+      },
+    })
+  }
 
   useEffect(() => {
     const hospedeiro = hospedeiroRef.current
@@ -75,6 +110,7 @@ export function Escritorio() {
         aoClicarAgente: (id) => {
           setAgenteAberto(id)
           setMensagensAbertas(false)
+          setConfiguracoesAbertas(false)
         },
       })
       if (desmontado) return
@@ -140,16 +176,18 @@ export function Escritorio() {
       // Esc fecha o painel aberto — checado ANTES do filtro de campo de
       // texto logo abaixo, porque é justamente dentro do campo que a mão
       // está quando se quer fechar
-      if (e.key === 'Escape' && (agenteAberto || mensagensAbertas)) {
+      if (e.key === 'Escape' && (agenteAberto || mensagensAbertas || configuracoesAbertas)) {
         setAgenteAberto(null)
         setMensagensAbertas(false)
+        setConfiguracoesAbertas(false)
         return
       }
-      // com um painel de agente (ou o de mensagens) aberto o teclado
-      // é dele: sem isso, um "e" digitado fora do campo ligaria o modo
-      // de edição por baixo do painel, deixando os dois modos ativos ao
-      // mesmo tempo
-      if (mensagensAbertas) return
+      // com um painel de agente, mensagens ou configurações aberto o
+      // teclado é dele: sem isso, um "e" digitado fora do campo ligaria
+      // o modo de edição por baixo do painel (ou pior, editaria a sala
+      // ÀS CEGAS por baixo do painel de configurações, que cobre o
+      // mesmo canto esquerdo onde o HUD de edição vive)
+      if (mensagensAbertas || configuracoesAbertas) return
       if (agenteAberto) return
 
       const editor = editorRef.current
@@ -254,8 +292,9 @@ export function Escritorio() {
     window.addEventListener('keydown', aoTeclar)
     return () => window.removeEventListener('keydown', aoTeclar)
     // re-registra ao abrir/fechar painel: o atalho precisa enxergar o
-    // valor atual de `agenteAberto`/`mensagensAbertas`, não o da montagem
-  }, [agenteAberto, mensagensAbertas])
+    // valor atual de `agenteAberto`/`mensagensAbertas`/`configuracoesAbertas`,
+    // não o da montagem
+  }, [agenteAberto, mensagensAbertas, configuracoesAbertas])
 
   const chamar = useCallback((f: (e: Editor) => void) => {
     const editor = editorRef.current
@@ -268,7 +307,7 @@ export function Escritorio() {
       {estado && (
         <PainelEdicao
           estado={estado}
-          mostrarDica={!agenteAberto && !mensagensAbertas}
+          mostrarDica={!agenteAberto && !mensagensAbertas && !configuracoesAbertas}
           aoGirar={() => chamar((e) => e.girar(1))}
           aoDesfazer={() => chamar((e) => e.desfazer())}
           aoRefazer={() => chamar((e) => e.refazer())}
@@ -283,43 +322,80 @@ export function Escritorio() {
         />
       )}
       <PainelProblemas problemas={problemas} aoFechar={() => setProblemas([])} />
-      {/* sempre visível, em qualquer modo — ver comentário no arquivo */}
-      <PainelRelogio />
-      {/* o menu de salas some com um agente (ou mensagens) aberto:
-          trocar de sala no meio de uma conversa não faz sentido, mesma
-          regra que já vale pro modo de edição */}
-      {!estado?.ativo && !agenteAberto && !mensagensAbertas && <PainelSalas />}
-      {/* canto inferior direito — livre nas mesmas condições que o
-          menu de salas (top-right), pela mesma razão: um painel "largo"
-          de agente ou o painel de mensagens ocupam a lateral direita
-          inteira e cobririam este cartão */}
-      {!estado?.ativo && !agenteAberto && !mensagensAbertas && <PainelEventosMundo />}
-      {!estado?.ativo && !mensagensAbertas && (
-        <button
+      {/* o menu de salas some com um agente (ou mensagens/configurações)
+          aberto: trocar de sala no meio de uma conversa não faz sentido,
+          mesma regra que já vale pro modo de edição */}
+      {!estado?.ativo && !agenteAberto && !mensagensAbertas && !configuracoesAbertas && <PainelSalas />}
+      {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
+
+      {/* Menu único do módulo de interação — canto inferior direito.
+          Sempre visível, em qualquer modo (inclusive edição, inclusive
+          com mensagens ou configurações abertas): zIndex 65, ACIMA dos
+          próprios painéis (60), não só do backdrop deles (55) — este
+          canto fica GEOMETRICAMENTE por baixo do painel de mensagens
+          (que se estende até right:0), então bater só o backdrop não
+          bastava, o painel em si também cobriria o menu. */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 16,
+          bottom: 16,
+          zIndex: 65,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          alignItems: 'center',
+          background: 'rgba(20, 22, 27, 0.93)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          borderRadius: 14,
+          padding: 8,
+        }}
+      >
+        <BotaoIcone
+          titulo="mensagens"
+          ativo={mensagensAbertas}
+          badge={contagemNaoLidas > 0}
           onClick={() => {
-            setMensagensAbertas(true)
+            setMensagensAbertas((v) => !v)
             setAgenteAberto(null)
-          }}
-          style={{
-            position: 'absolute',
-            left: 16,
-            top: 16,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            fontSize: 11,
-            color: '#e6e1d6',
-            background: 'rgba(20, 22, 27, 0.93)',
-            border: '1px solid rgba(255,255,255,0.14)',
-            borderRadius: 6,
-            padding: '7px 11px',
-            cursor: 'pointer',
+            setConfiguracoesAbertas(false)
           }}
         >
-          ✉ mensagens
-        </button>
-      )}
-      {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
+          <IconeMensagens />
+        </BotaoIcone>
+
+        <BotaoIcone
+          titulo="configurações"
+          ativo={configuracoesAbertas}
+          onClick={() => {
+            setConfiguracoesAbertas((v) => !v)
+            setAgenteAberto(null)
+            setMensagensAbertas(false)
+          }}
+        >
+          <IconeConfiguracoes />
+        </BotaoIcone>
+
+        <BotaoIcone
+          titulo={dryRunAtivo ? 'conferir 1 tick (modo simulado ligado)' : 'avançar 1 tick'}
+          destaque
+          carregando={avancar.isPending}
+          onClick={aoClicarAvancar}
+        >
+          <IconeAvancarTick />
+        </BotaoIcone>
+      </div>
+
       {agenteAberto && <PainelDoAgente agenteId={agenteAberto} aoFechar={() => setAgenteAberto(null)} />}
       {mensagensAbertas && <PainelMensagens aoFechar={() => setMensagensAbertas(false)} />}
+      {configuracoesAbertas && (
+        <PainelConfiguracoes
+          aoFechar={() => setConfiguracoesAbertas(false)}
+          dryRunAtivo={dryRunAtivo}
+          aoAlternarDryRun={aoAlternarDryRun}
+          ultimoResultado={ultimoResultado}
+        />
+      )}
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}
@@ -328,5 +404,67 @@ export function Escritorio() {
         />
       )}
     </div>
+  )
+}
+
+function BotaoIcone({
+  children,
+  titulo,
+  onClick,
+  ativo = false,
+  destaque = false,
+  badge = false,
+  carregando = false,
+}: {
+  children: React.ReactNode
+  titulo: string
+  onClick: () => void
+  ativo?: boolean
+  destaque?: boolean
+  badge?: boolean
+  carregando?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={titulo}
+      aria-label={titulo}
+      disabled={carregando}
+      style={{
+        position: 'relative',
+        width: 40,
+        height: 40,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 10,
+        border: '1px solid rgba(255,255,255,0.14)',
+        background: ativo
+          ? 'rgba(255,255,255,0.16)'
+          : destaque
+            ? 'rgba(74,222,128,0.16)'
+            : 'rgba(255,255,255,0.06)',
+        color: destaque ? '#4ade80' : '#e6e1d6',
+        cursor: carregando ? 'default' : 'pointer',
+        opacity: carregando ? 0.6 : 1,
+      }}
+    >
+      {children}
+      {badge && (
+        <span
+          style={{
+            position: 'absolute',
+            top: -3,
+            right: -3,
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            background: '#ef4444',
+            border: '2px solid rgba(20,22,27,0.93)',
+          }}
+          aria-label="mensagens não lidas"
+        />
+      )}
+    </button>
   )
 }

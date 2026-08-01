@@ -21,4 +21,10 @@ export interface Mensagem {
   respondendo_a_id: number | null
   respondendo_a_conteudo: string | null
   respondendo_a_remetente_nome: string | null
+  // "lida" é por CLIQUE na mensagem específica (decisão do chefe), nunca
+  // por abrir a thread inteira — não presente na resposta de
+  // POST /responder (o insert não devolve a coluna), mas isso nunca
+  // importa: a resposta é sempre do PRÓPRIO chefe, que não conta pro
+  // "não lida" de qualquer forma (só mensagens QUE CHEGARAM contam)
+  lida_pelo_chefe?: boolean
 }

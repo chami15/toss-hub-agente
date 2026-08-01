@@ -12,3 +12,7 @@ export async function listarMensagens(tipo?: TipoMensagem, limite = 500): Promis
 export async function responderMensagem(mensagemId: number, conteudo: string): Promise<Mensagem> {
   return (await api.post<Mensagem>(`/mensagens/${mensagemId}/responder`, { conteudo })).data
 }
+
+export async function marcarMensagemLida(mensagemId: number): Promise<{ id: number; lida_pelo_chefe: boolean }> {
+  return (await api.post(`/mensagens/${mensagemId}/marcar-lida`)).data
+}

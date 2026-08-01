@@ -627,3 +627,20 @@ daquele arquivo não alcançou):
 
 Consertar é sempre a mesma receita: trocar `borderColor: X` por
 `border: 'Npx solid X'` completo (mesma largura/estilo da base).
+
+---
+
+## Ícones do HUD são SVG aproximado, não os arquivos originais — Frontend
+
+O chefe colou três referências visuais (avançar/fast-forward, envelope,
+engrenagem) direto na conversa. Não há ferramenta que extraia bytes de
+imagem de algo só "visto" numa mensagem — por isso `escritorio/icones.tsx`
+tem versões desenhadas à mão em SVG, na mesma linguagem visual (traço
+grosso, arredondado, monocromático), mas não pixel-a-pixel iguais às
+referências.
+
+Se o chefe quiser os arquivos exatos: soltar os PNGs/SVGs em
+`frontend/public/icones/` (ou pasta equivalente) e trocar os três
+componentes (`IconeAvancarTick`, `IconeMensagens`, `IconeConfiguracoes`)
+por `<img src="..." />` — a troca é local a esse arquivo, nada mais
+depende do formato interno do ícone.

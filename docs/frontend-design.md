@@ -271,56 +271,69 @@ frontend, pra não ficar refazendo depois:
   fica pra depois, com visão de um botão + contador regressivo na UI
   em vez do disparo manual atual.
 
-**Construído (HUD do relógio) — decisões tomadas na prática:**
+**Construído — 1ª versão (cartão flutuante do relógio):** o relógio
+viveu um tempo como um cartão sozinho no canto inferior esquerdo, com
+"conferir"/"avançar" como botões separados e uma seção "rodada do tick"
+atrás de um toggle. Essa versão foi **substituída** pelo redesenho
+abaixo, depois de uma varredura visual (chefe pediu pra consolidar tudo
+num menu só). O histórico da primeira versão fica só como contexto —
+o que vale hoje é a seção seguinte.
 
-- **Vive num canto próprio, fora dos canto já ocupados.** Edição usa o
-  canto superior esquerdo, salas o superior direito, catálogo a lateral
-  — o relógio ficou no **inferior esquerdo**, livre e sem disputar
-  espaço com nenhum painel contextual.
-- **Fica visível mesmo com um painel "largo" aberto por cima** (Cifra/
-  Vita/Norte escurecem o escritório com um backdrop). O relógio do
-  mundo continua marcando por cima, com `zIndex` acima do backdrop —
-  mesma lógica de HUD de jogo, que não some quando um menu abre.
-- **"Conferir" e "avançar de verdade" são dois botões, nunca um só com
-  checkbox.** São ações fundamentalmente diferentes — uma nunca grava
-  nada, a outra sempre grava — e um botão que muda de comportamento
-  conforme um estado escondido (o checkbox) é o tipo de UI que engana
-  por design. O resultado do "conferir" aparece como um aviso
-  transitório, e some assim que um avanço de verdade acontece (ele
-  era sobre o tick anterior).
-- **Orçamento em USD, não BRL.** É custo de LLM, não dinheiro do
-  chefe — o Cifra (BRL) é sobre o extrato bancário dele; aqui é sobre
-  quanto o motor de tick gastou com o provedor. Mesmo hub, duas moedas
-  representando coisas genuinamente diferentes, não inconsistência.
-- **Backend fora do ar degrada em silêncio**, mesmo padrão do estado
-  do agente em `PainelAgente`: o cartão continua ali, só troca o
-  conteúdo por uma frase de erro, em vez de derrubar o HUD inteiro.
+**Construído — redesenho do HUD (menu único + dry_run persistente):**
 
-**Construído (processar a rodada) — decisões tomadas na prática:**
-
-- **Mora no MESMO cartão do relógio, atrás de um toggle** (`▸ rodada do
-  tick`), em vez de virar um painel à parte. O fluxo real é sempre
-  "avancei o tempo → o que aconteceu?" — abrir outra janela pra ver a
-  resposta da pergunta que acabou de fazer seria fricção sem propósito.
-  O cartão alarga (236px → 320px) só quando a seção abre, pra caber
-  mensagem gerada por LLM sem espremer.
-- **"Conferir"/"processar" repetem o par conferir/avançar do relógio**,
-  mesma razão: uma nunca grava, a outra sempre grava, e são ações
-  diferentes demais pra virar um clique só com checkbox.
-- **Toda entrada tem cor por `tipo`**: `trabalho` usa a MESMA cor da
-  proposta pendente do painel da Agenda (`#dbb15f`) — é o mesmo "isto é
-  oficial, o chefe precisa ver" nos dois lugares. `social` usa um tom
-  mais frio (`#7fb8de`). Sem ação nenhuma fica neutro.
-- **Todo colaborador aparece, mesmo sem ação.** O motor é
-  probabilístico (chance de falar por extroversão + cooldown), e ver só
-  quem falou esconderia a rolagem que decidiu quem NÃO falou — que é
-  informação útil de debug/curiosidade, sobretudo no dry_run. Quando o
-  agente rolou e não puxou papo, a % da chance aparece na própria linha.
-- **O texto muda de forma entre dry_run e real, nunca reaproveita a
-  mesma frase.** Em dry_run nunca existe `mensagem` (só tipo e
-  destinatário são decididos) — dizer "avisou o chefe: ..." sobre algo
-  que não foi executado seria mentira. "Dispararia trabalho" e "falaria
-  com fulano" existem só pra separar bem intenção de execução.
+- **Um menu só, canto inferior direito**, em vez de cartões espalhados
+  pelos quatro cantos (relógio no inferior-esquerdo, eventos no
+  inferior-direito, toggle de mensagens no superior-esquerdo). Três
+  ícones empilhados: mensagens (com badge de não lida), configurações
+  (engrenagem) e avançar 1 tick (destaque verde) — sempre visíveis, em
+  qualquer modo, com `zIndex` ACIMA não só do backdrop dos painéis
+  "largo" mas dos PRÓPRIOS painéis (mensagens/configurações), porque o
+  canto inferior direito fica geometricamente por baixo do painel de
+  mensagens (que se estende até `right:0`) — bater só o backdrop não
+  bastava.
+- **Ícones são SVG desenhado à mão** (`escritorio/icones.tsx`), não os
+  PNGs originais — não há como extrair bytes de imagem de uma que só
+  foi colada na conversa, só "ver" ela. Mesma linguagem visual (traço
+  grosso, arredondado, monocromático via `currentColor`); trocar pelo
+  arquivo de verdade depois é só substituir por uma `<img>`.
+- **Avançar tick e processar rodada viraram UM clique só**
+  (`hooks/useMundo.ts::useAvancarMundo`), sempre nessa ordem — decisão
+  do chefe. Antes eram dois botões (relógio, depois "rodada do tick").
+  Se o passo de processar a rodada falhar (só pode acontecer com
+  `dry_run` no PRIMEIRO clique de todos — nesse caso não existe tick
+  REAL ainda pra servir de base), o avanço do relógio não é desfeito;
+  só a rodada mostra um aviso explicando isso.
+- **`dry_run` virou um MODO persistente (liga/desliga), não mais um
+  botão "conferir" separado.** Ligado, o ícone de avançar só confere
+  (nunca gasta/grava); desligado, avança de verdade. Persistido em
+  localStorage (`escritorio/dry-run.ts`), mesmo espírito do rascunho de
+  sala: "salva só localmente, pra voltar de onde parou". Como o
+  backend NUNCA grava nada em dry_run, desligar o modo é só apagar a
+  prévia local — o estado real nunca foi tocado, não há o que
+  "reverter" de fato.
+  - Importante limite técnico documentado: dry_run **não encadeia**.
+    Cada chamada calcula a partir do ÚLTIMO TICK REAL, nunca de um tick
+    simulado anterior — clicar 3× com o modo ligado sempre mostra a
+    MESMA prévia ("seria o tick N+1"), não uma progressão. Simular uma
+    sequência de verdade exigiria inventar dado no cliente (orçamento e
+    mensagens fictícios sem base real) — decisão explícita do chefe foi
+    NÃO fazer isso.
+- **Painel de configurações abre pela ESQUERDA**, painel de mensagens
+  continua abrindo pela DIREITA — decisão deliberada do chefe pra não
+  parecerem "a mesma janela reaparecendo". Reúne o que eram dois
+  cartões (relógio+orçamento e eventos do mundo) num só painel lateral,
+  mais o toggle de dry_run e o resultado do último avanço (real ou
+  simulado).
+- **Mensagens não lidas: `lida_pelo_chefe` finalmente em uso.** A
+  coluna existia desde o início do schema mas nenhum endpoint a
+  expunha. Agora `GET /mensagens` devolve o campo e
+  `POST /mensagens/{id}/marcar-lida` marca uma mensagem específica.
+  **"Lida" é por CLIQUE na mensagem, nunca por abrir a thread/aba** —
+  decisão explícita do chefe: só conta como visto o que ele realmente
+  clicou, não o que passou na frente dele. O ícone de mensagens ganha
+  uma bolinha vermelha quando há pelo menos uma não lida
+  (`useContagemNaoLidas`, que reaproveita o mesmo cache de `['mensagens']`
+  sem fetch extra).
 
 **Mensagens entre agentes (mural/social e trabalho)**
 - Toda mensagem trocada fica em `mensagens`, sempre associada a um
@@ -391,9 +404,10 @@ frontend, pra não ficar refazendo depois:
 - Pensar a UI como uma lista de conversas por agente (uma "thread" por
   colega, não um feed único misturado) — mais perto de DM/e-mail do
   que de mural: clica no agente, vê o histórico com ele, responde ali.
-- Ainda não decidido: se essa tela também deveria notificar (badge de
-  "não lida") — hoje o campo `lida_pelo_chefe` já existe em
-  `mensagens` mas não é usado por nenhum endpoint ainda.
+- ~~Ainda não decidido: badge de "não lida"~~ — **resolvido:**
+  `lida_pelo_chefe` está em uso (`POST /mensagens/{id}/marcar-lida`),
+  "lida" é por clique na mensagem específica. Ver "Construído —
+  redesenho do HUD" acima.
 
 **Construído (mensagens — caixa de entrada + mural) — decisões tomadas na prática:**
 
@@ -407,10 +421,10 @@ frontend, pra não ficar refazendo depois:
   necessário, mas o único jeito de montar um balão de duas vias sem
   inventar endpoint novo. Backlog: se o mural crescer muito, isso pede
   paginação ou um endpoint de thread dedicado.
-- **Toggle no canto superior esquerdo**, livre quando não em edição
-  (mesmo canto que `PainelEdicao` ocupa só durante a edição). Fecha
-  sozinho (some o botão) quando o painel abre — ele já tem X, Esc e
-  clique no backdrop pra fechar; manter os dois seria redundância.
+- **Toggle é um ícone no menu único do canto inferior direito** (era um
+  botão de texto no canto superior esquerdo — mudou no redesenho do
+  HUD, ver acima). Fecha sozinho quando o painel abre — ele já tem X,
+  Esc e clique no backdrop pra fechar; manter os dois seria redundância.
 - **Mutuamente exclusivo com o painel de agente**, mesma regra que já
   valia só entre agentes ("um painel de cada vez"): abrir mensagens
   fecha um agente aberto, e clicar num crachá fecha as mensagens.
@@ -453,11 +467,10 @@ frontend, pra não ficar refazendo depois:
 
 **Construído (eventos do mundo) — decisões tomadas na prática:**
 
-- **Canto inferior direito, recolhido por padrão.** Curar o pool é raro
-  (ao contrário de avançar o relógio ou checar mensagens), então o
-  cartão começa fechado — mesmo padrão do toggle "rodada do tick" no
-  relógio. Some nas mesmas condições que o menu de salas (painel
-  "largo" de agente ou a caixa de entrada cobririam o canto).
+- **Vive dentro do painel de configurações** (canto inferior direito →
+  ícone de engrenagem → painel pela esquerda), não mais um cartão
+  flutuante próprio — dobrado ali no redesenho do HUD junto com
+  relógio/orçamento/dry_run, ver "Construído — redesenho do HUD" acima.
 - **Nunca usado (`ultimo_uso_tick === null`) ganha um marcador visual**
   na lista — é exatamente o critério que `sortear_menos_usado` usa pra
   priorizar (`ORDER BY ultimo_uso_tick ASC NULLS FIRST`), então mostrar

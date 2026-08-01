@@ -12,12 +12,7 @@ const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
 const DICA: React.CSSProperties = {
   position: 'absolute',
   left: 16,
-  // 16 seria o mesmo canto do toggle de mensagens (Escritorio.tsx) — os
-  // dois são visíveis ao mesmo tempo no estado normal (nenhum painel
-  // aberto), então empilham verticalmente em vez de competir pelo
-  // mesmo pixel. A tecla E é a ÚNICA porta pro modo de edição (não
-  // existe botão de clique pra isso), por isso a dica não pode só sumir.
-  top: 54,
+  top: 16,
   fontFamily: MONO,
   fontSize: 12,
   color: '#e6e1d6',

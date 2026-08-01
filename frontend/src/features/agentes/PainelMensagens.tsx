@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAgentes } from '../../hooks/useAgentes'
-import { useMensagens, useResponderMensagem } from '../../hooks/useMensagens'
+import { useMarcarMensagemLida, useMensagens, useResponderMensagem } from '../../hooks/useMensagens'
 import { mensagemDeErro } from '../../api/client'
 import { AGENTES } from '../escritorio/agentes'
 import { corCss } from './RetratoAgente'
@@ -31,6 +31,9 @@ import type { Mensagem } from '../../types/mensagens'
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
 const COR_TRABALHO = '#dbb15f'
+// mesmo tom da bolinha do ícone de mensagens (Escritorio.tsx) — o
+// "não lida" precisa ser reconhecível como a MESMA coisa nos dois lugares
+const COR_NAO_LIDA = '#ef4444'
 
 const BACKDROP: React.CSSProperties = {
   position: 'absolute',
@@ -182,7 +185,7 @@ export function PainelMensagens({ aoFechar }: { aoFechar: () => void }) {
           {error && <div style={ERRO}>{mensagemDeErro(error)}</div>}
 
           {!isLoading && !error && aba === 'conversas' && <MinhasConversas mensagens={mensagens ?? []} chefeId={chefeId} />}
-          {!isLoading && !error && aba === 'mural' && <Mural mensagens={mensagens ?? []} />}
+          {!isLoading && !error && aba === 'mural' && <Mural mensagens={mensagens ?? []} chefeId={chefeId} />}
         </div>
       </div>
     </>
@@ -224,8 +227,16 @@ function agruparPorConversa(mensagens: Mensagem[], chefeId: number): Conversa[] 
   return conversas
 }
 
+// "lida" é por CLIQUE na mensagem específica (decisão do chefe) — nunca
+// por abrir a conversa/aba. Só mensagens que CHEGARAM pra ele contam;
+// as que ele mesmo escreveu não têm o que "ler".
+function naoLida(msg: Mensagem, chefeId: number | undefined): boolean {
+  return msg.destinatario_id === chefeId && !msg.lida_pelo_chefe
+}
+
 function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeId: number | undefined }) {
   const responder = useResponderMensagem()
+  const marcarLida = useMarcarMensagemLida()
   const [abertas, setAbertas] = useState<Set<number>>(new Set())
   const [respondendoId, setRespondendoId] = useState<number | null>(null)
   const [texto, setTexto] = useState('')
@@ -261,8 +272,8 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
   if (conversas.length === 0) {
     return (
       <div style={{ color: '#8d8779', fontSize: 12, lineHeight: 1.7 }}>
-        Nenhuma mensagem ainda — processe uma rodada do tick (relógio, canto inferior
-        esquerdo) pra gerar conversa.
+        Nenhuma mensagem ainda — avance o relógio e processe uma rodada (ícones
+        do canto inferior direito) pra gerar conversa.
       </div>
     )
   }
@@ -273,6 +284,7 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
         const cor = corDoRemetente(c.outroNome)
         const ultima = c.mensagens.at(-1)!
         const aberta = abertas.has(c.outroId)
+        const temNaoLida = c.mensagens.some((m) => naoLida(m, chefeId))
 
         return (
           <div
@@ -297,7 +309,15 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
             >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: cor, flexShrink: 0 }} />
               <span style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5 }}>{c.outroNome}</div>
+                <div style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {c.outroNome}
+                  {temNaoLida && (
+                    <span
+                      style={{ width: 6, height: 6, borderRadius: '50%', background: COR_NAO_LIDA, flexShrink: 0 }}
+                      aria-label="mensagem não lida"
+                    />
+                  )}
+                </div>
                 <div
                   style={{
                     fontSize: 11,
@@ -326,6 +346,7 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
                 {c.mensagens.map((msg) => {
                   const doChefe = msg.remetente_id === chefeId
                   const podeResponder = msg.tipo === 'social' && !doChefe
+                  const estaNaoLida = naoLida(msg, chefeId)
 
                   return (
                     <div
@@ -338,6 +359,10 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
                       }}
                     >
                       <div
+                        // clicar É o "lida" — nunca abrir a conversa (decisão
+                        // do chefe). Idempotente: clicar numa já lida não
+                        // muda nada, então não precisa condicionar o handler
+                        onClick={() => { if (estaNaoLida) marcarLida.mutate(msg.id) }}
                         style={{
                           maxWidth: '85%',
                           padding: '8px 11px',
@@ -345,10 +370,15 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
                           fontSize: 12,
                           lineHeight: 1.5,
                           whiteSpace: 'pre-wrap',
+                          cursor: estaNaoLida ? 'pointer' : 'default',
                           background: doChefe ? 'rgba(255,255,255,0.1)' : `${cor}22`,
                           border: msg.tipo === 'trabalho' ? `1px solid ${COR_TRABALHO}` : '1px solid transparent',
+                          boxShadow: estaNaoLida ? `0 0 0 1px ${COR_NAO_LIDA}` : 'none',
                         }}
                       >
+                        {estaNaoLida && (
+                          <div style={{ fontSize: 9.5, color: COR_NAO_LIDA, marginBottom: 4 }}>● não lida — clique pra marcar como lida</div>
+                        )}
                         {msg.tipo === 'trabalho' && <RotuloTrabalho />}
                         {msg.respondendo_a_id != null && <Citacao msg={msg} />}
                         {msg.conteudo}
@@ -398,7 +428,8 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
 // agente↔agente que nunca passa pelo chefe. Só leitura.
 // ---------------------------------------------------------------
 
-function Mural({ mensagens }: { mensagens: Mensagem[] }) {
+function Mural({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeId: number | undefined }) {
+  const marcarLida = useMarcarMensagemLida()
   // cronológico ascendente (mais antiga em cima) — mesma leitura de
   // cima pra baixo que qualquer chat da casa já usa
   const ordenadas = useMemo(() => [...mensagens].sort((a, b) => a.id - b.id), [mensagens])
@@ -406,8 +437,8 @@ function Mural({ mensagens }: { mensagens: Mensagem[] }) {
   if (ordenadas.length === 0) {
     return (
       <div style={{ color: '#8d8779', fontSize: 12, lineHeight: 1.7 }}>
-        Nenhuma mensagem ainda — processe uma rodada do tick (relógio, canto inferior
-        esquerdo) pra ver o escritório conversar.
+        Nenhuma mensagem ainda — avance o relógio e processe uma rodada (ícones
+        do canto inferior direito) pra ver o escritório conversar.
       </div>
     )
   }
@@ -415,7 +446,12 @@ function Mural({ mensagens }: { mensagens: Mensagem[] }) {
   return (
     <>
       {ordenadas.map((msg) => (
-        <BolhaMural key={msg.id} msg={msg} />
+        <BolhaMural
+          key={msg.id}
+          msg={msg}
+          naoLida={naoLida(msg, chefeId)}
+          aoMarcarLida={() => marcarLida.mutate(msg.id)}
+        />
       ))}
     </>
   )
@@ -426,19 +462,22 @@ function Mural({ mensagens }: { mensagens: Mensagem[] }) {
 // pares diferentes na mesma lista — forçar um lado fixo pra cada bolha
 // mentiria sobre quem é "eu" aqui. A cor por remetente já resolve "quem
 // falou" numa lista vertical só.
-function BolhaMural({ msg }: { msg: Mensagem }) {
+function BolhaMural({ msg, naoLida, aoMarcarLida }: { msg: Mensagem; naoLida: boolean; aoMarcarLida: () => void }) {
   const cor = corDoRemetente(msg.remetente_nome)
 
   return (
     <div
+      onClick={() => { if (naoLida) aoMarcarLida() }}
       style={{
         padding: '9px 12px',
         borderRadius: 10,
         fontSize: 12,
         lineHeight: 1.5,
         whiteSpace: 'pre-wrap',
+        cursor: naoLida ? 'pointer' : 'default',
         background: `${cor}18`,
         border: msg.tipo === 'trabalho' ? `1px solid ${COR_TRABALHO}` : '1px solid transparent',
+        boxShadow: naoLida ? `0 0 0 1px ${COR_NAO_LIDA}` : 'none',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
@@ -447,6 +486,7 @@ function BolhaMural({ msg }: { msg: Mensagem }) {
         </span>
         {msg.tick != null && <span style={{ fontSize: 10, color: '#6f6a5f', flexShrink: 0 }}>tick {msg.tick}</span>}
       </div>
+      {naoLida && <div style={{ fontSize: 9.5, color: COR_NAO_LIDA, marginBottom: 4 }}>● não lida</div>}
       {msg.tipo === 'trabalho' && <RotuloTrabalho />}
       {msg.respondendo_a_id != null && <Citacao msg={msg} />}
       {msg.conteudo}
