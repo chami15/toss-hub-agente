@@ -328,17 +328,16 @@ export function Escritorio() {
       {!estado?.ativo && !agenteAberto && !mensagensAbertas && !configuracoesAbertas && <PainelSalas />}
       {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
 
-      {/* Menu único do módulo de interação — canto inferior direito.
-          Sempre visível, em qualquer modo (inclusive edição, inclusive
-          com mensagens ou configurações abertas): zIndex 65, ACIMA dos
-          próprios painéis (60), não só do backdrop deles (55) — este
-          canto fica GEOMETRICAMENTE por baixo do painel de mensagens
-          (que se estende até right:0), então bater só o backdrop não
-          bastava, o painel em si também cobriria o menu. */}
+      {/* Mensagens + configurações — canto inferior ESQUERDO. Sempre
+          visível, em qualquer modo (inclusive edição, inclusive com um
+          painel aberto): zIndex 65, ACIMA dos próprios painéis (60), não
+          só do backdrop deles (55) — os dois painéis abrem pela
+          esquerda também, então este canto fica GEOMETRICAMENTE por
+          baixo deles; bater só o backdrop não bastava. */}
       <div
         style={{
           position: 'absolute',
-          right: 16,
+          left: 16,
           bottom: 16,
           zIndex: 65,
           display: 'flex',
@@ -375,7 +374,21 @@ export function Escritorio() {
         >
           <IconeConfiguracoes />
         </BotaoIcone>
+      </div>
 
+      {/* Avançar tick — canto inferior DIREITO, sozinho (decisão do
+          chefe: é a ação mais frequente, fica isolada e em destaque do
+          lado oposto ao menu de mensagens/configurações). Mesma razão
+          de zIndex acima: um painel de agente ("largo") também abre
+          pela direita e cobriria este canto sem o 65. */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 16,
+          bottom: 16,
+          zIndex: 65,
+        }}
+      >
         <BotaoIcone
           titulo={dryRunAtivo ? 'conferir 1 tick (modo simulado ligado)' : 'avançar 1 tick'}
           destaque

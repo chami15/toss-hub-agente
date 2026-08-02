@@ -44,14 +44,16 @@ const BACKDROP: React.CSSProperties = {
 
 const PAINEL: React.CSSProperties = {
   position: 'absolute',
-  right: 0,
+  // abre pela ESQUERDA (decisão do chefe) — o ícone que abre este
+  // painel também mora no canto inferior ESQUERDO agora (Escritorio.tsx)
+  left: 0,
   top: 0,
   bottom: 0,
   width: 'min(56vw, 720px)',
   fontFamily: MONO,
   color: '#e6e1d6',
   background: 'rgba(20, 22, 27, 0.97)',
-  borderLeft: '1px solid rgba(255,255,255,0.16)',
+  borderRight: '1px solid rgba(255,255,255,0.16)',
   display: 'flex',
   flexDirection: 'column',
   zIndex: 60,

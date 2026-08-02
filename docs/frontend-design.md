@@ -281,16 +281,18 @@ o que vale hoje é a seção seguinte.
 
 **Construído — redesenho do HUD (menu único + dry_run persistente):**
 
-- **Um menu só, canto inferior direito**, em vez de cartões espalhados
-  pelos quatro cantos (relógio no inferior-esquerdo, eventos no
-  inferior-direito, toggle de mensagens no superior-esquerdo). Três
-  ícones empilhados: mensagens (com badge de não lida), configurações
-  (engrenagem) e avançar 1 tick (destaque verde) — sempre visíveis, em
-  qualquer modo, com `zIndex` ACIMA não só do backdrop dos painéis
-  "largo" mas dos PRÓPRIOS painéis (mensagens/configurações), porque o
-  canto inferior direito fica geometricamente por baixo do painel de
-  mensagens (que se estende até `right:0`) — bater só o backdrop não
-  bastava.
+- **Dois grupos de ícone, cada um no seu canto**, em vez de cartões
+  espalhados pelos quatro cantos (relógio no inferior-esquerdo, eventos
+  no inferior-direito, toggle de mensagens no superior-esquerdo).
+  **Inferior esquerdo:** mensagens (com badge de não lida) e
+  configurações (engrenagem), empilhados. **Inferior direito:** avançar
+  1 tick sozinho, em destaque verde — é a ação mais frequente, fica
+  isolada do resto. Sempre visíveis, em qualquer modo, com `zIndex`
+  ACIMA não só do backdrop dos painéis "largo" mas dos PRÓPRIOS painéis
+  (mensagens/configurações/agente), porque cada canto fica
+  geometricamente por baixo de ALGUM painel que se estende até aquele
+  lado (mensagens e configurações abrem pela esquerda; um painel de
+  agente "largo" abre pela direita) — bater só o backdrop não bastava.
 - **Ícones são SVG desenhado à mão** (`escritorio/icones.tsx`), não os
   PNGs originais — não há como extrair bytes de imagem de uma que só
   foi colada na conversa, só "ver" ela. Mesma linguagem visual (traço
@@ -318,12 +320,12 @@ o que vale hoje é a seção seguinte.
     sequência de verdade exigiria inventar dado no cliente (orçamento e
     mensagens fictícios sem base real) — decisão explícita do chefe foi
     NÃO fazer isso.
-- **Painel de configurações abre pela ESQUERDA**, painel de mensagens
-  continua abrindo pela DIREITA — decisão deliberada do chefe pra não
-  parecerem "a mesma janela reaparecendo". Reúne o que eram dois
-  cartões (relógio+orçamento e eventos do mundo) num só painel lateral,
-  mais o toggle de dry_run e o resultado do último avanço (real ou
-  simulado).
+- **Painel de configurações e painel de mensagens abrem os DOIS pela
+  ESQUERDA** (mensagens era pela direita antes — mudou a pedido do
+  chefe, junto com os ícones indo pro canto inferior esquerdo). Reúne o
+  que eram dois cartões (relógio+orçamento e eventos do mundo) num só
+  painel de configurações, mais o toggle de dry_run e o resultado do
+  último avanço (real ou simulado).
 - **Mensagens não lidas: `lida_pelo_chefe` finalmente em uso.** A
   coluna existia desde o início do schema mas nenhum endpoint a
   expunha. Agora `GET /mensagens` devolve o campo e
