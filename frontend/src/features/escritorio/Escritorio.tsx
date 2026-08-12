@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Application, Container } from 'pixi.js'
-import { criarCena } from './cena'
+import { criarCena, type Cena } from './cena'
 import { criarEditor, type Editor, type EstadoEditor } from './edicao'
 import { carregarSala, todasAsSalasComRascunho } from './persistencia'
 import { PALETAS } from './sala'
+import { AGENTES } from './agentes'
 import { conferirConjuntoDeSalas } from './sala-conferir'
 import { PainelEdicao } from './PainelEdicao'
 import { PainelCatalogo } from './PainelCatalogo'
@@ -16,7 +17,9 @@ import { PainelConfiguracoes } from './PainelConfiguracoes'
 import { IconeAvancarTick, IconeConfiguracoes, IconeMensagens } from './icones'
 import { useAvancarMundo, type ResultadoAvancoMundo } from '../../hooks/useMundo'
 import { useContagemNaoLidas } from '../../hooks/useMensagens'
+import { useAgentes } from '../../hooks/useAgentes'
 import { definirDryRunAtivo, dryRunEstaAtivo, lerPreviewSalva, salvarPreview } from './dry-run'
+import type { EstadoAgente } from '../../types/agente'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -25,6 +28,11 @@ import { definirDryRunAtivo, dryRunEstaAtivo, lerPreviewSalva, salvarPreview } f
 export function Escritorio() {
   const hospedeiroRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<Editor | null>(null)
+  // referência à cena (fora do estado do React de propósito — é um
+  // ponteiro pro objeto imperativo do Pixi, não dado que precise
+  // re-renderizar nada quando muda) — usada só pra empurrar o estado
+  // vivo dos agentes (falando/pensando/...) pro anel do crachá
+  const cenaRef = useRef<Cena | null>(null)
   const [estado, setEstado] = useState<EstadoEditor | null>(null)
   const [catalogoAberto, setCatalogoAberto] = useState(false)
   const [problemas, setProblemas] = useState<string[]>([])
@@ -52,6 +60,27 @@ export function Escritorio() {
   )
   const avancar = useAvancarMundo()
   const contagemNaoLidas = useContagemNaoLidas()
+  // estado vivo (idle/falando/pensando/executando) pro anel do crachá
+  // na cena isométrica — mesmo dado que já existia (GET /agentes),
+  // só nunca tinha chegado até o desenho antes deste redesenho
+  const { data: agentesAoVivo } = useAgentes()
+  // ref (não state) porque `aplicarEstados` também é chamada de dentro
+  // do efeito de montagem (deps `[]`), que capturou uma closure velha —
+  // ler de uma ref sempre pega o valor mais novo, sem precisar recriar
+  // o efeito de montagem inteiro por causa disso
+  const agentesAoVivoRef = useRef<typeof agentesAoVivo>(undefined)
+  agentesAoVivoRef.current = agentesAoVivo
+
+  const aplicarEstadosNaCena = useCallback(() => {
+    const dados = agentesAoVivoRef.current
+    if (!dados || !cenaRef.current) return
+    const estados = new Map<string, EstadoAgente>()
+    for (const local of AGENTES) {
+      const aoVivo = dados.find((a) => a.nome === local.nome)
+      if (aoVivo) estados.set(local.id, aoVivo.estado)
+    }
+    cenaRef.current.definirEstadosAgentes(estados)
+  }, [])
 
   function aoAlternarDryRun(ativo: boolean) {
     definirDryRunAtivo(ativo)
@@ -115,6 +144,12 @@ export function Escritorio() {
       })
       if (desmontado) return
       mundo.addChild(cena.raiz)
+      cenaRef.current = cena
+      // o fetch de /agentes pode ter chegado ANTES da cena terminar de
+      // carregar (texturas são assíncronas) — sem isto, o efeito lá
+      // embaixo já teria rodado com cenaRef.current ainda nulo, e o
+      // primeiro estado vivo nunca apareceria até o próximo avanço
+      aplicarEstadosNaCena()
 
       // defeitos da sala sozinha (cena.problemas) + defeitos que só
       // aparecem olhando o conjunto — nome duplicado, agente já usado
@@ -167,9 +202,20 @@ export function Escritorio() {
       desmontado = true
       editorRef.current?.destruir()
       editorRef.current = null
+      cenaRef.current?.destruirAnimacoes()
+      cenaRef.current = null
       app?.destroy(true, { children: true })
     }
   }, [])
+
+  // Ponte entre o dado (GET /agentes, por nome) e a cena (AGENTES[].id
+  // local, ex: 'cifra') — os dois só têm o NOME em comum. Roda de novo
+  // sempre que `agentesAoVivo` muda (avançar o tick invalida a query),
+  // e é barato: só troca visibilidade/estilo do anel, nunca redesenha
+  // o crachá inteiro.
+  useEffect(() => {
+    aplicarEstadosNaCena()
+  }, [agentesAoVivo, aplicarEstadosNaCena])
 
   useEffect(() => {
     function aoTeclar(e: KeyboardEvent) {

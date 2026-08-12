@@ -1,4 +1,4 @@
-import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js'
+import { Assets, Container, FillGradient, Graphics, Sprite, Ticker, type Texture } from 'pixi.js'
 import { paraTela, TILE_W, TILE_H } from './iso'
 import {
   ESPESSURA_LAJE,
@@ -14,6 +14,7 @@ import { AGENTES, PASTA_AGENTES, RECORTES } from './agentes'
 import { Maquete } from './maquete'
 import { conferirSala, type SalaDados } from './sala-dados'
 import { CHAVES_PALETA } from './sala-conferir'
+import type { EstadoAgente } from '../../types/agente'
 
 // Abordagem combinada:
 //   - piso, laje e paredes são DESENHADOS (Graphics) → cor 100% livre,
@@ -46,11 +47,120 @@ async function carregarRetratos(): Promise<Map<string, Texture>> {
 const DIAMETRO_CRACHA = 84
 const ESPESSURA_ANEL = 5
 
+// Estado vivo do agente (idle/falando/pensando/executando) — antes o
+// anel era só a cor de identidade, parada, sem ligação nenhuma com
+// `agentes.estado` (GET /agentes). Redesenho "Console": cada estado
+// ganha uma linguagem de movimento PRÓPRIA, pra dar pra "sentir" o
+// escritório funcionando sem abrir painel nenhum:
+//   idle       — anel parado, como sempre foi.
+//   falando    — glow pulsando (mesmo "ar de online" do HUD).
+//   pensando   — anel pontilhado + o MESMO pulso de falando (só o
+//                traço muda; girar era o design original mas confundia
+//                com "executando" — decisão do chefe).
+//   executando — anel sólido parado + um traço curto ORBITANDO em
+//                volta, linguagem de movimento diferente de "pulsar",
+//                pra nunca ser confundido com "falando".
+interface ControladorAnel {
+  definirEstado(estado: EstadoAgente): void
+  animar(deltaMS: number, tempoTotalMS: number): void
+}
+
+const DURACAO_PULSO_MS = 2400
+const VELOCIDADE_COMETA = 0.0035 // rad/ms
+const LARGURA_COMETA = Math.PI * 2 * 0.1
+
+// Mistura uma cor 0xRRGGBB com branco — é o que faz o cometa "acender"
+// de verdade em cima do anel de base da MESMA cor; sem isto, o traço
+// que gira fica invisível por cima do próprio anel (mesma cor, mesma
+// espessura, mesmo lugar — nada pra diferenciar visualmente).
+function clarear(cor: number, quantidade: number): number {
+  const r = (cor >> 16) & 0xff
+  const g = (cor >> 8) & 0xff
+  const b = cor & 0xff
+  const misturar = (canal: number) => Math.round(canal + (255 - canal) * quantidade)
+  return (misturar(r) << 16) | (misturar(g) << 8) | misturar(b)
+}
+
+function criarAnelAnimado(cor: number, raioTela: number): { grafico: Container; controlador: ControladorAnel } {
+  const raioAnel = raioTela + ESPESSURA_ANEL / 2
+  const corCometa = clarear(cor, 0.65)
+  const anelBase = new Graphics()
+  const halo = new Graphics()
+  const cometa = new Graphics()
+
+  let estadoAtual: EstadoAgente = 'idle'
+  let anguloCometa = 0
+
+  function desenharAnelBase(pontilhado: boolean) {
+    anelBase.clear()
+    if (!pontilhado) {
+      anelBase.circle(0, 0, raioAnel)
+      anelBase.stroke({ width: ESPESSURA_ANEL, color: cor })
+      return
+    }
+    // pontilhado: poucos traços LARGOS com vão bem visível — muitos
+    // traços finos somem no anti-aliasing na escala que o crachá
+    // aparece na tela (a maquete inteira cabe numa janela só)
+    const TRACOS = 6
+    for (let i = 0; i < TRACOS; i++) {
+      const a0 = (i / TRACOS) * Math.PI * 2
+      const a1 = a0 + ((Math.PI * 2) / TRACOS) * 0.6
+      anelBase.arc(0, 0, raioAnel, a0, a1)
+    }
+    anelBase.stroke({ width: ESPESSURA_ANEL, color: cor })
+  }
+
+  // traço curto e BRILHANTE (cor clareada, mais grosso que o anel)
+  // orbitando — precisa se destacar do anel de base, não só girar
+  function desenharCometa() {
+    cometa.clear()
+    cometa.arc(0, 0, raioAnel, anguloCometa, anguloCometa + LARGURA_COMETA)
+    cometa.stroke({ width: ESPESSURA_ANEL + 2, color: corCometa, cap: 'round' })
+  }
+
+  desenharAnelBase(false)
+  halo.circle(0, 0, raioAnel + 5)
+  // sem alpha aqui — quem controla o alpha é `animar()`, no objeto
+  // (container.alpha), não no traçado; dar alpha nos dois multiplica
+  // e o pulso vinha saindo bem mais apagado do que o previsto
+  halo.stroke({ width: 4, color: cor })
+  halo.visible = false
+  desenharCometa()
+  cometa.visible = false
+
+  function definirEstado(estado: EstadoAgente) {
+    if (estado === estadoAtual) return
+    estadoAtual = estado
+    desenharAnelBase(estado === 'pensando')
+    halo.visible = estado === 'falando' || estado === 'pensando'
+    cometa.visible = estado === 'executando'
+  }
+
+  function animar(_deltaMS: number, tempoTotalMS: number) {
+    if (halo.visible) {
+      const fase = (tempoTotalMS % DURACAO_PULSO_MS) / DURACAO_PULSO_MS
+      halo.alpha = 0.25 + 0.65 * (0.5 - 0.5 * Math.cos(fase * Math.PI * 2))
+    }
+    if (cometa.visible) {
+      anguloCometa += _deltaMS * VELOCIDADE_COMETA
+      desenharCometa()
+    }
+  }
+
+  const grupo = new Container()
+  grupo.addChild(halo, anelBase, cometa)
+  return { grafico: grupo, controlador: { definirEstado, animar } }
+}
+
 // Desenha tudo na ORIGEM do container — quem posiciona é o chamador,
 // via container.x/y. Assim o crachá pode acompanhar a cadeira quando
 // ela é arrastada no modo de edição (se as formas fossem desenhadas
 // já nas coordenadas finais, mover o container somaria duas vezes).
-function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: number }, cor: number): Container {
+function criarAvatar(
+  retrato: Texture,
+  recorte: { cx: number; cy: number; raio: number },
+  cor: number,
+): { container: Container; controlador: ControladorAnel } {
   const container = new Container()
   const raioTela = DIAMETRO_CRACHA / 2
 
@@ -63,9 +173,7 @@ function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: 
   mascara.circle(0, 0, raioTela).fill(0xffffff)
   sprite.mask = mascara
 
-  const anel = new Graphics()
-  anel.circle(0, 0, raioTela + ESPESSURA_ANEL / 2)
-  anel.stroke({ width: ESPESSURA_ANEL, color: cor })
+  const { grafico: anel, controlador } = criarAnelAnimado(cor, raioTela)
 
   const sombra = new Graphics()
   sombra.circle(0, raioTela * 0.15, raioTela * 0.9)
@@ -76,7 +184,7 @@ function criarAvatar(retrato: Texture, recorte: { cx: number; cy: number; raio: 
   // mas o Pixi não desenha normalmente um objeto que está sendo usado
   // como .mask de outro, então ela não aparece como um círculo branco.
   container.addChild(sombra, sprite, mascara, anel)
-  return container
+  return { container, controlador }
 }
 
 // Os 4 cantos externos da planta. paraTela(c - 0.5, l - 0.5) devolve o
@@ -311,6 +419,14 @@ export interface Cena {
   // crachá tem que deixar o clique PASSAR pro móvel embaixo, senão a
   // cadeira em que o agente senta viraria impossível de arrastar.
   definirAgentesClicaveis: (podem: boolean) => void
+  // reflete `agentes.estado` (GET /agentes) no anel de cada crachá —
+  // chave é o id LOCAL (AGENTES[].id, ex: 'cifra'), não o id numérico
+  // do backend (quem faz essa ponte é o chamador, via nome do agente)
+  definirEstadosAgentes: (estados: Map<string, EstadoAgente>) => void
+  // para o ticker de animação dos anéis — chamar no cleanup de quem
+  // criou a cena, senão ele segue tentando desenhar em Graphics já
+  // destruídos depois que o Pixi Application for destruído
+  destruirAnimacoes: () => void
 }
 
 export interface OpcoesCena {
@@ -380,6 +496,11 @@ export async function criarCena(dados: SalaDados, opcoes: OpcoesCena = {}): Prom
   // mesa da frente.
   const ALTURA_CRACHA = 0.62
   let crachas: Container[] = []
+  // controlador do anel por agente — sobrevive a redesenharAgentes()
+  // recriando o crachá, então o estado (falando/pensando/...) precisa
+  // ser reaplicado depois de cada redesenho (linha "reaplica estado")
+  const controladores = new Map<string, ControladorAnel>()
+  const estadosAtuais = new Map<string, EstadoAgente>()
   // Começa clicável porque a sala nasce fora do modo de edição — o
   // editor desliga isso ao entrar em edição.
   let agentesClicaveis = true
@@ -387,6 +508,7 @@ export async function criarCena(dados: SalaDados, opcoes: OpcoesCena = {}): Prom
   function redesenharAgentes() {
     for (const c of crachas) c.destroy({ children: true })
     crachas = []
+    controladores.clear()
 
     for (const [agenteId, movel] of maquete.agentes()) {
       const agente = AGENTES.find((a) => a.id === agenteId)
@@ -395,9 +517,13 @@ export async function criarCena(dados: SalaDados, opcoes: OpcoesCena = {}): Prom
       if (!agente || !retrato || !recorte) continue
 
       const { x, y } = paraTela(movel.coluna, movel.linha, ALTURA_CRACHA)
-      const avatar = criarAvatar(retrato, recorte, agente.cor)
+      const { container: avatar, controlador } = criarAvatar(retrato, recorte, agente.cor)
       avatar.x = x
       avatar.y = y
+      controladores.set(agenteId, controlador)
+      // reaplica estado (o crachá acabou de nascer com o anel parado)
+      const estado = estadosAtuais.get(agenteId)
+      if (estado) controlador.definirEstado(estado)
 
       // O crachá é recriado a cada redesenho, então o handler é ligado
       // aqui e não uma vez só. Ele consulta `agentesClicaveis` na HORA
@@ -427,7 +553,37 @@ export async function criarCena(dados: SalaDados, opcoes: OpcoesCena = {}): Prom
     }
   }
 
+  function definirEstadosAgentes(estados: Map<string, EstadoAgente>) {
+    for (const [agenteId, estado] of estados) {
+      estadosAtuais.set(agenteId, estado)
+      controladores.get(agenteId)?.definirEstado(estado)
+    }
+  }
+
+  // ticker próprio (não o do Pixi.Application) — a cena não precisa
+  // saber que existe uma Application por trás, só precisa de "um
+  // relógio rodando"; `Ticker.shared` já está ativo assim que qualquer
+  // parte do Pixi é usada.
+  let tempoAcumuladoMS = 0
+  function aoTick(t: Ticker) {
+    tempoAcumuladoMS += t.deltaMS
+    for (const controlador of controladores.values()) controlador.animar(t.deltaMS, tempoAcumuladoMS)
+  }
+  Ticker.shared.add(aoTick)
+  function destruirAnimacoes() {
+    Ticker.shared.remove(aoTick)
+  }
+
   redesenharAgentes()
 
-  return { raiz: cena, maquete, redesenharAgentes, problemas, paleta, definirAgentesClicaveis }
+  return {
+    raiz: cena,
+    maquete,
+    redesenharAgentes,
+    problemas,
+    paleta,
+    definirAgentesClicaveis,
+    definirEstadosAgentes,
+    destruirAnimacoes,
+  }
 }
