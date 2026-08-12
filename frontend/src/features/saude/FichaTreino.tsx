@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useFichaTreino, useSalvarFichaTreino } from '../../hooks/useSaude'
+import { BarraSegmentada } from '../agentes/Barras'
 import type { DiaFicha, DiaSemana, ExercicioFicha } from '../../types/saude'
 import { AVISO_ERRO, AVISO_OK, BOTAO, BOTAO_PRINCIPAL, CAMPO, CARTAO, CORPO, OPCAO, ROTULO } from './estilos'
 
@@ -82,6 +83,18 @@ export function FichaTreino() {
   return (
     <div style={CORPO}>
       {salvo && <div style={AVISO_OK}>ficha salva</div>}
+
+      {/* a semana inteira num olhar — quantos dias já têm plano, antes
+          de rolar pra ver cada um */}
+      <div>
+        <div style={{ ...ROTULO, display: 'flex', justifyContent: 'space-between' }}>
+          <span>semana</span>
+          <span>{dias.length} / 7 dias</span>
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <BarraSegmentada total={7} preenchidos={dias.length} cor="var(--vita)" />
+        </div>
+      </div>
 
       {dias.length === 0 && (
         <div style={{ color: '#8d8779', fontSize: 12, lineHeight: 1.7 }}>

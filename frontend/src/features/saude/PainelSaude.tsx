@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useDashboard, usePerfil, useRegistrarHidratacao, useRegistrarPeso } from '../../hooks/useSaude'
-import { AVISO_ERRO, BOTAO, CAMPO, CARTAO, CORPO, ROTULO } from './estilos'
+import { Contador } from '../agentes/Barras'
+import { AVISO_ERRO, BOTAO, CAMPO, CORPO, ROTULO } from './estilos'
 import { FichaTreino } from './FichaTreino'
 import { FormPerfil } from './FormPerfil'
 import { FormRefeicao } from './FormRefeicao'
@@ -96,13 +97,14 @@ function Menu({ perfil, aoEscolher }: { perfil: string; aoEscolher: (v: Vista) =
       <div style={{ fontSize: 12.5, color: '#a89f8c' }}>Oi, {perfil}.</div>
 
       {/* KPIs ao vivo — consulta agregada, sem LLM, então pode carregar
-          ao abrir sem ferir o RNF01 */}
+          ao abrir sem ferir o RNF01. Ticker de fichas, mesma linguagem
+          do Cifra — número dá o pulinho de Contador quando muda. */}
       {painel && (
-        <div style={{ ...CARTAO, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-          <Kpi rotulo="peso" valor={painel.peso_atual === null ? '—' : painel.peso_atual.toFixed(1)} sufixo={painel.peso_atual === null ? '' : 'kg'} />
-          <Kpi rotulo="hoje" valor={`${Math.round(painel.refeicoes_hoje.calorias)}`} sufixo="kcal" destaque />
-          <Kpi rotulo="água hoje" valor={`${(painel.hidratacao_hoje_ml / 1000).toFixed(1)}`} sufixo="L" />
-          <Kpi rotulo="atividades" valor={`${painel.atividades_na_semana}`} sufixo="na semana" />
+        <div style={{ display: 'flex', border: '1px solid var(--deck-line)', borderRadius: 'var(--radius-deck)', overflow: 'hidden', flexWrap: 'wrap' }}>
+          <Kpi rotulo="peso" valor={painel.peso_atual ?? 0} formatar={(v) => (painel.peso_atual === null ? '—' : v.toFixed(1))} sufixo={painel.peso_atual === null ? '' : 'kg'} />
+          <Kpi rotulo="hoje" valor={painel.refeicoes_hoje.calorias} formatar={(v) => `${Math.round(v)}`} sufixo="kcal" destaque />
+          <Kpi rotulo="água hoje" valor={painel.hidratacao_hoje_ml / 1000} formatar={(v) => v.toFixed(1)} sufixo="L" />
+          <Kpi rotulo="atividades" valor={painel.atividades_na_semana} formatar={(v) => `${v}`} sufixo="na semana" />
         </div>
       )}
 
@@ -190,19 +192,21 @@ function AtalhosRapidos() {
 function Kpi({
   rotulo,
   valor,
+  formatar,
   sufixo = '',
   destaque = false,
 }: {
   rotulo: string
-  valor: string
+  valor: number
+  formatar: (v: number) => string
   sufixo?: string
   destaque?: boolean
 }) {
   return (
-    <div>
-      <div style={{ ...ROTULO, marginBottom: 2 }}>{rotulo}</div>
+    <div style={{ flex: 1, minWidth: 100, background: 'var(--deck-2)', padding: '10px 14px', borderRight: '1px solid var(--deck-line)' }}>
+      <div style={{ ...ROTULO, marginBottom: 4 }}>{rotulo}</div>
       <div style={{ fontSize: destaque ? 19 : 15, color: destaque ? '#f97316' : '#e6e1d6' }}>
-        {valor}
+        <Contador valor={valor} formatar={formatar} />
         {sufixo && <span style={{ fontSize: 10.5, color: '#8d8779', marginLeft: 3 }}>{sufixo}</span>}
       </div>
     </div>

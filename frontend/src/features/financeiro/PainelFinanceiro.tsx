@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useDashboardFinanceiro } from '../../hooks/useFinanceiro'
+import { Contador } from '../agentes/Barras'
 import type { DashboardFinanceiro } from '../../types/financeiro'
 import { AVISO_ERRO, BOTAO, CAMPO, CARTAO, CORPO, ROTULO } from './estilos'
 import { BarrasCategoria, ColunasDiarias, moeda } from './graficos'
@@ -82,10 +83,28 @@ function Dashboard({ mes }: { mes: string }) {
       )}
 
       <Kpis kpis={data.kpis} />
-      <BarrasCategoria dados={data.graficos.gastos_por_categoria} />
-      <ColunasDiarias dados={data.graficos.evolucao_diaria} />
-      <MaioresGastos gastos={data.maiores_gastos} />
-      <Recorrencias itens={data.recorrencias_detectadas} />
+
+      {/* terminal financeiro, não dashboard de SaaS: os dois gráficos
+          lado a lado quando cabe (painel "largo"), cada um na própria
+          chapa — RNF já não era sobre isso, é só o "console" chegando
+          aqui também (docs/frontend-design.md) */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ ...CARTAO, flex: '1 1 260px' }}>
+          <BarrasCategoria dados={data.graficos.gastos_por_categoria} />
+        </div>
+        <div style={{ ...CARTAO, flex: '1 1 260px' }}>
+          <ColunasDiarias dados={data.graficos.evolucao_diaria} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ ...CARTAO, flex: '1 1 260px' }}>
+          <MaioresGastos gastos={data.maiores_gastos} />
+        </div>
+        <div style={{ ...CARTAO, flex: '1 1 260px' }}>
+          <Recorrencias itens={data.recorrencias_detectadas} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -96,42 +115,54 @@ function Kpis({ kpis }: { kpis: DashboardFinanceiro['kpis'] }) {
   // null. Um KPI permanentemente vazio é ruído — melhor não existir até
   // o dado existir.
   return (
-    <div style={{ ...CARTAO, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-      <Kpi rotulo="gasto no mês" valor={moeda(kpis.gasto_mensal)} destaque />
-      <Kpi rotulo="entrou" valor={moeda(kpis.ganho_mensal)} />
-      <Kpi rotulo="previsto pro mês que vem" valor={moeda(kpis.gasto_previsto_proximo_mes)} />
+    <div style={{ display: 'flex', border: '1px solid var(--deck-line)', borderRadius: 'var(--radius-deck)', overflow: 'hidden' }}>
+      <Kpi rotulo="gasto no mês" valor={kpis.gasto_mensal} destaque />
+      <Kpi rotulo="entrou" valor={kpis.ganho_mensal} />
+      <Kpi rotulo="previsto pro mês que vem" valor={kpis.gasto_previsto_proximo_mes} />
     </div>
   )
 }
 
-function Kpi({ rotulo, valor, destaque = false }: { rotulo: string; valor: string; destaque?: boolean }) {
+// Ticker de KPI — cada um é uma "ficha" própria (fundo alternado,
+// separadas por hairline), não um número solto flutuando no ar.
+function Kpi({ rotulo, valor, destaque = false }: { rotulo: string; valor: number; destaque?: boolean }) {
   return (
-    <div>
-      <div style={{ ...ROTULO, marginBottom: 3 }}>{rotulo}</div>
-      {/* o número grande não usa tabular-nums de propósito: largura
-          igual por dígito abre buracos e faz o valor parecer espaçado */}
-      <div style={{ fontSize: destaque ? 24 : 16, color: destaque ? '#4ade80' : '#e6e1d6', lineHeight: 1.2 }}>
-        {valor}
+    <div style={{ flex: 1, background: 'var(--deck-2)', padding: '12px 14px', borderRight: '1px solid var(--deck-line)' }}>
+      <div style={{ ...ROTULO, marginBottom: 5 }}>{rotulo}</div>
+      <div style={{ fontSize: destaque ? 22 : 15, color: destaque ? '#4ade80' : '#e6e1d6', lineHeight: 1.2 }}>
+        <Contador valor={valor} formatar={moeda} />
       </div>
     </div>
   )
 }
 
 function MaioresGastos({ gastos }: { gastos: DashboardFinanceiro['maiores_gastos'] }) {
-  if (gastos.length === 0) return null
+  if (gastos.length === 0) {
+    return <div style={{ color: '#6f6a5f', fontSize: 11.5 }}>nenhum gasto neste mês ainda</div>
+  }
   return (
     <div>
       <div style={ROTULO}>maiores gastos</div>
       <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {gastos.map((g, i) => (
-          <li key={`${g.data}-${g.descricao}-${i}`} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 12 }}>
+          <li
+            key={`${g.data}-${g.descricao}-${i}`}
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'baseline',
+              fontSize: 12,
+              paddingBottom: 6,
+              borderBottom: i < gastos.length - 1 ? '1px solid var(--deck-line)' : 'none',
+            }}
+          >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.descricao}</div>
               <div style={{ ...ROTULO, marginBottom: 0, marginTop: 2 }}>
                 {g.categoria} · {new Date(g.data).toLocaleDateString('pt-BR')}
               </div>
             </div>
-            <span style={{ color: '#a89f8c' }}>{moeda(g.valor)}</span>
+            <span style={{ color: '#a89f8c', fontVariantNumeric: 'tabular-nums' }}>{moeda(g.valor)}</span>
           </li>
         ))}
       </ul>
@@ -140,13 +171,25 @@ function MaioresGastos({ gastos }: { gastos: DashboardFinanceiro['maiores_gastos
 }
 
 function Recorrencias({ itens }: { itens: DashboardFinanceiro['recorrencias_detectadas'] }) {
-  if (itens.length === 0) return null
+  if (itens.length === 0) {
+    return <div style={{ color: '#6f6a5f', fontSize: 11.5 }}>nenhuma recorrência detectada ainda</div>
+  }
   return (
     <div>
       <div style={ROTULO}>recorrências detectadas</div>
       <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {itens.map((r, i) => (
-          <li key={`${r.descricao}-${i}`} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 12 }}>
+          <li
+            key={`${r.descricao}-${i}`}
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'baseline',
+              fontSize: 12,
+              paddingBottom: 6,
+              borderBottom: i < itens.length - 1 ? '1px solid var(--deck-line)' : 'none',
+            }}
+          >
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descricao}</div>
               <div style={{ ...ROTULO, marginBottom: 0, marginTop: 2 }}>
@@ -159,7 +202,7 @@ function Recorrencias({ itens }: { itens: DashboardFinanceiro['recorrencias_dete
                 {!r.projeta_proximo_mes && ' · última'}
               </div>
             </div>
-            <span style={{ color: '#a89f8c' }}>{moeda(r.valor)}</span>
+            <span style={{ color: '#a89f8c', fontVariantNumeric: 'tabular-nums' }}>{moeda(r.valor)}</span>
           </li>
         ))}
       </ul>

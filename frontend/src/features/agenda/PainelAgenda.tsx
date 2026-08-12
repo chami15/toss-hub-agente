@@ -13,12 +13,15 @@ import type { AgenteVisual } from '../escritorio/agentes'
 
 const COR_PROPOSTA = '#dbb15f'
 
+// Fundo opaco, cantos de 6px — mesma linguagem "deck" do resto da casa
+// (docs/frontend-design.md, redesenho "Console").
 const BOTAO: React.CSSProperties = {
-  border: '1px solid rgba(255,255,255,0.16)',
-  background: 'rgba(255,255,255,0.08)',
+  border: '1px solid var(--deck-line)',
+  background: 'var(--deck-2)',
   borderRadius: 6,
   color: '#e6e1d6',
   font: 'inherit',
+  fontWeight: 600,
   fontSize: 11.5,
   padding: '7px 12px',
   cursor: 'pointer',
@@ -98,8 +101,8 @@ export function PainelAgenda({ agente }: Props) {
               style={{
                 ...BOTAO,
                 flex: 1,
-                background: 'rgba(74,222,128,0.16)',
-                borderColor: 'rgba(74,222,128,0.45)',
+                background: 'rgba(74,222,128,0.2)',
+                borderColor: 'rgba(74,222,128,0.5)',
                 opacity: ocupado ? 0.5 : 1,
               }}
             >
@@ -126,7 +129,7 @@ export function PainelAgenda({ agente }: Props) {
           display: 'flex',
           gap: 8,
           padding: '12px 16px',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
+          borderTop: '1px solid var(--deck-line)',
         }}
       >
         <input
@@ -138,8 +141,8 @@ export function PainelAgenda({ agente }: Props) {
           style={{
             flex: 1,
             minWidth: 0,
-            background: '#20232a',
-            border: '1px solid rgba(255,255,255,0.14)',
+            background: 'var(--deck-2)',
+            border: '1px solid var(--deck-line)',
             borderRadius: 6,
             color: '#e6e1d6',
             font: 'inherit',
@@ -179,15 +182,19 @@ function Bolha({ fala, agente, aberta }: { fala: FalaChat; agente: AgenteVisual;
         style={{
           maxWidth: '85%',
           padding: '9px 12px',
-          borderRadius: 10,
+          borderRadius: 6,
           fontSize: 12.5,
           lineHeight: 1.55,
           // `pre-wrap` porque a lista de compromissos vem com \n do
           // backend — sem isso viraria um parágrafo só
           whiteSpace: 'pre-wrap',
-          background: doChefe ? corCss(agente.cor) : 'rgba(255,255,255,0.07)',
+          background: doChefe ? corCss(agente.cor) : 'var(--deck-2)',
           color: doChefe ? '#ffffff' : '#e6e1d6',
           border: proposta ? `1px solid ${COR_PROPOSTA}` : '1px solid transparent',
+          // pulsa devagar enquanto espera — "isto está aberto", sem
+          // gritar (mesma keyframe do card estagnado do Norte, mesma
+          // cor "oficial" da proposta)
+          animation: proposta ? 'consoleStagPulse 2.6s ease-in-out infinite' : undefined,
         }}
       >
         {proposta && (

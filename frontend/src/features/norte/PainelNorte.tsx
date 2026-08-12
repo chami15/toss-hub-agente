@@ -107,14 +107,30 @@ export function PainelNorte() {
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
           {COLUNAS.map((coluna) => {
             const doGrupo = projetos.filter((p) => p.status === coluna.status)
+            const cor = COR_STATUS[coluna.status]
             return (
-              <div key={coluna.status} style={{ flex: '0 0 208px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={ROTULO}>
-                  {coluna.rotulo} ({doGrupo.length})
+              <div
+                key={coluna.status}
+                style={{
+                  flex: '0 0 208px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  // leve tingimento por status — reforça o agrupamento
+                  // do quadro sem precisar de mais texto
+                  background: cor ? `${cor}0d` : 'transparent',
+                  border: `1px solid ${cor ? `${cor}30` : 'var(--deck-line)'}`,
+                  borderRadius: 'var(--radius-deck)',
+                  padding: 8,
+                }}
+              >
+                <div style={{ ...ROTULO, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{coluna.rotulo}</span>
+                  <span style={{ background: 'var(--deck-2)', borderRadius: 4, padding: '0 5px' }}>{doGrupo.length}</span>
                 </div>
                 {doGrupo.length === 0 && <div style={{ color: '#6f6a5f', fontSize: 10.5 }}>nenhum</div>}
                 {doGrupo.map((p) => (
-                  <CardProjeto key={p.id} projeto={p} aoAbrir={() => setVista({ tela: 'projeto', id: p.id })} />
+                  <CardProjeto key={p.id} projeto={p} cor={cor} aoAbrir={() => setVista({ tela: 'projeto', id: p.id })} />
                 ))}
               </div>
             )
@@ -129,11 +145,30 @@ export function PainelNorte() {
   )
 }
 
-function CardProjeto({ projeto, aoAbrir }: { projeto: Projeto; aoAbrir: () => void }) {
+// Cor por status — mesma paleta do resto do redesenho "Console".
+// `abandonado` fica sem cor de propósito: é o único status que não é
+// "algo acontecendo", então não ganha destaque nenhum.
+const COR_STATUS: Record<StatusProjeto, string | null> = {
+  ativo: 'var(--norte)',
+  pausado: 'var(--official)',
+  concluido: 'var(--good)',
+  abandonado: null,
+}
+
+function CardProjeto({ projeto, cor, aoAbrir }: { projeto: Projeto; cor: string | null; aoAbrir: () => void }) {
   const retomar = useGerarCard(projeto.id)
 
   return (
-    <div style={{ ...CARTAO, opacity: projeto.estagnado ? 0.6 : 1 }}>
+    <div
+      style={{
+        ...CARTAO,
+        opacity: projeto.estagnado ? 0.65 : 1,
+        borderLeft: cor ? `3px solid ${cor}` : CARTAO.border,
+        // estagnado pulsa devagar — "precisa de atenção", não só "está
+        // desligado" (a opacidade sozinha já dizia isso antes)
+        animation: projeto.estagnado ? 'consoleStagPulse 2.6s ease-in-out infinite' : undefined,
+      }}
+    >
       {/* botão próprio, IRMÃO do de "retomar" abaixo — nunca aninhado:
           dois <button> um dentro do outro é HTML inválido e o clique de
           "retomar" borbulharia pro card inteiro */}

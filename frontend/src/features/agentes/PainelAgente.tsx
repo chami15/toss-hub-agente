@@ -69,7 +69,7 @@ export function PainelAgente({ agente, estado, largura, aoFechar, children }: Pr
           width: LARGURAS[largura],
           fontFamily: MONO,
           color: '#e6e1d6',
-          background: 'rgba(20, 22, 27, 0.97)',
+          background: 'var(--deck)',
           borderLeft: `1px solid ${cor}`,
           display: 'flex',
           flexDirection: 'column',
