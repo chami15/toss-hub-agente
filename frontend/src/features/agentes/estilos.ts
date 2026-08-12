@@ -5,13 +5,18 @@
 //
 // O que NÃO mora aqui é a cor de acento — ela é de cada agente (a mesma
 // do anel do crachá), e vem por `botaoPrincipal(cor)`.
+//
+// Redesenho "Console" (docs/frontend-design.md): painel de agente é
+// SUPERFÍCIE DE TRABALHO, não instrumento flutuante — por isso usa
+// `--deck` (chapa opaca) e cantos retos (`--radius-deck`), nunca o
+// vidro translúcido que só o HUD usa (Escritorio.tsx).
 
 export const CAMPO: React.CSSProperties = {
   width: '100%',
-  background: '#20232a',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 6,
-  color: '#e6e1d6',
+  background: '#0a0b0e',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 4,
+  color: 'var(--ink)',
   font: 'inherit',
   fontSize: 12,
   padding: '7px 9px',
@@ -23,23 +28,26 @@ export const CAMPO: React.CSSProperties = {
 
 export const OPCAO: React.CSSProperties = {
   background: '#20232a',
-  color: '#e6e1d6',
+  color: 'var(--ink)',
 }
 
 export const ROTULO: React.CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.09em',
   textTransform: 'uppercase',
-  color: '#8d8779',
+  color: 'var(--ink-dim)',
   marginBottom: 4,
 }
 
+// Fundo opaco de verdade (não mais rgba translúcido) e cantos de 6px
+// (não mais pill) — "algo mais sólido", decisão explícita do chefe.
 export const BOTAO: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.08)',
-  border: '1px solid rgba(255,255,255,0.14)',
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
   borderRadius: 6,
-  color: '#e6e1d6',
+  color: 'var(--ink)',
   font: 'inherit',
+  fontWeight: 600,
   fontSize: 12,
   padding: '8px 12px',
   cursor: 'pointer',
@@ -47,6 +55,8 @@ export const BOTAO: React.CSSProperties = {
 
 // O botão de ação principal usa a cor do agente dono do painel — é o
 // que faz o painel se ler como continuação do crachá que foi clicado.
+// Fundo bem mais opaco que antes (15% → mistura sólida com o deck),
+// mesma razão do BOTAO acima.
 //
 // `border` inteiro de novo (não só `borderColor` por cima do `border`
 // de BOTAO): misturar a forma curta com a longa pro mesmo valor é
@@ -54,20 +64,20 @@ export const BOTAO: React.CSSProperties = {
 // "removendo borderColor" a cada re-render, porque as duas properties
 // batem pela ordem de declaração do objeto, não pela intenção).
 export function botaoPrincipal(cor: string): React.CSSProperties {
-  return { ...BOTAO, background: `${cor}2e`, border: `1px solid ${cor}80` }
+  return { ...BOTAO, background: `${cor}30`, border: `1px solid ${cor}90` }
 }
 
 export const CARTAO: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.09)',
-  borderRadius: 8,
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 'var(--radius-deck)',
   padding: 12,
 }
 
 export const AVISO_ERRO: React.CSSProperties = {
   background: '#f0b7ab',
   color: '#3b1512',
-  borderRadius: 6,
+  borderRadius: 4,
   padding: '9px 11px',
   fontSize: 11.5,
   lineHeight: 1.5,
@@ -77,7 +87,7 @@ export const AVISO_OK: React.CSSProperties = {
   background: 'rgba(74,222,128,0.15)',
   border: '1px solid rgba(74,222,128,0.4)',
   color: '#bbf7d0',
-  borderRadius: 6,
+  borderRadius: 4,
   padding: '9px 11px',
   fontSize: 11.5,
   lineHeight: 1.5,
@@ -90,4 +100,13 @@ export const CORPO: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
+}
+
+// Texto de prosa (descrição, corpo de mensagem) usa a fonte de CORPO
+// (Manrope, placeholder de Supreme — ver index.css), não a de display:
+// parágrafo inteiro em fonte de exibição cansa a leitura. Uso pontual,
+// spread só onde o texto é mais que um rótulo/valor curto.
+export const TEXTO_PROSA: React.CSSProperties = {
+  fontFamily: 'var(--fonte-corpo)',
+  fontWeight: 500,
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCriarEventoMundo, useEventosMundo } from '../../hooks/useEventosMundo'
 import { useOrcamentoDoDia, useTickAtual } from '../../hooks/useTick'
 import { mensagemDeErro } from '../../api/client'
+import { BarraCapsula, Contador } from '../agentes/Barras'
 import type { ResultadoAvancoMundo } from '../../hooks/useMundo'
 import type { InteracaoAgente } from '../../types/interacao'
 
@@ -17,7 +18,7 @@ import type { InteracaoAgente } from '../../types/interacao'
 // Este painel só EXIBE o resultado do último avanço (`ultimoResultado`,
 // que o pai já calculou) e deixa o chefe ligar/desligar o modo simulado.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 const COR_TRABALHO = '#dbb15f'
 const COR_SOCIAL = '#7fb8de'
 const COR_NEUTRA = '#8d8779'
@@ -30,6 +31,8 @@ const BACKDROP: React.CSSProperties = {
   zIndex: 55,
 }
 
+// Superfície de trabalho, não instrumento flutuante — chapa opaca e
+// cantos retos, igual ao resto da casa (docs/frontend-design.md).
 const PAINEL: React.CSSProperties = {
   position: 'absolute',
   left: 0,
@@ -38,8 +41,8 @@ const PAINEL: React.CSSProperties = {
   width: 'min(40vw, 420px)',
   fontFamily: MONO,
   color: '#e6e1d6',
-  background: 'rgba(20, 22, 27, 0.97)',
-  borderRight: '1px solid rgba(255,255,255,0.16)',
+  background: 'var(--deck)',
+  borderRight: '1px solid var(--deck-line)',
   display: 'flex',
   flexDirection: 'column',
   zIndex: 60,
@@ -50,8 +53,8 @@ const CABECALHO: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '14px 16px',
-  background: 'rgba(255,255,255,0.04)',
-  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--deck-2)',
+  borderBottom: '1px solid var(--deck-line)',
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
   fontSize: 12,
@@ -70,7 +73,7 @@ const BOTAO_FECHAR: React.CSSProperties = {
 
 const SECAO: React.CSSProperties = {
   padding: '14px 16px',
-  borderBottom: '1px solid rgba(255,255,255,0.08)',
+  borderBottom: '1px solid var(--deck-line)',
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
@@ -91,23 +94,24 @@ const LINHA: React.CSSProperties = {
 }
 
 const BOTAO: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.08)',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 5,
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 6,
   color: '#e6e1d6',
   font: 'inherit',
+  fontWeight: 600,
   fontSize: 11,
   padding: '6px 8px',
   cursor: 'pointer',
 }
 
-const VERDE: React.CSSProperties = { ...BOTAO, flex: 1, background: 'rgba(74,222,128,0.16)', border: '1px solid rgba(74,222,128,0.4)' }
+const VERDE: React.CSSProperties = { ...BOTAO, flex: 1, background: 'rgba(74,222,128,0.2)', border: '1px solid rgba(74,222,128,0.5)' }
 
 const CAMPO: React.CSSProperties = {
   width: '100%',
-  background: '#20232a',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 5,
+  background: '#0a0b0e',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 4,
   color: '#e6e1d6',
   font: 'inherit',
   fontSize: 11,
@@ -142,9 +146,12 @@ function Interruptor({ ligado, onChange }: { ligado: boolean; onChange: (v: bool
         border: 'none',
         cursor: 'pointer',
         background: ligado ? 'rgba(219,177,95,0.7)' : 'rgba(255,255,255,0.14)',
+        // halo quando ligado — "modo simulado" precisa ser óbvio de
+        // relance, não só uma bolinha que mudou de lado
+        boxShadow: ligado ? '0 0 10px 2px rgba(219,177,95,0.45)' : 'none',
         position: 'relative',
         flexShrink: 0,
-        transition: 'background 0.15s',
+        transition: 'background 0.15s, box-shadow 0.15s',
       }}
     >
       <span
@@ -221,7 +228,9 @@ export function PainelConfiguracoes({ aoFechar, dryRunAtivo, aoAlternarDryRun, u
           <div style={SECAO}>
             <div style={LINHA}>
               <div style={ROTULO}>relógio simulado</div>
-              <div style={{ color: '#8d8779' }}>{parado ? '—' : `tick ${numero}`}</div>
+              <div style={{ color: '#8d8779' }}>
+                {parado ? '—' : <>tick <Contador valor={numero!} formatar={(v) => `${v}`} /></>}
+              </div>
             </div>
 
             {erroTick ? (
@@ -231,9 +240,19 @@ export function PainelConfiguracoes({ aoFechar, dryRunAtivo, aoAlternarDryRun, u
             )}
 
             {orcamentoDisponivel !== undefined && (
-              <div style={LINHA}>
-                <span style={{ color: '#8d8779' }}>orçamento disponível hoje</span>
-                <span>{formatarUsd(orcamentoDisponivel)}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={LINHA}>
+                  <span style={{ color: '#8d8779' }}>orçamento disponível hoje</span>
+                  <Contador valor={orcamentoDisponivel} formatar={formatarUsd} />
+                </div>
+                {/* só dá pra desenhar a barra em modo real — a prévia
+                    simulada só traz o disponível, não o total do dia */}
+                {!mostrandoSimulado && orcamento && (
+                  <BarraCapsula
+                    pct={(orcamento.gasto_hoje / (orcamento.gasto_hoje + orcamento.disponivel_hoje)) * 100 || 0}
+                    cor="var(--accent)"
+                  />
+                )}
               </div>
             )}
 
@@ -349,8 +368,18 @@ function EventosMundo() {
             overflowY: 'auto',
           }}
         >
-          {eventos.map((ev) => (
-            <li key={ev.id} style={{ fontSize: 11, lineHeight: 1.4, color: '#e6e1d6' }} title={ev.descricao}>
+          {eventos.map((ev, i) => (
+            <li
+              key={ev.id}
+              style={{
+                fontSize: 11,
+                lineHeight: 1.4,
+                color: '#e6e1d6',
+                animation: 'consoleListaEntra .35s ease both',
+                animationDelay: `${Math.min(i, 12) * 0.03}s`,
+              }}
+              title={ev.descricao}
+            >
               {/* nunca usado ainda é a informação que decide a prioridade
                   do sorteio (ver sql/eventos_mundo.sql), então vale mostrar */}
               {(ev.ultimo_uso_tick ?? null) === null && <span style={{ color: '#4ade80' }}>· </span>}

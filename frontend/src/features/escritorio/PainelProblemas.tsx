@@ -6,7 +6,7 @@
 // Não corrige nada: adivinhar a intenção de um dado torto é como se
 // cria um problema pior que o original.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 
 interface Props {
   problemas: string[]

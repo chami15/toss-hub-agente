@@ -29,7 +29,7 @@ import type { Mensagem } from '../../types/mensagens'
 // duas vias sem inventar endpoint novo, e a aba mural precisa dele de
 // qualquer forma.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 const COR_TRABALHO = '#dbb15f'
 // mesmo tom da bolinha do ícone de mensagens (Escritorio.tsx) — o
 // "não lida" precisa ser reconhecível como a MESMA coisa nos dois lugares
@@ -42,6 +42,8 @@ const BACKDROP: React.CSSProperties = {
   zIndex: 55,
 }
 
+// Superfície de trabalho, não instrumento flutuante — mesma chapa opaca
+// e cantos retos do resto da casa (docs/frontend-design.md).
 const PAINEL: React.CSSProperties = {
   position: 'absolute',
   // abre pela ESQUERDA (decisão do chefe) — o ícone que abre este
@@ -52,8 +54,8 @@ const PAINEL: React.CSSProperties = {
   width: 'min(56vw, 720px)',
   fontFamily: MONO,
   color: '#e6e1d6',
-  background: 'rgba(20, 22, 27, 0.97)',
-  borderRight: '1px solid rgba(255,255,255,0.16)',
+  background: 'var(--deck)',
+  borderRight: '1px solid var(--deck-line)',
   display: 'flex',
   flexDirection: 'column',
   zIndex: 60,
@@ -64,8 +66,8 @@ const CABECALHO: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '14px 16px',
-  background: 'rgba(255,255,255,0.04)',
-  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--deck-2)',
+  borderBottom: '1px solid var(--deck-line)',
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
   fontSize: 12,
@@ -83,11 +85,12 @@ const BOTAO_FECHAR: React.CSSProperties = {
 }
 
 const BOTAO: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.08)',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 5,
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 6,
   color: '#e6e1d6',
   font: 'inherit',
+  fontWeight: 600,
   fontSize: 11,
   padding: '5px 9px',
   cursor: 'pointer',
@@ -95,9 +98,9 @@ const BOTAO: React.CSSProperties = {
 
 const ABA: React.CSSProperties = {
   flex: 1,
-  background: 'rgba(255,255,255,0.03)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 6,
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 4,
   color: '#8d8779',
   font: 'inherit',
   fontSize: 11.5,
@@ -107,8 +110,6 @@ const ABA: React.CSSProperties = {
 
 const ABA_ATIVA: React.CSSProperties = {
   ...ABA,
-  background: 'rgba(255,255,255,0.1)',
-  border: '1px solid rgba(255,255,255,0.22)',
   color: '#e6e1d6',
 }
 
@@ -125,9 +126,9 @@ const LINK: React.CSSProperties = {
 const CAMPO_RESPOSTA: React.CSSProperties = {
   flex: 1,
   minWidth: 0,
-  background: '#20232a',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 5,
+  background: '#0a0b0e',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 4,
   color: '#e6e1d6',
   font: 'inherit',
   fontSize: 11.5,
@@ -174,10 +175,20 @@ export function PainelMensagens({ aoFechar }: { aoFechar: () => void }) {
         </header>
 
         <div style={{ display: 'flex', gap: 6, padding: '12px 16px 0' }}>
-          <button style={aba === 'conversas' ? ABA_ATIVA : ABA} onClick={() => setAba('conversas')}>
+          <button
+            className="console-aba"
+            data-ativo={aba === 'conversas'}
+            style={aba === 'conversas' ? ABA_ATIVA : ABA}
+            onClick={() => setAba('conversas')}
+          >
             minhas conversas
           </button>
-          <button style={aba === 'mural' ? ABA_ATIVA : ABA} onClick={() => setAba('mural')}>
+          <button
+            className="console-aba"
+            data-ativo={aba === 'mural'}
+            style={aba === 'mural' ? ABA_ATIVA : ABA}
+            onClick={() => setAba('mural')}
+          >
             mural
           </button>
         </div>
@@ -368,7 +379,7 @@ function MinhasConversas({ mensagens, chefeId }: { mensagens: Mensagem[]; chefeI
                         style={{
                           maxWidth: '85%',
                           padding: '8px 11px',
-                          borderRadius: 10,
+                          borderRadius: 6,
                           fontSize: 12,
                           lineHeight: 1.5,
                           whiteSpace: 'pre-wrap',
@@ -472,7 +483,7 @@ function BolhaMural({ msg, naoLida, aoMarcarLida }: { msg: Mensagem; naoLida: bo
       onClick={() => { if (naoLida) aoMarcarLida() }}
       style={{
         padding: '9px 12px',
-        borderRadius: 10,
+        borderRadius: 6,
         fontSize: 12,
         lineHeight: 1.5,
         whiteSpace: 'pre-wrap',

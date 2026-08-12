@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { EstadoEditor } from './edicao'
 import { rotuloDe } from './catalogo'
 import { AGENTES } from './agentes'
@@ -6,8 +6,14 @@ import { idsDasSalas, todasAsSalasComRascunho, todasAsSalasDaFonte } from './per
 
 // HUD do modo de edição. Some quando o modo está desligado — só sobra
 // a dica da tecla, pra não poluir a maquete.
+//
+// De propósito é o painel MENOS animado da casa (docs/frontend-design.md,
+// redesenho "Console") — é ferramenta de teclado rápido, movimento
+// demais atrapalharia quem está editando peça a peça. Só ganhou chapa
+// opaca + cantos retos, igual ao resto, e a lista de atalhos (que
+// confundia por ficar sempre acesa) virou um `?` que expande sob demanda.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 
 const DICA: React.CSSProperties = {
   position: 'absolute',
@@ -28,9 +34,9 @@ const CARTAO: React.CSSProperties = {
   fontFamily: MONO,
   fontSize: 12,
   color: '#e6e1d6',
-  background: 'rgba(20, 22, 27, 0.93)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: 8,
+  background: 'var(--deck)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 'var(--radius-deck)',
   padding: '12px 14px',
   display: 'flex',
   flexDirection: 'column',
@@ -47,11 +53,12 @@ const ROTULO: React.CSSProperties = {
 
 const BOTAO: React.CSSProperties = {
   flex: 1,
-  background: 'rgba(255,255,255,0.08)',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 5,
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 6,
   color: '#e6e1d6',
   font: 'inherit',
+  fontWeight: 600,
   fontSize: 11,
   padding: '6px 8px',
   cursor: 'pointer',
@@ -67,9 +74,9 @@ const OPCAO: React.CSSProperties = {
 const CAMPO: React.CSSProperties = {
   width: '100%',
   marginTop: 4,
-  background: '#20232a',
-  border: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 5,
+  background: '#0a0b0e',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 4,
   color: '#e6e1d6',
   font: 'inherit',
   fontSize: 11,
@@ -98,8 +105,14 @@ const TOAST: React.CSSProperties = {
 
 const VERDE: React.CSSProperties = {
   ...BOTAO,
-  background: 'rgba(74,222,128,0.16)',
-  border: '1px solid rgba(74,222,128,0.4)',
+  background: 'rgba(74,222,128,0.2)',
+  border: '1px solid rgba(74,222,128,0.5)',
+}
+
+const DIVISOR: React.CSSProperties = {
+  height: 1,
+  background: 'var(--deck-line)',
+  margin: '2px 0',
 }
 
 interface Props {
@@ -137,6 +150,9 @@ export function PainelEdicao({
   aoVoltarParaFonte,
   aoCopiarJson,
 }: Props) {
+  // toggle do popover de atalhos — nunca persiste, é estado de tela
+  const [atalhosAbertos, setAtalhosAbertos] = useState(false)
+
   // o toast vive fora do cartão: "salvar rascunho" desliga a edição, e
   // a confirmação precisa sobreviver a isso
   const toast = estado.mensagem ? <div style={TOAST}>{estado.mensagem}</div> : null
@@ -186,17 +202,80 @@ export function PainelEdicao({
   return (
     <>
       {toast}
+      {/* CARTAO já é `position: absolute` — isso sozinho já cria o
+          contexto de posicionamento pro popover de atalhos abaixo, não
+          precisa (e não pode) virar `relative` por cima */}
       <div style={CARTAO}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <strong style={{ color: '#4ade80', letterSpacing: '0.06em' }}>MODO EDIÇÃO</strong>
-        <span style={ROTULO}>{estado.totalMoveis} móveis</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={ROTULO}>{estado.totalMoveis} móveis</span>
+          <button
+            onClick={() => setAtalhosAbertos((v) => !v)}
+            aria-label="atalhos de teclado"
+            title="atalhos de teclado"
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              border: '1px solid var(--deck-line)',
+              background: atalhosAbertos ? 'var(--deck-2)' : 'none',
+              color: '#8d8779',
+              font: 'inherit',
+              fontSize: 10,
+              lineHeight: 1,
+              padding: 0,
+              cursor: 'pointer',
+            }}
+          >
+            ?
+          </button>
+        </div>
       </div>
+
+      {/* atalhos de teclado — era uma lista de 7 linhas sempre acesa
+          (confundia, segundo o chefe); agora é sob demanda, ancorada ao
+          lado do painel em vez de competir com o resto da informação */}
+      {atalhosAbertos && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 'calc(100% + 8px)',
+            top: 0,
+            width: 200,
+            background: 'var(--deck)',
+            border: '1px solid var(--deck-line)',
+            borderRadius: 'var(--radius-deck)',
+            padding: '10px 12px',
+            zIndex: 1,
+          }}
+        >
+          <ul
+            style={{
+              margin: 0,
+              padding: 0,
+              listStyle: 'none',
+              color: '#a89f8c',
+              lineHeight: 1.7,
+              fontSize: 11,
+            }}
+          >
+            <li>arrastar · mover livre</li>
+            <li>setas · mover pelo passo</li>
+            <li>Q W · girar &nbsp; Tab · próxima</li>
+            <li>A Z · altura</li>
+            <li>[ ] · passo &nbsp; Del · excluir</li>
+            <li>Ctrl+Z · desfazer &nbsp; Ctrl+Shift+Z · refazer</li>
+            <li>E · sair</li>
+          </ul>
+        </div>
+      )}
 
       <div
         style={{
           ...ROTULO,
           color: estado.sujo ? '#dbb15f' : '#8d8779',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
+          borderTop: '1px solid var(--deck-line)',
           paddingTop: 8,
         }}
       >
@@ -222,6 +301,11 @@ export function PainelEdicao({
 
       {sel && (
         <>
+          {/* divisor explícito: tudo ACIMA é "o que é" (identidade da
+              peça), tudo ABAIXO é "o que eu faço com isso" — os dois
+              competiam no mesmo bloco antes, só separados por gap */}
+          <div style={DIVISOR} />
+          <div style={ROTULO}>ações</div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button style={BOTAO} onClick={aoGirar}>
               girar
@@ -316,27 +400,7 @@ export function PainelEdicao({
         descartar e voltar à fonte
       </button>
 
-      <div>
-        <div style={ROTULO}>passo · {estado.passo}</div>
-        <ul
-          style={{
-            margin: '6px 0 0',
-            padding: 0,
-            listStyle: 'none',
-            color: '#a89f8c',
-            lineHeight: 1.7,
-            fontSize: 11,
-          }}
-        >
-          <li>arrastar · mover livre</li>
-          <li>setas · mover pelo passo</li>
-          <li>Q W · girar &nbsp; Tab · próxima</li>
-          <li>A Z · altura</li>
-          <li>[ ] · passo &nbsp; Del · excluir</li>
-          <li>Ctrl+Z · desfazer &nbsp; Ctrl+Shift+Z · refazer</li>
-          <li>E · sair</li>
-        </ul>
-      </div>
+      <div style={ROTULO}>passo · {estado.passo} <span style={{ opacity: 0.7 }}>· [ ] muda</span></div>
       </div>
     </>
   )

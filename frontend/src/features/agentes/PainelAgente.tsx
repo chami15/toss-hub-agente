@@ -17,7 +17,7 @@ import { corCss, RetratoAgente } from './RetratoAgente'
 //   largo    → dashboard e formulário tabular. Escurece o escritório
 //              atrás, porque aí a atenção é toda no painel.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 
 const LARGURAS = {
   estreito: 360,

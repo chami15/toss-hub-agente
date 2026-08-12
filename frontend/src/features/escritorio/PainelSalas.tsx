@@ -21,7 +21,7 @@ import type { SalaDados } from './sala-dados'
 // Só aparece em dev (podeGravarNaFonte): sem servidor, não tem onde
 // escrever nem apagar arquivo.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 
 const CARTAO: React.CSSProperties = {
   position: 'absolute',

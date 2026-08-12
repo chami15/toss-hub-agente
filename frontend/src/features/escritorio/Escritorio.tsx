@@ -344,8 +344,11 @@ export function Escritorio() {
           flexDirection: 'column',
           gap: 8,
           alignItems: 'center',
-          background: 'rgba(20, 22, 27, 0.93)',
+          background: 'rgba(27, 30, 37, 0.55)',
+          backdropFilter: 'blur(18px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(18px) saturate(160%)',
           border: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 18px 40px -18px rgba(0,0,0,0.6)',
           borderRadius: 14,
           padding: 8,
         }}
@@ -460,23 +463,35 @@ function BotaoIcone({
         color: destaque ? '#4ade80' : '#e6e1d6',
         cursor: carregando ? 'default' : 'pointer',
         opacity: carregando ? 0.6 : 1,
+        // o glow "respirando" só faz sentido parado (carregando já tem
+        // seu próprio feedback visual — opacidade reduzida)
+        animation: destaque && !carregando ? 'consoleGoGlow 2.6s ease-in-out infinite' : undefined,
       }}
     >
       {children}
       {badge && (
-        <span
-          style={{
-            position: 'absolute',
-            top: -3,
-            right: -3,
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            background: '#ef4444',
-            border: '2px solid rgba(20,22,27,0.93)',
-          }}
-          aria-label="mensagens não lidas"
-        />
+        <span style={{ position: 'absolute', top: -3, right: -3, width: 10, height: 10 }} aria-label="mensagens não lidas">
+          <span
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: '50%',
+              background: '#ef4444',
+              border: '2px solid rgba(27,30,37,0.9)',
+            }}
+          />
+          {/* anel expandindo — achado em designspells.com (várias telas
+              usam "ping" pra pendência viva, não só uma bolinha estática) */}
+          <span
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: '50%',
+              background: '#ef4444',
+              animation: 'consolePing 1.8s cubic-bezier(.4,0,.6,1) infinite',
+            }}
+          />
+        </span>
       )}
     </button>
   )

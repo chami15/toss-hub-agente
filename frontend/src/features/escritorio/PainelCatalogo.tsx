@@ -5,8 +5,12 @@ import { categoriasComPecas, miniatura, pecasDaCategoria, rotuloDe } from './cat
 // pra não roubar a tela da maquete — clicar numa peça põe ela no
 // centro da sala já selecionada, pronta pra arrastar.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 
+// Superfície de trabalho, não instrumento flutuante — chapa opaca
+// (`--deck`) e cantos retos, mesma regra do resto da casa (docs/
+// frontend-design.md, "redesenho do HUD"). Era translúcido com cantos
+// bem arredondados em tudo; decisão explícita do chefe foi cortar isso.
 const PAINEL: React.CSSProperties = {
   position: 'absolute',
   right: 0,
@@ -16,8 +20,8 @@ const PAINEL: React.CSSProperties = {
   fontFamily: MONO,
   fontSize: 12,
   color: '#e6e1d6',
-  background: 'rgba(20, 22, 27, 0.95)',
-  borderLeft: '1px solid rgba(255,255,255,0.12)',
+  background: 'var(--deck)',
+  borderLeft: '1px solid var(--deck-line)',
   display: 'flex',
   flexDirection: 'column',
   userSelect: 'none',
@@ -28,7 +32,7 @@ const ABAS: React.CSSProperties = {
   flexWrap: 'wrap',
   gap: 4,
   padding: 10,
-  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  borderBottom: '1px solid var(--deck-line)',
 }
 
 const GRADE: React.CSSProperties = {
@@ -42,9 +46,9 @@ const GRADE: React.CSSProperties = {
 }
 
 const CELULA: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 6,
+  background: 'var(--deck-2)',
+  border: '1px solid var(--deck-line)',
+  borderRadius: 4,
   padding: 6,
   cursor: 'pointer',
   display: 'flex',
@@ -74,9 +78,10 @@ export function PainelCatalogo({ aberto, aoAlternar, aoAdicionar }: Props) {
           right: 16,
           top: 16,
           fontFamily: MONO,
+          fontWeight: 600,
           fontSize: 12,
-          background: 'rgba(20,22,27,0.9)',
-          border: '1px solid rgba(255,255,255,0.14)',
+          background: 'var(--deck-2)',
+          border: '1px solid var(--deck-line)',
           borderRadius: 6,
           color: '#e6e1d6',
           padding: '7px 12px',
@@ -121,12 +126,14 @@ export function PainelCatalogo({ aberto, aoAlternar, aoAdicionar }: Props) {
         {categorias.map((c) => (
           <button
             key={c.id}
+            className="console-aba"
+            data-ativo={c.id === categoria}
             onClick={() => setCategoria(c.id)}
             style={{
-              background: c.id === categoria ? 'rgba(74,222,128,0.18)' : 'rgba(255,255,255,0.06)',
-              border: `1px solid ${c.id === categoria ? 'rgba(74,222,128,0.45)' : 'rgba(255,255,255,0.12)'}`,
-              borderRadius: 5,
-              color: '#e6e1d6',
+              background: 'var(--deck-2)',
+              border: '1px solid var(--deck-line)',
+              borderRadius: 4,
+              color: c.id === categoria ? '#e6e1d6' : '#8d8779',
               font: 'inherit',
               fontSize: 10.5,
               padding: '4px 7px',
@@ -140,11 +147,18 @@ export function PainelCatalogo({ aberto, aoAlternar, aoAdicionar }: Props) {
 
       <div style={GRADE}>
         {pecas.map((p) => (
-          <button key={p} style={CELULA} onClick={() => aoAdicionar(p)} title={rotuloDe(p)}>
+          <button key={p} className="catalogo-celula" style={CELULA} onClick={() => aoAdicionar(p)} title={rotuloDe(p)}>
             <img
               src={miniatura(p)}
               alt=""
-              style={{ width: '100%', height: 52, objectFit: 'contain' }}
+              style={{
+                width: '100%',
+                height: 52,
+                objectFit: 'contain',
+                border: '1px solid var(--deck-line)',
+                borderRadius: 3,
+                background: 'rgba(0,0,0,0.2)',
+              }}
             />
             <span
               style={{

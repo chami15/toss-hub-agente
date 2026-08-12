@@ -2,7 +2,7 @@
 // de edição. x/y já vêm em coordenada de tela (edicao.ts calcula via
 // sprite.getGlobalPosition()) — aqui só posiciona por cima do sprite.
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
+const MONO = 'var(--fonte-display), ui-monospace, SFMono-Regular, Menlo, monospace'
 
 interface Props {
   popup: { texto: string; x: number; y: number } | null
