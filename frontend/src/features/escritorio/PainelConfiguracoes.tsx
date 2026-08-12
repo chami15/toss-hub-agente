@@ -3,6 +3,7 @@ import { useCriarEventoMundo, useEventosMundo } from '../../hooks/useEventosMund
 import { useOrcamentoDoDia, useTickAtual } from '../../hooks/useTick'
 import { mensagemDeErro } from '../../api/client'
 import { BarraCapsula, Contador } from '../agentes/Barras'
+import { definirSomAtivo, somAtivo } from './som'
 import type { ResultadoAvancoMundo } from '../../hooks/useMundo'
 import type { InteracaoAgente } from '../../types/interacao'
 
@@ -202,6 +203,10 @@ interface Props {
 export function PainelConfiguracoes({ aoFechar, dryRunAtivo, aoAlternarDryRun, ultimoResultado }: Props) {
   const { data: tick, error: erroTick } = useTickAtual()
   const { data: orcamento } = useOrcamentoDoDia()
+  // lazy init: lê do localStorage uma vez, na montagem (mesmo padrão do
+  // dry_run em Escritorio.tsx) — quem TOCA o som lê `somAtivo()` direto
+  // na hora (Escritorio.tsx), este estado é só o desenho do interruptor
+  const [somLigado, setSomLigado] = useState(somAtivo)
 
   // Enquanto o modo simulado está ligado E já existe uma prévia, ela
   // SUBSTITUI a leitura real na tela — é o "tudo volta a como era antes"
@@ -272,6 +277,24 @@ export function PainelConfiguracoes({ aoFechar, dryRunAtivo, aoAlternarDryRun, u
                 </div>
               </div>
               <Interruptor ligado={dryRunAtivo} onChange={aoAlternarDryRun} />
+            </div>
+          </div>
+
+          <div style={SECAO}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 12.5 }}>som de notificações</div>
+                <div style={{ color: '#8d8779', fontSize: 10.5, marginTop: 2, maxWidth: 260 }}>
+                  um tom sutil quando um agente faz algo por conta própria num avanço
+                </div>
+              </div>
+              <Interruptor
+                ligado={somLigado}
+                onChange={(v) => {
+                  setSomLigado(v)
+                  definirSomAtivo(v)
+                }}
+              />
             </div>
           </div>
 

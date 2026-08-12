@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useGerarCard, useProjetos } from '../../hooks/useNorte'
 import type { Projeto, StatusProjeto } from '../../types/norte'
+import { EsqueletoPainel } from '../agentes/EsqueletoPainel'
 import { CardAtivo } from './CardAtivo'
 import { AVISO_ERRO, BOTAO, BOTAO_PRINCIPAL, CARTAO, CORPO, ROTULO } from './estilos'
 import { FormCardManual } from './FormCardManual'
@@ -32,7 +33,7 @@ export function PainelNorte() {
   const [vista, setVista] = useState<Vista>({ tela: 'lista' })
   const { data: projetos, isLoading, error } = useProjetos()
 
-  if (isLoading) return <div style={CORPO}>carregando projetos…</div>
+  if (isLoading) return <EsqueletoPainel />
   if (error) {
     return (
       <div style={CORPO}>

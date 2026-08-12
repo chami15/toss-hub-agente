@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useDashboardFinanceiro } from '../../hooks/useFinanceiro'
 import { Contador } from '../agentes/Barras'
+import { EsqueletoPainel } from '../agentes/EsqueletoPainel'
 import type { DashboardFinanceiro } from '../../types/financeiro'
 import { AVISO_ERRO, BOTAO, CAMPO, CARTAO, CORPO, ROTULO } from './estilos'
 import { BarrasCategoria, ColunasDiarias, moeda } from './graficos'
@@ -62,7 +63,7 @@ export function PainelFinanceiro() {
 function Dashboard({ mes }: { mes: string }) {
   const { data, isLoading, error } = useDashboardFinanceiro(mes)
 
-  if (isLoading) return <div style={CORPO}>carregando…</div>
+  if (isLoading) return <EsqueletoPainel />
   if (error) {
     return (
       <div style={CORPO}>

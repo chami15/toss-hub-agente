@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { mensagemDeErro } from '../../api/client'
 import { useDashboard, usePerfil, useRegistrarHidratacao, useRegistrarPeso } from '../../hooks/useSaude'
 import { Contador } from '../agentes/Barras'
+import { EsqueletoPainel } from '../agentes/EsqueletoPainel'
 import { AVISO_ERRO, BOTAO, CAMPO, CORPO, ROTULO } from './estilos'
 import { FichaTreino } from './FichaTreino'
 import { FormPerfil } from './FormPerfil'
@@ -43,7 +44,7 @@ export function PainelSaude() {
   const { data: perfil, isLoading, error } = usePerfil()
   const [vista, setVista] = useState<Vista>('menu')
 
-  if (isLoading) return <div style={CORPO}>carregando…</div>
+  if (isLoading) return <EsqueletoPainel />
 
   if (error) {
     return (

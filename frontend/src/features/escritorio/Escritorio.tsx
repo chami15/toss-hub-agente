@@ -20,6 +20,7 @@ import { useAvancarMundo, type ResultadoAvancoMundo } from '../../hooks/useMundo
 import { useContagemNaoLidas } from '../../hooks/useMensagens'
 import { useAgentes } from '../../hooks/useAgentes'
 import { definirDryRunAtivo, dryRunEstaAtivo, lerPreviewSalva, salvarPreview } from './dry-run'
+import { somAtivo, tocarSom } from './som'
 import { corCss } from '../agentes/RetratoAgente'
 import { mensagemDeErro } from '../../api/client'
 import type { EstadoAgente } from '../../types/agente'
@@ -124,6 +125,9 @@ export function Escritorio() {
         notificar({ tipo: 'aviso', titulo: interacao.agente_nome, texto: interacao.aviso, cor })
       } else if (interacao.tipo === 'trabalho' && interacao.motivo) {
         notificar({ tipo: 'info', titulo: interacao.agente_nome, texto: interacao.motivo, cor })
+        // som só pra trabalho proativo — é o evento raro/relevante; um
+        // "bipe" a cada papo social do tick ia virar ruído rapidinho
+        if (somAtivo()) tocarSom()
       } else if (
         interacao.tipo === 'social' &&
         interacao.quer_falar &&
