@@ -15,11 +15,15 @@ import { PainelDoAgente } from '../agentes/PainelDoAgente'
 import { PainelMensagens } from '../agentes/PainelMensagens'
 import { PainelConfiguracoes } from './PainelConfiguracoes'
 import { IconeAvancarTick, IconeConfiguracoes, IconeMensagens } from './icones'
+import { Toasts, useToasts } from './Toasts'
 import { useAvancarMundo, type ResultadoAvancoMundo } from '../../hooks/useMundo'
 import { useContagemNaoLidas } from '../../hooks/useMensagens'
 import { useAgentes } from '../../hooks/useAgentes'
 import { definirDryRunAtivo, dryRunEstaAtivo, lerPreviewSalva, salvarPreview } from './dry-run'
+import { corCss } from '../agentes/RetratoAgente'
+import { mensagemDeErro } from '../../api/client'
 import type { EstadoAgente } from '../../types/agente'
+import type { RodadaProcessada } from '../../types/interacao'
 
 // Hospeda o mundo isométrico. React cuida do ciclo de vida do canvas e
 // dos painéis; tudo que é desenho mora em cena.ts / maquete.ts. O
@@ -60,6 +64,7 @@ export function Escritorio() {
   )
   const avancar = useAvancarMundo()
   const contagemNaoLidas = useContagemNaoLidas()
+  const { toasts, notificar, fechar } = useToasts()
   // estado vivo (idle/falando/pensando/executando) pro anel do crachá
   // na cena isométrica — mesmo dado que já existia (GET /agentes),
   // só nunca tinha chegado até o desenho antes deste redesenho
@@ -90,12 +95,57 @@ export function Escritorio() {
     setUltimoResultado(ativo ? lerPreviewSalva() : null)
   }
 
+  // cor de identidade do agente, pro toast tingir a borda do mesmo jeito
+  // que o card do Norte e a bolha de proposta da Agenda já tingem — vem
+  // do config LOCAL da cena (AGENTES), não da lista ao vivo, porque é só
+  // aparência e mesmo um agente ainda não carregado tem cor definida
+  function corDoAgente(nome: string): string | undefined {
+    const local = AGENTES.find((a) => a.nome === nome)
+    return local ? corCss(local.cor) : undefined
+  }
+
+  // Traduz o resultado de uma rodada real (nunca dry_run — prévia não
+  // avisa nada) em notificações passageiras: hoje `rodada.interacoes` só
+  // aparecia pra quem tivesse o painel de configurações aberto na hora
+  // certa. Sem isso, um card gerado pelo Norte ou um alerta do Cifra
+  // passava batido até o chefe abrir aquele painel por acaso.
+  function notificarResultadoDaRodada(rodada: RodadaProcessada | null, avisoRodada?: string) {
+    if (!rodada) {
+      if (avisoRodada) notificar({ tipo: 'aviso', texto: avisoRodada })
+      return
+    }
+    if (rodada.aviso) notificar({ tipo: 'aviso', texto: rodada.aviso })
+
+    const chefeId = agentesAoVivoRef.current?.find((a) => a.tipo === 'chefe')?.id
+
+    for (const interacao of rodada.interacoes) {
+      const cor = corDoAgente(interacao.agente_nome)
+      if (interacao.aviso) {
+        notificar({ tipo: 'aviso', titulo: interacao.agente_nome, texto: interacao.aviso, cor })
+      } else if (interacao.tipo === 'trabalho' && interacao.motivo) {
+        notificar({ tipo: 'info', titulo: interacao.agente_nome, texto: interacao.motivo, cor })
+      } else if (
+        interacao.tipo === 'social' &&
+        interacao.quer_falar &&
+        interacao.mensagem &&
+        interacao.destinatario_id === chefeId
+      ) {
+        notificar({ tipo: 'info', titulo: interacao.agente_nome, texto: interacao.mensagem, cor })
+      }
+    }
+  }
+
   function aoClicarAvancar() {
     avancar.mutate(dryRunAtivo, {
       onSuccess: (resultado) => {
         setUltimoResultado(resultado)
-        if (dryRunAtivo) salvarPreview(resultado)
+        if (dryRunAtivo) {
+          salvarPreview(resultado)
+          return
+        }
+        notificarResultadoDaRodada(resultado.rodada, resultado.avisoRodada)
       },
+      onError: (erro) => notificar({ tipo: 'erro', texto: mensagemDeErro(erro) }),
     })
   }
 
@@ -465,6 +515,8 @@ export function Escritorio() {
           aoAdicionar={(peca) => chamar((e) => e.adicionar(peca))}
         />
       )}
+
+      <Toasts toasts={toasts} aoFechar={fechar} />
     </div>
   )
 }
