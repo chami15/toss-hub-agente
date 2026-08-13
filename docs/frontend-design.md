@@ -360,6 +360,11 @@ o que vale hoje é a seção seguinte.
   escritório 2D — `'falando'` numa mensagem social, `'executando'` numa
   proatividade de trabalho; volta a `'idle'` no próximo
   `POST /tick/avancar`.
+  - **Construído**: o anel do crachá anima por estado (pontilhado
+    pulsante em `pensando`, halo em `falando`, cometa girando em
+    `executando`), via `Ticker.shared` do Pixi — ver "Construído —
+    redesenho visual 'Console'" abaixo e `docs/guia-tecnico-frontend.md`
+    Parte 11 pro detalhe técnico da animação.
 - `POST /interacao/tick/processar?dry_run=true` mostra, sem gastar nem
   executar nada, quem trabalharia/falaria e com quem/sobre o quê nesse
   tick — útil como preview antes de confirmar de verdade.
@@ -647,6 +652,58 @@ são o que a API já suporta e o frontend precisa cobrir.
 - **RNF09 (tick sempre manual):** nenhuma automação de relógio nesta
   fase — todo avanço de tick é uma ação deliberada do chefe, mesma
   disciplina do RNF01 aplicada ao próprio motor de interação.
+
+---
+
+## Construído — redesenho visual "Console"
+
+Depois que as quatro telas de agente e o HUD do motor de tick já
+estavam funcionalmente prontos (seções acima), o chefe pediu uma
+segunda passada — **"outra cara"** pro hub, saindo do estilo "console de
+debug" (monoespaçado, translúcido, cantos muito arredondados) sem mexer
+em nenhuma decisão de interação já tomada. Detalhe técnico completo em
+`docs/guia-tecnico-frontend.md`, Parte 11 — aqui só as decisões de
+design.
+
+- **Superfície opaca ("deck") em vez de vidro translúcido** — vale pra
+  catálogo, configurações, edição, mensagens e os quatro painéis de
+  agente. **Vidro (blur) fica reservado só pro HUD** (os clusters de
+  ícone nos cantos) — é a única camada que fica sempre por cima de tudo
+  o mais, então faz sentido ela parecer "flutuante"; conteúdo é
+  superfície de trabalho, não instrumento.
+- **Cantos retos** (`--radius-deck: 7px`, botões 6px) em vez de pill —
+  pedido explícito do chefe, "algo mais sólido".
+- **Tipografia própria**: par de fontes de exibição + corpo (placeholder
+  de Chubbo/Supreme via Google Fonts — Fontshare está bloqueado neste
+  ambiente; trocável depois sem tocar em nenhum componente, só o
+  `@font-face`).
+- **Biblioteca de barras reutilizável** (`features/agentes/Barras.tsx`):
+  cápsula (progresso contínuo — orçamento), segmentada (etapas discretas
+  — dias de treino, kanban), radial, indeterminada, e um `Contador` que
+  anima o dígito quando o número muda — usado em todo KPI do Cifra e da
+  Vita.
+- **Cada agente ganhou um tratamento específico**, não um verniz
+  genérico repetido quatro vezes: gráficos do Cifra em cartões próprios,
+  ficha de treino da Vita com barra de progresso da semana, colunas do
+  kanban do Norte tingidas pela cor do status, bolha de proposta da
+  Agenda pulsando na cor "oficial" enquanto espera confirmação.
+- **Sistema de notificação (toast)**: o resultado de um avanço de tick
+  real (aviso da rodada, aviso pontual de um agente, trabalho proativo,
+  mensagem social endereçada ao chefe) vira uma notificação passageira
+  empilhada perto do ícone de avançar tick, tingida pela cor do agente
+  que a gerou. Resolve uma lacuna real: antes disso, `rodada.interacoes`
+  só aparecia pra quem tivesse o painel de configurações aberto na hora
+  certa — um card gerado pelo Norte ou uma falha de rede no próprio
+  avanço passavam batido.
+- **Code-splitting por painel + esqueleto de carregamento**: cada painel
+  de agente virou chunk próprio, carregado só quando aquele agente é
+  aberto; o "carregando…" em texto puro virou um esqueleto no mesmo tom
+  "deck", reaproveitado tanto pro carregamento do chunk quanto pro
+  carregamento do dado.
+- **Som opcional** (toggle em configurações, desligado por padrão): tom
+  curto sintetizado via Web Audio, sem asset de áudio, tocando só
+  quando um agente faz trabalho proativo — não em toda notificação, pra
+  não virar ruído.
 
 ---
 

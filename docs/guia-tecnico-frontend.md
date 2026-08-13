@@ -106,7 +106,7 @@ olho percebe isso na hora.
 | Build/dev server | **Vite** | Hot reload rápido, é o "uvicorn do front". CORS do backend já configurado pra porta 5173. |
 | UI | **React** | Cuida só do ciclo de vida do canvas e das telas de painel. |
 | Renderização do mundo | **PixiJS v8** | Renderizador 2D acelerado por GPU. **Não é engine de jogo** (não tem física/cena/input como Phaser) — resolve exatamente o que dói: milhares de sprites, ordenação por profundidade, animação, câmera. |
-| Estilo (painéis) | **Tailwind CSS v4** | Iteração visual rápida fora do canvas. |
+| Estilo (painéis) | **Objetos inline `React.CSSProperties` + CSS custom properties** (`index.css`) | Tailwind v4 está instalado e importado, mas não é o método usado nos componentes — a convenção real que se consolidou é estilo inline por componente, com os tokens de design (cor, raio, fonte) centralizados como variáveis CSS (`var(--deck)`, `var(--radius-deck)` etc., ver Parte 11) em vez de classe utilitária. Documentado aqui porque a tabela original previa Tailwind e a prática divergiu. |
 | Estado do servidor | **TanStack Query** | Cache/loading/erro/refetch dos dados da API. |
 | Chamadas HTTP | **axios** | Só dentro do `api client`, nunca direto nos componentes. |
 | Testes | **Vitest** + **Playwright** | Playwright também é usado pra *verificação visual* durante o desenvolvimento (screenshot + checagem de erro no console). |
@@ -802,6 +802,138 @@ Se a abertura/fechamento for animada (slide-in), vale a mesma regra de
 performance da PARTE 5: só `transform`/`opacity`, nunca animar
 `width`/`left`/`right` — isso forçaria recálculo de layout a cada
 frame.
+
+---
+
+# PARTE 11 — Redesenho visual "Console"
+
+Decisões de DESIGN desse redesenho moram em `frontend-design.md`
+("Construído — redesenho visual 'Console'"). Aqui só a parte técnica:
+como cada peça foi implementada.
+
+## Tokens de design centralizados
+
+Todo o vocabulário visual (cor, raio, fonte) vive como CSS custom
+property em `index.css`, num bloco `:root` só — nenhum componente
+declara um hex de cor "solto" fora desse bloco:
+
+```css
+--void: #08090c;   --deck: #14161b;   --deck-2: #1b1e25;
+--deck-line: rgba(255,255,255,0.09);
+--ink: #e6e1d6;    --ink-dim: #8d8779; --ink-faint: #5b584e;
+--accent: #5eead4; --good: #4ade80;   --official: #dbb15f;
+--info: #7fb8de;   --danger: #ef4444;
+--cifra: #16a34a;  --agenda: #2563eb; --vita: #f97316; --norte: #0891b2;
+--fonte-display: 'ConsoleDisplay', ...;  --fonte-corpo: 'ConsoleCorpo', ...;
+--radius-deck: 7px;
+```
+
+Cada cor semântica (`--good`, `--official`, `--info`, `--danger`) tem
+uma variante `-rgb` irmã (`--good-rgb: 74,222,128`), porque `box-shadow`
+com alpha variável precisa de `rgba(var(--good-rgb), 0.35)` — CSS não
+deixa extrair os componentes RGB de uma cor já resolvida.
+
+## Fontes: placeholder documentado, não gambiarra silenciosa
+
+O par pedido pelo chefe (Chubbo Bold + Supreme Regular, via Fontshare)
+não pôde ser baixado — o sandbox bloqueia `fontshare.com`. A solução foi
+uma substituta **variável** e **de licença livre** por eixo tipográfico
+(não por peso fixo): Fraunces (weight 100–900, tem os eixos `opsz`/
+`wght`/`SOFT`) no lugar de Chubbo, Manrope (weight 200–800) no lugar de
+Supreme, ambas do Google Fonts, auto-hospedadas em
+`public/fonts/*.woff2` com `@font-face` de range de peso. Trocar pelos
+arquivos reais depois é só substituir os dois `.woff2` — nenhum
+componente referencia o nome da fonte diretamente, todos usam
+`var(--fonte-display)`/`var(--fonte-corpo)`.
+
+## Biblioteca de barras (`features/agentes/Barras.tsx`)
+
+Cinco componentes puros de apresentação, sem chamada de API: `BarraCapsula`
+(progresso contínuo 0–100), `BarraSegmentada` (N etapas discretas, cada
+uma ou preenchida ou vazia), `BarraRadial` (anel SVG), `BarraIndeterminada`
+(sem valor conhecido — animação de vaivém), e `Contador` (número que
+"gira" um dígito, via `useRef` guardando o valor anterior e comparando a
+cada render — só anima quando o valor de fato mudou, nunca no primeiro
+render).
+
+## Avatares vivos: animação do anel sem depender de `Application`
+
+O anel do crachá (`cena.ts`) precisa animar continuamente (halo
+pulsando, cometa girando) sem ter acesso direto à instância `Application`
+do Pixi que só existe dentro de `Escritorio.tsx`. Solução: `Ticker.shared`
+— o ticker GLOBAL do Pixi, que roda independente de qual `Application`
+foi criada, com `remove()` explícito no cleanup pra nunca vazar um
+ticker de uma cena já desmontada.
+
+Cada avatar tem um `ControladorAnel` (`{ definirEstado, animar }`)
+guardado num `Map<agenteId, ControladorAnel>` dentro da cena. Quando o
+estado muda (`idle → falando`, etc.), `definirEstado` troca a
+visibilidade/desenho de três `Graphics` sobrepostos (anel base, halo,
+cometa) — nunca redesenha o crachá inteiro. `animar(deltaMS,
+tempoTotalMS)` roda a cada frame só pros controladores cujo estado
+precisa de movimento contínuo (halo e cometa; o anel pontilhado de
+`pensando` é estático, só o padrão de traço muda).
+
+Três bugs visuais reais encontrados testando (nenhum era bug de
+lógica — o estado sempre aplicava certo, era a renderização que não
+comunicava):
+1. **Cometa invisível**: desenhado na MESMA cor do anel base — dois
+   traços sobrepostos da mesma cor não se distinguem. Corrigido com uma
+   função `clarear(cor, quantidade)` que mistura em direção ao branco
+   (`canal + (255 - canal) * quantidade`), gerando uma cor mais clara
+   só pro cometa.
+2. **Pontilhado pouco legível**: 10 traços finos com 55% de
+   preenchimento viravam quase invisíveis no tamanho real do avatar em
+   jogo (a antialiasing engolia o vão). Reduzido pra 6 traços com 60%
+   de preenchimento — menos traços, mais largos, lê melhor em escala
+   pequena.
+3. **Halo apagado demais**: o `stroke()` do halo já vinha com `alpha`
+   embutido, e `animar()` TAMBÉM setava o `alpha` do objeto a cada
+   frame — os dois multiplicam, então o alpha efetivo era um terço do
+   pretendido. Corrigido tirando o alpha do `stroke()` e deixando só
+   `animar()` controlar, com faixa maior (0.25–0.9).
+
+## Toasts (`features/escritorio/Toasts.tsx`)
+
+Pilha de notificação própria, empilhada acima do ícone de avançar tick
+(zIndex 80 — acima até do HUD, zIndex 65, porque uma notificação nunca
+pode ficar escondida atrás de um painel aberto). `useToasts()` é um hook
+local a `Escritorio.tsx` (não um Context global — só um consumidor
+existe hoje), com auto-dispensa por tipo (6s info/sucesso, 8s aviso, 9s
+erro) e uma animação de saída (`saindo: true` por 250ms antes de
+remover de fato, pra não sumir seco).
+
+Gatilho: dentro de `aoClicarAvancar` (`Escritorio.tsx`), no `onSuccess`/
+`onError` de `useAvancarMundo`. Só dispara em avanço REAL (nunca
+`dry_run` — prévia não avisa nada). Cor de cada toast vem do agente que
+gerou o evento (`AGENTES.find(a => a.nome === ...)`, mesmo config local
+usado pra colorir o crachá), não uma cor genérica por tipo.
+
+## Code-splitting por painel + esqueleto
+
+Os quatro painéis de agente (`PainelDoAgente.tsx`) viraram `React.lazy`,
+cada um seu próprio chunk — confirmado no build (`PainelFinanceiro`
+12kB, `PainelNorte` 15kB, `PainelSaude` 25kB, `PainelAgenda` 5kB, todos
+fora do bundle principal). O `Suspense` fica só em volta dos `children`
+de `PainelAgente`, nunca do componente inteiro — a moldura (retrato,
+nome, estado, botão de fechar) é síncrona e aparece na hora, só o
+CONTEÚDO mostra o esqueleto enquanto o chunk carrega.
+
+`EsqueletoPainel` (`features/agentes/EsqueletoPainel.tsx`) é reaproveitado
+em dois lugares: o fallback do `Suspense` (chunk carregando) e o
+`isLoading` de cada painel (dado ainda não chegou) — mesmo componente,
+duas causas diferentes de "ainda não posso mostrar o conteúdo real".
+
+## Som opcional (`features/escritorio/som.ts`)
+
+Tom sintetizado via Web Audio (`OscillatorNode` + `GainNode`, envelope
+curto ~300ms) em vez de um arquivo de áudio — sem asset pra carregar.
+Toggle persistido em `localStorage` (mesmo padrão de `dry-run.ts`),
+**desligado por padrão** — som é opcional de verdade, ninguém deveria
+levar um susto de áudio sem ter pedido. `AudioContext` só é criado
+dentro do handler de clique de avançar tick (nunca antes), porque
+criar/tocar áudio fora de um gesto do usuário esbarra na política de
+autoplay do navegador.
 
 ---
 

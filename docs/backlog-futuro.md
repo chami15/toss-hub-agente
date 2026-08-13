@@ -462,15 +462,6 @@ popup ancorado no crachá — o mecanismo visual já existe
 de porta é `pointerEvents: none`) e um gesto de abertura que não
 conflite com o clique que abre o painel.
 
-**Norte — sinalização de "estagnado" na lista de projetos.**
-O cálculo existe e está testado no backend
-(`projetos:listar_estagnados` — tempo desde o último card resolvido, ou
-desde o cadastro), mas só é consumido pela proatividade do tick:
-`GET /norte/projetos` não devolve esse campo. A lista hoje mostra só
-"última atividade" (de `atualizado_em`), que **não** é a mesma regra.
-Fechar exige expor o dado na API primeiro — é trabalho de backend, não
-de tela.
-
 **Cifra — KPI de saldo do último extrato.**
 `saldo_ultimo_extrato` é sempre `null`: extrair saldo de fechamento não
 está implementado nos parsers (TODO declarado em
