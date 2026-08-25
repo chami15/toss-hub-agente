@@ -57,3 +57,63 @@ export interface MetricasInfra {
   por_agente: CustoPorAgente[]
   ultimos_erros: ErroExecucao[]
 }
+
+// --- painel de monitoramento (GET /infra/observabilidade) ---
+
+export interface PontoSerie {
+  hora: string
+  chamadas: number
+  erros: number
+  custo_usd: number
+  // null quando a hora não teve nenhuma chamada com duração medida
+  duracao_media_ms: number | null
+}
+
+export interface LatenciaAgente {
+  agente_id: number
+  agente_nome: string
+  especialidade: string
+  amostras: number
+  p50_ms: number
+  p95_ms: number
+  max_ms: number
+}
+
+export interface Dependencia {
+  especialidade: string
+  agente_nome: string
+  ultimo_ok: string | null
+  ultimo_erro: string | null
+}
+
+export interface Execucao {
+  id: number
+  tick: number | null
+  agente_nome: string
+  especialidade: string
+  modelo: string | null
+  tokens_in: number
+  tokens_out: number
+  custo_usd: number
+  duracao_ms: number | null
+  erro: string | null
+  criado_em: string | null
+  contexto_prompt: string | null
+  saida_bruta: string | null
+}
+
+export interface Observabilidade {
+  janela_horas: number
+  gerado_em: string
+  // os quatro sinais clássicos. `saturacao` é o ORÇAMENTO, não CPU:
+  // num hub cujo gargalo real é dinheiro de LLM, "quanto do teto já
+  // foi" é a medida honesta de quão perto o sistema está de parar.
+  latencia: { p50_ms: number | null; p95_ms: number | null; media_ms: number | null; amostras: number }
+  trafego: { chamadas: number; chamadas_por_hora: number }
+  erros: { total: number; taxa_sucesso: number }
+  saturacao: { gasto_usd: number; teto_usd: number; fracao: number }
+  serie: PontoSerie[]
+  latencia_por_agente: LatenciaAgente[]
+  dependencias: Dependencia[]
+  execucoes: Execucao[]
+}

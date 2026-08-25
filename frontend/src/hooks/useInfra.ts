@@ -12,3 +12,7 @@ export function useSaudeInfra() {
 export function useMetricasInfra(dias = 1) {
   return useQuery({ queryKey: ['infra', 'metricas', dias], queryFn: () => apiInfra.obterMetricas(dias) })
 }
+
+export function useObservabilidade(horas = 24) {
+  return useQuery({ queryKey: ['infra', 'observabilidade', horas], queryFn: () => apiInfra.obterObservabilidade(horas) })
+}

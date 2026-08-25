@@ -2,7 +2,7 @@
 // Mesmo molde dos outros domínios: um arquivo por domínio, nenhum
 // componente chama axios direto.
 import { api } from './client'
-import type { MetricasInfra, SaudeInfra } from '../types/infra'
+import type { MetricasInfra, Observabilidade, SaudeInfra } from '../types/infra'
 
 export async function obterSaude(): Promise<SaudeInfra> {
   const resposta = await api.get<SaudeInfra>('/infra/saude')
@@ -11,5 +11,10 @@ export async function obterSaude(): Promise<SaudeInfra> {
 
 export async function obterMetricas(dias = 1): Promise<MetricasInfra> {
   const resposta = await api.get<MetricasInfra>('/infra/metricas', { params: { dias } })
+  return resposta.data
+}
+
+export async function obterObservabilidade(horas = 24): Promise<Observabilidade> {
+  const resposta = await api.get<Observabilidade>('/infra/observabilidade', { params: { horas } })
   return resposta.data
 }
