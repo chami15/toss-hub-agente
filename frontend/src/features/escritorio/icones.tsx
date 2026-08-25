@@ -57,3 +57,15 @@ export function IconeConfiguracoes({ tamanho = 22 }: Props) {
     </svg>
   )
 }
+
+// Sala de máquinas — linha de pulso (monitor de sinal vital). Escolhido
+// por ser inconfundível ao lado da engrenagem de configurações: as duas
+// são "coisa de sistema", mas engrenagem é onde se MEXE e pulso é onde
+// se OLHA se está de pé.
+export function IconeSalaDeMaquinas({ tamanho = 22 }: Props) {
+  return (
+    <svg width={tamanho} height={tamanho} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12h4l2.5-6 4 12 2.5-6H22" />
+    </svg>
+  )
+}

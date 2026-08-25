@@ -14,7 +14,8 @@ import { PopupPorta } from './PopupPorta'
 import { PainelDoAgente } from '../agentes/PainelDoAgente'
 import { PainelMensagens } from '../agentes/PainelMensagens'
 import { PainelConfiguracoes } from './PainelConfiguracoes'
-import { IconeAvancarTick, IconeConfiguracoes, IconeMensagens } from './icones'
+import { IconeAvancarTick, IconeConfiguracoes, IconeMensagens, IconeSalaDeMaquinas } from './icones'
+import { PainelSalaDeMaquinas } from './PainelSalaDeMaquinas'
 import { Toasts, useToasts } from './Toasts'
 import { useAvancarMundo, type ResultadoAvancoMundo } from '../../hooks/useMundo'
 import { useContagemNaoLidas } from '../../hooks/useMensagens'
@@ -55,6 +56,10 @@ export function Escritorio() {
   // (decisão do chefe: as duas em lados opostos, pra não parecerem "a
   // mesma janela reaparecendo")
   const [configuracoesAbertas, setConfiguracoesAbertas] = useState(false)
+  // sala de máquinas — mesma regra de exclusividade das outras duas.
+  // Abre pela esquerda junto com elas: as três são "olhar o sistema",
+  // não "trabalhar com um agente".
+  const [salaDeMaquinasAberta, setSalaDeMaquinasAberta] = useState(false)
   // dry_run é um MODO, não uma ação — liga/desliga e persiste (mesmo
   // espírito do rascunho de sala): enquanto ligado, o ícone de avançar
   // só confere, nunca gasta nem grava. Lazy init lê do localStorage uma
@@ -194,6 +199,7 @@ export function Escritorio() {
           setAgenteAberto(id)
           setMensagensAbertas(false)
           setConfiguracoesAbertas(false)
+          setSalaDeMaquinasAberta(false)
         },
       })
       if (desmontado) return
@@ -276,10 +282,11 @@ export function Escritorio() {
       // Esc fecha o painel aberto — checado ANTES do filtro de campo de
       // texto logo abaixo, porque é justamente dentro do campo que a mão
       // está quando se quer fechar
-      if (e.key === 'Escape' && (agenteAberto || mensagensAbertas || configuracoesAbertas)) {
+      if (e.key === 'Escape' && (agenteAberto || mensagensAbertas || configuracoesAbertas || salaDeMaquinasAberta)) {
         setAgenteAberto(null)
         setMensagensAbertas(false)
         setConfiguracoesAbertas(false)
+        setSalaDeMaquinasAberta(false)
         return
       }
       // com um painel de agente, mensagens ou configurações aberto o
@@ -287,7 +294,7 @@ export function Escritorio() {
       // o modo de edição por baixo do painel (ou pior, editaria a sala
       // ÀS CEGAS por baixo do painel de configurações, que cobre o
       // mesmo canto esquerdo onde o HUD de edição vive)
-      if (mensagensAbertas || configuracoesAbertas) return
+      if (mensagensAbertas || configuracoesAbertas || salaDeMaquinasAberta) return
       if (agenteAberto) return
 
       const editor = editorRef.current
@@ -394,7 +401,7 @@ export function Escritorio() {
     // re-registra ao abrir/fechar painel: o atalho precisa enxergar o
     // valor atual de `agenteAberto`/`mensagensAbertas`/`configuracoesAbertas`,
     // não o da montagem
-  }, [agenteAberto, mensagensAbertas, configuracoesAbertas])
+  }, [agenteAberto, mensagensAbertas, configuracoesAbertas, salaDeMaquinasAberta])
 
   const chamar = useCallback((f: (e: Editor) => void) => {
     const editor = editorRef.current
@@ -407,7 +414,7 @@ export function Escritorio() {
       {estado && (
         <PainelEdicao
           estado={estado}
-          mostrarDica={!agenteAberto && !mensagensAbertas && !configuracoesAbertas}
+          mostrarDica={!agenteAberto && !mensagensAbertas && !configuracoesAbertas && !salaDeMaquinasAberta}
           aoGirar={() => chamar((e) => e.girar(1))}
           aoDesfazer={() => chamar((e) => e.desfazer())}
           aoRefazer={() => chamar((e) => e.refazer())}
@@ -425,7 +432,7 @@ export function Escritorio() {
       {/* o menu de salas some com um agente (ou mensagens/configurações)
           aberto: trocar de sala no meio de uma conversa não faz sentido,
           mesma regra que já vale pro modo de edição */}
-      {!estado?.ativo && !agenteAberto && !mensagensAbertas && !configuracoesAbertas && <PainelSalas />}
+      {!estado?.ativo && !agenteAberto && !mensagensAbertas && !configuracoesAbertas && !salaDeMaquinasAberta && <PainelSalas />}
       {!estado?.ativo && <PopupPorta popup={estado?.popupPorta ?? null} />}
 
       {/* Mensagens + configurações — canto inferior ESQUERDO. Sempre
@@ -461,6 +468,7 @@ export function Escritorio() {
             setMensagensAbertas((v) => !v)
             setAgenteAberto(null)
             setConfiguracoesAbertas(false)
+            setSalaDeMaquinasAberta(false)
           }}
         >
           <IconeMensagens />
@@ -473,9 +481,23 @@ export function Escritorio() {
             setConfiguracoesAbertas((v) => !v)
             setAgenteAberto(null)
             setMensagensAbertas(false)
+            setSalaDeMaquinasAberta(false)
           }}
         >
           <IconeConfiguracoes />
+        </BotaoIcone>
+
+        <BotaoIcone
+          titulo="sala de máquinas"
+          ativo={salaDeMaquinasAberta}
+          onClick={() => {
+            setSalaDeMaquinasAberta((v) => !v)
+            setAgenteAberto(null)
+            setMensagensAbertas(false)
+            setConfiguracoesAbertas(false)
+          }}
+        >
+          <IconeSalaDeMaquinas />
         </BotaoIcone>
       </div>
 
@@ -512,6 +534,7 @@ export function Escritorio() {
           ultimoResultado={ultimoResultado}
         />
       )}
+      {salaDeMaquinasAberta && <PainelSalaDeMaquinas aoFechar={() => setSalaDeMaquinasAberta(false)} />}
       {estado?.ativo && (
         <PainelCatalogo
           aberto={catalogoAberto}
